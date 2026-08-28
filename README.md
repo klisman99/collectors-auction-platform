@@ -40,9 +40,12 @@ The goal is not to accumulate technologies. Every architectural addition must so
 - [Domain invariants](docs/domain/invariants.md)
 - [State machines](docs/domain/state-machines.md)
 - [System context](docs/architecture/system-context.md)
+- [Backend technology stack](docs/architecture/technology-stack.md)
+- [Backend modules](docs/architecture/modules.md)
 - [Milestones](docs/roadmap/milestones.md)
 - [ADR-0001: Start with a modular monolith](docs/adr/0001-start-with-a-modular-monolith.md)
+- [ADR-0002: Use Java and Spring Boot](docs/adr/0002-use-java-and-spring-boot.md)
 
 ## Current status
 
-Project foundation and domain discovery. No production code has been implemented yet.
+Project foundation and domain discovery. The backend is specified as a Java 25/Spring Boot 4.1 modular monolith; no production code has been implemented yet.

@@ -10,6 +10,8 @@ Dates are intentionally omitted until the weekly capacity is known. Each milesto
 - Business rules and invariants.
 - State machines and system context.
 - Initial ADR.
+- Java/Spring Boot technology baseline and version policy.
+- Executable modular-monolith skeleton with architecture verification.
 - Epics and prioritized tasks.
 
 ## M1 — Identity and collectible submission
