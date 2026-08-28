@@ -42,6 +42,8 @@ The database is the source of truth. Real-time delivery is a projection of persi
 
 Technology choices beyond this boundary will be recorded in separate ADRs. Kafka, Redis, microservices, and Kubernetes are intentionally not initial assumptions.
 
+ADR-0002 selects Java and Spring Boot for the deployable backend. The concrete baseline is maintained in [Backend technology stack](technology-stack.md), and the initial ownership and dependency rules are defined in [Backend modules](modules.md).
+
 ## Quality goals
 
 1. Correct auction outcomes under concurrency.
