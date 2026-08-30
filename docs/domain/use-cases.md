@@ -1,91 +1,133 @@
 # Use cases
 
-## UC-01 — Register and authenticate
+## UC-01 — Register, verify, and authenticate
 
 **Primary actor:** visitor
 
-**Outcome:** an account and revocable authenticated session are created.
+The visitor registers a regular account, chooses an immutable public handle, receives a simulated verification email, verifies, and signs in through a revocable session.
 
-**Important failures:** duplicate email, invalid credentials, suspended account, expired session.
+**Outcome:** a verified account may trade; an unverified account may authenticate and browse but cannot submit, schedule, or bid.
 
-## UC-02 — Submit a collectible
+**Important failures:** duplicate email or handle, invalid credentials, expired/single-use token, rate limit, or expired session.
 
-**Primary actor:** active user acting as seller
+## UC-02 — Recover credentials and manage sessions
 
-The user creates a trading-card draft, supplies the required attributes and images, and submits it for moderation.
+**Primary actor:** regular user
 
-**Outcome:** the item is waiting for review and cannot be silently edited.
+The user requests a simulated recovery email, resets the password, signs out, or revokes all sessions.
 
-## UC-03 — Moderate a collectible
+**Outcome:** password reset and account suspension revoke existing sessions; new authentication reflects current account restrictions.
 
-**Primary actor:** moderator
+## UC-03 — Manage operational accounts
 
-The moderator reviews the description and images, then approves or rejects the item with a reason.
+**Primary actor:** administrator
 
-**Outcome:** an approved item may be scheduled for auction; a rejected item returns to an editable state.
+The administrator invites a dedicated moderator or administrator and may later deactivate it.
 
-## UC-04 — Schedule an auction
+**Outcome:** operational access is auditable, non-trading, and never converts to or from a regular account.
 
-**Primary actor:** item owner
+## UC-04 — Create a collectible draft
 
-The seller configures opening amount, increment, reserve, start time, and end time for an approved item.
+**Primary actor:** verified active regular user acting as seller
 
-**Outcome:** the auction is scheduled and uses an immutable item snapshot.
+The seller creates one generic physical collectible, supplies required structured data, accepts the ownership declaration, and uploads one to five processed images.
 
-## UC-05 — View a live auction
+**Outcome:** a private editable draft is ready for submission.
 
-**Primary actor:** visitor or authenticated user
+## UC-05 — Submit and moderate a collectible
 
-The client loads the current auction snapshot and may subscribe to real-time accepted bids and deadline changes.
+**Primary actors:** seller and moderator
 
-**Outcome:** the client converges to server-authoritative state even after reconnecting.
+The seller submits the item. A moderator or administrator checks completeness, consistency, condition disclosure, ownership declaration, and prohibited-content policy, then approves or rejects.
 
-## UC-06 — Place a bid
+**Outcome:** an approved unchanged item may be auctioned; rejection returns it to draft with a reason.
 
-**Primary actor:** eligible authenticated bidder
-
-The bidder submits an amount and idempotency key.
-
-**Outcome:** the command is accepted, rejected with a business reason, or returned as a previously processed retry.
-
-**Concurrency concern:** multiple commands may compete against the same current amount.
-
-## UC-07 — Extend closing
-
-**Primary actor:** auction system
-
-An accepted bid inside the protection window moves the effective end time.
-
-**Outcome:** the new deadline is persisted and broadcast.
-
-## UC-08 — Close an auction
-
-**Primary actor:** auction system
-
-After the effective end time, the system prevents further bids and determines one result.
-
-**Outcome:** sold, unsold, or awaiting seller decision. Retrying closing does not create another result or sale.
-
-## UC-09 — Decide a below-reserve offer
+## UC-06 — Schedule and publish an auction
 
 **Primary actor:** seller
 
-The seller accepts or rejects the final highest bid before the decision deadline.
+The seller configures opening amount, increment, optional reserve, start, and end for an approved item.
+
+**Outcome:** published item and policy snapshots are immutable, and the auction appears in public scheduled discovery.
+
+## UC-07 — Reschedule, start, or seller-cancel
+
+**Primary actors:** seller and auction system
+
+Before start the seller may reschedule, lower the reserve, or cancel with a public reason. Server time starts due auctions and restart reconciliation catches missed transitions.
+
+**Outcome:** the auction becomes live inside its authoritative interval or ends cancelled without losing its audit history.
+
+## UC-08 — Browse and view a live auction
+
+**Primary actor:** visitor or authenticated user
+
+The client browses public scheduled, live, and ended lists, loads an authoritative auction snapshot, and may subscribe read-only to STOMP projections.
+
+**Outcome:** the client converges on server state after reconnect without relying on message delivery for correctness.
+
+## UC-09 — Place a bid
+
+**Primary actor:** eligible bidder
+
+The bidder submits an amount and idempotency key through HTTP. The system rate-limits, locks auction bidding state, validates, persists, sequences, and only then acknowledges.
+
+**Outcome:** the command is accepted, rejected with a business reason, or returned as a previous result.
+
+**Concurrency concern:** multiple commands may compete against the same current amount; one serialized durable order must result.
+
+## UC-10 — Extend closing
+
+**Primary actor:** auction system
+
+An eligible bid accepted inclusively within the final two minutes moves the effective end to two minutes after acceptance.
+
+**Outcome:** the persisted deadline changes and committed projections notify connected clients.
+
+## UC-11 — Suspend or cancel an auction
+
+**Primary actors:** moderator and administrator
+
+A moderator or administrator suspends a scheduled or live auction with a public reason. An administrator later resumes/releases or cancels it and chooses item disposition.
+
+**Outcome:** live time is frozen fairly, scheduled start is prevented, and every exceptional action is audited.
+
+## UC-12 — Suspend a regular account
+
+**Primary actor:** administrator
+
+The administrator suspends a regular account with a public reason and optional internal note.
+
+**Outcome:** sessions are revoked, seller auctions are suspended, all accepted bids in non-terminal auctions are permanently disqualified, and public state is recalculated without deleting history.
+
+## UC-13 — Close an auction
+
+**Primary actor:** auction system
+
+After effective end, the system atomically prevents new bids and selects the highest eligible accepted bid.
+
+**Outcome:** sold, unsold, or awaiting seller decision. Retry cannot create another result or sale.
+
+## UC-14 — Decide a below-reserve offer
+
+**Primary actor:** seller
+
+The seller accepts or rejects the eligible final bid within 24 hours. Disqualification may replace the offer and restart the window.
 
 **Outcome:** a sale is created or the auction ends unsold.
 
-## UC-10 — Simulate settlement
+## UC-15 — Simulate settlement
 
 **Primary actors:** buyer and seller
 
-The parties confirm simulated payment, shipment, and delivery.
+The buyer simulates payment, the seller supplies carrier and tracking reference, and the buyer confirms delivery. Durable deadlines may fail or automatically complete the settlement.
 
-**Outcome:** the sale is completed with an auditable transition history.
+**Outcome:** completion archives the item; failure releases it unchanged for another auction.
 
-## UC-11 — Suspend an account or auction
+## UC-16 — Inspect history and audit
 
-**Primary actor:** moderator or administrator
+**Primary actors:** visitor, regular user, moderator, and administrator
 
-A privileged user suspends an account or live auction with a reason.
+Each actor loads the timeline allowed by its role.
 
-**Outcome:** prohibited new actions stop immediately while historical state remains intact.
+**Outcome:** public facts, participant history, operational records, and internal notes remain correctly separated.

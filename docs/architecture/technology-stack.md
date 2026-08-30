@@ -1,60 +1,86 @@
-# Backend technology stack
+# Technology stack
 
-This document turns ADR-0002 into an implementation baseline. Exact versions were verified against official sources on 2026-08-28 and must be rechecked before they are changed.
+This document turns ADR-0002 into an implementation baseline. Exact backend versions were verified against official sources on 2026-08-30 and must be checked again before scaffolding or upgrading.
 
-## Baseline
+## Backend baseline
 
 | Concern | Choice | Baseline | Ownership |
 | --- | --- | --- | --- |
 | Language and runtime | Java | 25 LTS | Explicit project version |
 | Application framework | Spring Boot | 4.1.1 | Spring Boot parent/BOM |
-| Module verification | Spring Modulith | 2.1.1 | Spring Modulith BOM compatible with Boot 4.1 |
+| Module verification and durable events | Spring Modulith | 2.1.1 | Compatible Modulith BOM |
 | Build | Maven Wrapper | Maven 3.9.16 | Wrapper configuration |
 | Database | PostgreSQL | 18.6 | Deployment image and Testcontainers |
-| HTTP | Spring MVC | Boot-managed | Spring Boot BOM |
-| Authentication and authorization | Spring Security | Boot-managed | Spring Boot BOM |
-| Persistence | Spring Data JPA and PostgreSQL JDBC | Boot-managed | Spring Boot BOM |
-| Database migrations | Flyway | Boot-managed | Spring Boot BOM |
-| Real-time projection | Spring WebSocket | Boot-managed | Spring Boot BOM |
-| Validation | Jakarta Validation | Boot-managed | Spring Boot BOM |
-| Operations | Actuator and Micrometer | Boot-managed | Spring Boot BOM |
-| Testing | JUnit, Spring Boot Test, Spring Modulith Test, Testcontainers | Boot/Modulith-managed where available | Managed BOMs |
+| HTTP and validation | Spring MVC and Jakarta Validation | Boot-managed | Spring Boot BOM |
+| Authentication and authorization | Spring Security server-side sessions | Boot-managed | Spring Boot BOM |
+| Persistence and migrations | Spring Data JPA, PostgreSQL JDBC, Flyway | Boot-managed | Spring Boot BOM |
+| Realtime | Spring WebSocket with STOMP simple broker | Boot-managed | Spring Boot BOM |
+| Operations | Actuator, Micrometer, OpenTelemetry | Boot-managed where available | Reviewed integration |
+| Testing | JUnit, Spring Boot Test, Modulith Test, Testcontainers | BOM-managed where available | Build configuration |
 
-The `pom.xml` must avoid restating versions already managed by Spring Boot or Spring Modulith.
+The build must not restate versions already managed by Spring Boot or Spring Modulith.
+
+## Frontend baseline
+
+- React with TypeScript and Vite.
+- Tailwind CSS plus accessible headless component primitives.
+- Generated TypeScript types and client from backend-generated OpenAPI.
+- REST for commands and authoritative snapshots.
+- STOMP over WebSocket for committed public projections; reconnect always reloads REST state.
+- User-facing text in English, BRL formatting, and `America/Sao_Paulo` display time.
+
+Exact frontend dependency versions are selected from mutually compatible stable GA releases when the first executable slice is scaffolded and are controlled by the lockfile.
 
 ## Application shape
 
-- One Maven application and one executable Spring Boot JAR.
-- One root Java package with direct subpackages representing application modules.
-- One PostgreSQL database, with table ownership documented per module.
-- REST/JSON commands and queries. Errors use stable business-rule codes and Problem Details responses.
-- WebSocket messages project already committed auction state; they never decide whether a bid was accepted.
-- Background work claims due operations from durable database state so a process restart does not lose auction closing.
+- One Maven backend application and executable Spring Boot JAR.
+- One Vite SPA exposed under the same browser origin through a reverse proxy.
+- One PostgreSQL database with documented table ownership per module.
+- One private MinIO bucket set for original normalized images and thumbnails.
+- REST/JSON under `/api/v1`; stable errors use Problem Details with `code`, `ruleId`, `fieldErrors`, and `traceId`.
+- Session cookies are HttpOnly and SameSite; production-like profiles set Secure; mutating requests use CSRF tokens.
+- Public read-only STOMP subscriptions share the same origin; domain commands remain HTTP-only.
+- Background work claims durable due records so restart cannot lose start, closing, decision, settlement, notification, or audit work.
 
-## Persistence rules
+## Local and operational stack
 
-- Use transactions around business commands, not controller conversations.
+The default Docker Compose environment contains PostgreSQL, MinIO, and Mailpit. An optional observability profile adds Prometheus, Grafana, and Tempo. The application emits structured JSON logs, Micrometer metrics, and OpenTelemetry traces.
+
+GitHub Actions validates documentation, backend and frontend builds, tests, generated OpenAPI/client drift, container images, and the reproducible local packaging. A public deployment is not required for the MVP.
+
+## Persistence and concurrency rules
+
 - Store money as integer BRL cents in the domain and `BIGINT` in PostgreSQL.
 - Store authoritative instants in UTC and convert only at system boundaries.
-- Use database constraints for invariants that can be expressed locally.
-- Use optimistic or pessimistic concurrency deliberately; the bidding strategy must be demonstrated by concurrent integration tests before it is considered complete.
+- Use transactions around business commands, not controller conversations.
+- Acquire a pessimistic PostgreSQL row lock for the auction bidding state before bid validation.
+- Use database constraints for local invariants such as idempotency and unique per-auction sequences.
+- Persist Spring Modulith event publications in the originating transaction for required after-commit listeners.
 - Keep Flyway migrations forward-only after they reach a shared environment.
 
 ## Test baseline
 
-- Plain unit tests for value objects, policies, and state transitions.
-- Module tests for use cases and legal module interaction.
-- PostgreSQL Testcontainers integration tests for repositories, migrations, locking, idempotency, and closing.
-- Concurrency tests that start competing commands together and assert durable outcomes, not only HTTP responses.
+- Unit tests for value objects, policies, authorization, and transitions.
+- Module tests for use cases and legal interactions.
+- PostgreSQL Testcontainers tests for mappings, migrations, locks, idempotency, durable events, scheduling, and closing.
+- Concurrency tests that start competing commands together and assert durable results.
 - Architecture tests that run `ApplicationModules.verify()`.
-- End-to-end tests for the MVP journey only after the inner test layers are useful.
+- Frontend component and contract tests plus end-to-end tests for each completed vertical slice.
+- Final load evidence for 100 concurrent bidders, p95 bid response below 500 ms, and live event below one second without loss or duplication.
+
+## Version sources verified 2026-08-30
+
+- [Oracle Java SE Support Roadmap](https://www.oracle.com/java/technologies/java-se-support-roadmap.html)
+- [Spring Boot stable documentation](https://docs.spring.io/spring-boot/)
+- [Spring Modulith project](https://spring.io/projects/spring-modulith/)
+- [Apache Maven downloads](https://maven.apache.org/download.cgi)
+- [PostgreSQL versioning policy](https://www.postgresql.org/support/versioning/)
 
 ## Dependency update workflow
 
-1. Check the official project page, system requirements, compatibility matrix, and release notes.
-2. Select only a stable GA release compatible with the runtime and Spring Boot line.
-3. Update the wrapper, parent, BOM, or deployment image that owns the version.
-4. Run unit, module, integration, concurrency, and architecture tests.
-5. Review schema, serialization, security, and observability changes.
-6. Record the verification date and rollback approach in the pull request; create an ADR if the change is architecturally significant.
-
+1. Check official project pages, system requirements, compatibility matrices, and release notes.
+2. Select only a stable GA release compatible with Java, Spring Boot, and the surrounding toolchain.
+3. Update the wrapper, parent, BOM, lockfile, or deployment image that owns the version.
+4. Run unit, module, integration, concurrency, architecture, frontend, and end-to-end tests.
+5. Review schema, serialization, security, observability, and generated-contract changes.
+6. Record verification date and rollback approach; create an ADR for architecturally significant change.

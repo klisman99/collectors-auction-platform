@@ -1,6 +1,31 @@
 # State machines
 
-Item, auction, and sale have independent lifecycles. Combining them in one status field would make valid transitions ambiguous.
+Regular accounts, operational accounts, items, auctions, bid eligibility, and sales have independent lifecycles. Combining them in one status field would make valid transitions ambiguous.
+
+## Regular account
+
+~~~mermaid
+stateDiagram-v2
+    [*] --> PendingVerification: register
+    PendingVerification --> Active: verify email
+    Active --> Suspended: administrator suspends
+    Suspended --> Active: administrator reactivates
+~~~
+
+A suspended account may authenticate in restricted mode. Verification is a separate prerequisite for trading, not an operational role.
+
+## Operational account
+
+~~~mermaid
+stateDiagram-v2
+    [*] --> Invited: administrator invites
+    Invited --> Active: accept invitation
+    Active --> Deactivated: administrator deactivates
+    Invited --> Deactivated: revoke invitation
+    Deactivated --> [*]
+~~~
+
+Operational accounts never convert to regular accounts.
 
 ## Collectible item
 
@@ -10,52 +35,70 @@ stateDiagram-v2
     Draft --> UnderReview: submit
     UnderReview --> Approved: approve
     UnderReview --> Draft: reject with reason
-    Approved --> UnderReview: material change
-    Approved --> Archived: archive
+    Approved --> Draft: material edit
+    Approved --> Archived: settlement completed
     Archived --> [*]
 ~~~
 
-## Auction
+Unsold, cancelled, and failed-settlement paths leave an unchanged item Approved. A non-terminal auction locks item editing independently of item status.
 
-An extension updates the effective end time while the auction remains live.
+## Auction
 
 ~~~mermaid
 stateDiagram-v2
     [*] --> Draft
     Draft --> Scheduled: schedule
-    Scheduled --> Live: start time reached
-    Draft --> Cancelled: cancel
-    Scheduled --> Cancelled: cancel before start
+    Scheduled --> Live: start reached
+    Scheduled --> Scheduled: seller reschedules or lowers reserve
+    Scheduled --> Cancelled: seller cancels with reason
+    Scheduled --> Suspended: operational suspension
+    Live --> Suspended: operational suspension
+    Suspended --> Draft: admin releases scheduled suspension
+    Suspended --> Live: admin resumes with remaining duration
+    Suspended --> Cancelled: admin cancels
     Live --> Closing: effective end reached
-    Live --> Suspended: moderator suspends
-    Suspended --> Live: moderator resumes
-    Suspended --> Cancelled: cancel
-    Closing --> Sold: reserve met
-    Closing --> Unsold: no bids
-    Closing --> AwaitingSellerDecision: below reserve
+    Closing --> Sold: no reserve or reserve met
+    Closing --> Unsold: no eligible bids
+    Closing --> AwaitingSellerDecision: eligible high bid below reserve
+    AwaitingSellerDecision --> AwaitingSellerDecision: bidder disqualified and next offer selected
     AwaitingSellerDecision --> Sold: seller accepts
-    AwaitingSellerDecision --> Unsold: reject or expire
+    AwaitingSellerDecision --> Unsold: seller rejects, deadline expires, or no eligible bid remains
     Sold --> [*]
     Unsold --> [*]
     Cancelled --> [*]
 ~~~
+
+`Suspended` retains the source state. A scheduled suspension can only be released to Draft for explicit rescheduling; a live suspension can only resume with the stored remaining duration. Extension updates the deadline while state remains Live.
+
+## Accepted-bid eligibility
+
+~~~mermaid
+stateDiagram-v2
+    [*] --> Eligible: bid accepted
+    Eligible --> Disqualified: bidder account suspended
+    Disqualified --> [*]
+~~~
+
+The accepted bid itself never changes. Disqualification is a separate permanent append-only fact and is not applied after the auction is sold.
 
 ## Sale
 
 ~~~mermaid
 stateDiagram-v2
     [*] --> PaymentPending
-    PaymentPending --> Paid: simulate payment
-    Paid --> ShippingPending: request shipment
-    ShippingPending --> Shipped: simulate shipment
-    Shipped --> Delivered: simulate delivery
-    Delivered --> Completed: confirm completion
+    PaymentPending --> ShipmentPending: buyer simulates payment
+    PaymentPending --> Failed: payment deadline expires
+    ShipmentPending --> Shipped: seller records carrier and tracking
+    ShipmentPending --> Failed: shipment deadline expires
+    Shipped --> Completed: buyer confirms delivery
+    Shipped --> Completed: seven-day confirmation deadline expires
     Completed --> [*]
+    Failed --> [*]
 ~~~
 
-## Notes
+## Transition rules
 
-- State transitions are business commands, not unrestricted field updates.
-- Every transition validates its source state and actor.
-- Repeated system commands such as closing must be safe.
-- A later dispute workflow may extend the sale machine without changing the MVP auction outcome.
+- Transitions are business commands, not unrestricted status updates.
+- Every transition validates source state, actor, verification, account restrictions, and server time.
+- Automatic transitions are claimed from durable database state and safe to repeat after restart.
+- Public projections are emitted only after the corresponding transition commits.

@@ -1,37 +1,39 @@
 # Collectors Auction Platform
 
-A learning-focused, production-minded platform for real-time English auctions of modern collectibles.
+A learning-focused, production-minded platform for real-time English auctions of individual physical collectibles.
 
-The first product vertical is collectible trading cards. The project starts as a modular monolith and will evolve through measured architectural changes as new reliability, scale, and product requirements are introduced.
+The project starts as a modular monolith and evolves only through measured architectural changes backed by product or operational evidence. The MVP uses a generic collectible schema rather than category-specific listing models.
 
 ## Why this project exists
 
-This repository is a long-term engineering project for practicing the work expected from a senior backend engineer:
+This is a long-term engineering project for practicing the work expected from a senior backend engineer:
 
 - product discovery and business-rule modeling;
-- authentication and authorization;
+- authentication, authorization, and separation of operational duties;
+- upload security and moderated marketplace content;
 - concurrency and transactional consistency;
-- real-time communication;
-- idempotency and failure recovery;
+- real-time communication and reconnect recovery;
+- idempotency, scheduling, and failure recovery;
 - observability and operational readiness;
-- data and architecture migrations;
-- explicit technical decision-making through RFCs and ADRs.
+- explicit technical decision-making through ADRs.
 
 The goal is not to accumulate technologies. Every architectural addition must solve a documented problem and include evidence, trade-offs, and a rollback strategy.
 
 ## MVP journey
 
-1. A user registers and submits a collectible card.
+1. A regular account registers, verifies its simulated email, and submits one collectible.
 2. A moderator reviews and approves the item.
 3. The seller schedules an English ascending auction.
-4. Eligible users place concurrent bids.
-5. Accepted bids are broadcast to the auction room in real time.
-6. Late bids extend the closing time.
-7. The system closes the auction and records exactly one outcome.
-8. Payment and shipping are simulated.
+4. Eligible bidders place concurrent, idempotent bids.
+5. Connected clients converge on persisted auction state through REST snapshots and STOMP projections.
+6. Late bids extend the effective end time.
+7. Administrative suspension and bidder disqualification preserve an auditable history.
+8. The system closes the auction and records exactly one outcome.
+9. Payment, shipping, delivery, and transactional email are simulated.
 
 ## Documentation
 
+- [Domain context](CONTEXT.md)
 - [Product vision](docs/product/vision.md)
 - [MVP scope](docs/product/scope.md)
 - [Business rules](docs/product/business-rules.md)
@@ -40,12 +42,12 @@ The goal is not to accumulate technologies. Every architectural addition must so
 - [Domain invariants](docs/domain/invariants.md)
 - [State machines](docs/domain/state-machines.md)
 - [System context](docs/architecture/system-context.md)
-- [Backend technology stack](docs/architecture/technology-stack.md)
 - [Backend modules](docs/architecture/modules.md)
+- [Technology stack](docs/architecture/technology-stack.md)
 - [Milestones](docs/roadmap/milestones.md)
 - [ADR-0001: Start with a modular monolith](docs/adr/0001-start-with-a-modular-monolith.md)
 - [ADR-0002: Use Java and Spring Boot](docs/adr/0002-use-java-and-spring-boot.md)
 
 ## Current status
 
-Project foundation and domain discovery. The backend is specified as a Java 25/Spring Boot 4.1 modular monolith; no production code has been implemented yet.
+M0 product and architecture specification. No application code has been implemented yet. Implementation work is tracked as vertical slices in GitHub Issues.

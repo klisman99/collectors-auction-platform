@@ -12,8 +12,21 @@
 ## Architecture guardrails
 
 - Build the backend as a single Spring Boot deployable organized by business capability, not by technical layer.
-- Keep the module names and domain language aligned with `docs/domain/` and `docs/architecture/modules.md`.
+- Keep module names and domain language aligned with `CONTEXT.md`, `docs/domain/`, and `docs/architecture/modules.md`.
 - Enforce module boundaries with Spring Modulith verification tests.
 - Keep PostgreSQL as the source of truth. Persist accepted state before acknowledging it or publishing a real-time projection.
 - Do not introduce Redis, Kafka, microservices, or Kubernetes without measured evidence and a new ADR.
 
+## Agent skills
+
+### Issue tracker
+
+Work is tracked in GitHub Issues for `klisman99/collectors-auction-platform`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+This repository intentionally does not use triage-state labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository rooted at `CONTEXT.md`, with ADRs in `docs/adr/`. See `docs/agents/domain.md`.

@@ -1,33 +1,37 @@
 # System context
 
-This document describes system boundaries, not the final implementation architecture.
+This document describes system boundaries, not detailed implementation packages.
 
 ## Context
 
 ~~~mermaid
 flowchart LR
-    Seller[Seller] --> Platform[Collectors Auction Platform]
+    Visitor[Visitor] --> Platform[Collectors Auction Platform]
+    Seller[Seller] --> Platform
     Bidder[Bidder] --> Platform
     Moderator[Moderator] --> Platform
-    Platform --> Email[Simulated email]
+    Administrator[Administrator] --> Platform
+    Platform --> Email[Mailpit simulated email]
+    Platform --> Objects[MinIO object storage]
     Platform --> Payment[Simulated payment]
     Platform --> Shipping[Simulated shipping]
+    Platform --> Observability[Optional local observability stack]
 ~~~
 
 ## Responsibilities inside the platform
 
-- Account authentication and session management.
-- Collectible catalog and moderation.
-- Auction scheduling and lifecycle.
-- Concurrent bid validation and acceptance.
-- Real-time auction-room updates.
-- Closing and outcome selection.
-- Simulated settlement.
-- Audit history and operational observability.
+- Regular and operational account identity, verification, authorization, sessions, and suspension.
+- Generic collectible catalog, managed images, ownership declaration, and moderation.
+- Public auction discovery, scheduling, lifecycle, and immutable published snapshots.
+- Concurrent bid validation, idempotency, sequencing, eligibility, and disqualification.
+- REST snapshots and public read-only STOMP auction-room updates.
+- Deadline reconciliation, closing, reserve decision, and exactly-one outcome selection.
+- Simulated settlement and transactional email.
+- Layered audit history and operational observability.
 
 ## Initial technical direction
 
-The MVP will use a modular monolith with explicit internal boundaries:
+The MVP uses a modular monolith with explicit backend boundaries:
 
 - identity;
 - catalog;
@@ -38,17 +42,27 @@ The MVP will use a modular monolith with explicit internal boundaries:
 - notifications;
 - audit.
 
-The database is the source of truth. Real-time delivery is a projection of persisted state.
+The backend is one executable Spring Boot application and one PostgreSQL database. The React SPA is built separately and exposed under the same browser origin as `/api` and the STOMP endpoint through a reverse proxy.
 
-Technology choices beyond this boundary will be recorded in separate ADRs. Kafka, Redis, microservices, and Kubernetes are intentionally not initial assumptions.
+PostgreSQL is the source of truth. MinIO stores private managed media. Mailpit provides local simulated email. Real-time messages and internal listeners project already committed facts and never decide whether a bid, transition, or outcome is valid.
 
-ADR-0002 selects Java and Spring Boot for the deployable backend. The concrete baseline is maintained in [Backend technology stack](technology-stack.md), and the initial ownership and dependency rules are defined in [Backend modules](modules.md).
+Kafka, Redis, microservices, Kubernetes, external payment, and public-cloud services are intentionally not initial assumptions.
+
+ADR-0002 selects Java and Spring Boot for the deployable backend. The concrete baseline is maintained in [Technology stack](technology-stack.md), and the initial ownership and dependency rules are defined in [Backend modules](modules.md).
+
+## Security and privacy boundaries
+
+- Session cookies are HttpOnly, Secure outside local development, and SameSite; state-changing HTTP requests require CSRF protection.
+- Visitors may read public auction data and subscribe to public STOMP topics but cannot send domain commands over STOMP.
+- Draft media, exact reserves, persistent bidder identity, and internal audit notes are authorization-protected.
+- Operational accounts are dedicated and cannot participate in marketplace transactions.
 
 ## Quality goals
 
-1. Correct auction outcomes under concurrency.
-2. Safe retries through idempotent commands.
-3. Recoverability after process restart.
-4. Clear and testable business rules.
-5. Observable failures and decisions.
-6. Evolution without rewriting the product blindly.
+1. Correct auction outcomes under concurrency and administrative exceptions.
+2. Safe retries through idempotent commands and durable background work.
+3. Recoverability after process restart and listener failure.
+4. Clear, versioned, and testable business rules.
+5. Observable failures, deadlines, and privileged decisions.
+6. Public privacy without sacrificing auction transparency.
+7. Evolution without prematurely distributing the system.
