@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: collectors-auction-platform
+  modulith:
+    detection-strategy: explicitly-annotated
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/collectors_auction}
+    username: ${DATABASE_USERNAME:collectors}
+    password: ${DATABASE_PASSWORD:collectors}
+  flyway:
+    locations: classpath:db/migration
+    clean-disabled: true
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  mvc:
+    problemdetails:
+      enabled: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 25MB
+  session:
+    timeout: 30d
+
+server:
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  structured:
+    format:
+      console: logstash
+
+platform:
+  image-storage:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ROOT_USER:minioadmin}
+    secret-key: ${MINIO_ROOT_PASSWORD:minioadmin}
+    bucket: ${MINIO_BUCKET:collectors-images}
