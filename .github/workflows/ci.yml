@@ -34,7 +34,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 25.0.4.1+1
+          java-version: '25'
           cache: maven
 
       - name: Set up Node 24 LTS
