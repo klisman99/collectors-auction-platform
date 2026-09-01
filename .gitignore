@@ -3,7 +3,7 @@
 .vscode/
 .mvn/timing.properties
 target/
-web/node_modules/
+node_modules/
 web/dist/
 web/.vite/
 *.log

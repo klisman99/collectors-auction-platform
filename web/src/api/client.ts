@@ -1,13 +1,13 @@
-import createClient from 'openapi-fetch';
+import { client } from './generated/client.gen';
+import { getPlatformStatus as requestPlatformStatus } from './generated/sdk.gen';
+import type { PlatformStatus } from './generated/types.gen';
 
-import type { components, paths } from './generated';
+export type { PlatformStatus } from './generated/types.gen';
 
-export type PlatformStatus = components['schemas']['PlatformStatus'];
-
-const client = createClient<paths>({ baseUrl: '/' });
+client.setConfig({ baseUrl: '/' });
 
 export async function getPlatformStatus(): Promise<PlatformStatus> {
-  const { data, error } = await client.GET('/api/v1/status');
+  const { data, error } = await requestPlatformStatus();
 
   if (error !== undefined || data === undefined) {
     throw new Error('The platform status endpoint did not return a status document.');

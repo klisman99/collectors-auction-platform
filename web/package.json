@@ -13,13 +13,12 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "format:check": "node scripts/check-format.mjs",
-    "openapi:generate": "node scripts/generate-openapi.mjs",
-    "contract:check": "pnpm run openapi:generate && git diff --exit-code -- src/api/generated.ts",
-    "ci": "pnpm run format:check && pnpm run typecheck && pnpm run build"
+    "openapi:generate": "node codegen/generate.mjs",
+    "contract:check": "node scripts/check-contract-drift.mjs",
+    "ci": "npm run format:check && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@headlessui/react": "2.2.10",
-    "openapi-fetch": "0.17.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

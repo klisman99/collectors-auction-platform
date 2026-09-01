@@ -20,7 +20,8 @@ class ArchitectureTests {
                         "bidding",
                         "settlement",
                         "notifications",
-                        "audit");
+                        "audit",
+                        "platform");
 
         modules.verify();
     }

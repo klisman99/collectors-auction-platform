@@ -14,3 +14,12 @@ logging:
   structured:
     format:
       console: 
+
+management:
+  health:
+    image-storage:
+      enabled: false
+  tracing:
+    export:
+      otlp:
+        enabled: false

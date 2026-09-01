@@ -1,7 +1,15 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-const files = ['index.html', 'package.json', 'vite.config.ts', 'tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json'];
+const files = [
+  'index.html',
+  'package.json',
+  'pnpm-workspace.yaml',
+  'vite.config.ts',
+  'tsconfig.json',
+  'tsconfig.app.json',
+  'tsconfig.node.json',
+];
 const webRoot = resolve(import.meta.dirname, '..');
 
 async function sourceFiles(directory) {
@@ -12,7 +20,7 @@ async function sourceFiles(directory) {
     const absolutePath = join(directory, entry.name);
     if (entry.isDirectory()) {
       discovered.push(...(await sourceFiles(absolutePath)));
-    } else if (/\.(css|ts|tsx)$/.test(entry.name)) {
+    } else if (/\.(css|mjs|ts|tsx)$/.test(entry.name)) {
       discovered.push(absolutePath);
     }
   }
@@ -22,6 +30,9 @@ async function sourceFiles(directory) {
 
 for (const file of await sourceFiles(join(webRoot, 'src'))) {
   files.push(file);
+}
+for (const directory of ['codegen', 'scripts']) {
+  files.push(...(await sourceFiles(join(webRoot, directory))));
 }
 
 const violations = [];

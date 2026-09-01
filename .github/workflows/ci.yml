@@ -45,9 +45,10 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Enable the pinned package manager
-        run: |
-          corepack enable
-          chmod +x mvnw
+        run: corepack enable
+
+      - name: Validate documentation
+        run: node scripts/check-docs.mjs
 
       - name: Check Java formatting conventions
         shell: pwsh
@@ -72,7 +73,13 @@ jobs:
           ./mvnw --batch-mode --no-transfer-progress spring-boot:run > backend.log 2>&1 &
           backend_pid=$!
           trap 'kill "$backend_pid"; cat backend.log' EXIT
-          until curl --fail --silent http://localhost:8080/actuator/health >/dev/null; do sleep 2; done
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8080/actuator/health >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent http://localhost:8080/actuator/health >/dev/null
           pnpm --dir web run contract:check
 
       - name: Build backend container image

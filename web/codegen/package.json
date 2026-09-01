@@ -1,0 +1,10 @@
+{
+  "name": "@collectors-auction-platform/openapi-codegen",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "typescript": "6.0.3"
+  }
+}
