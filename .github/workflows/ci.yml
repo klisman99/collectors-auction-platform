@@ -73,12 +73,12 @@ jobs:
           backend_pid=$!
           trap 'kill "$backend_pid"; cat backend.log' EXIT
           for attempt in {1..60}; do
-            if curl --fail --silent http://localhost:8080/actuator/health >/dev/null; then
+            if curl --fail --silent http://localhost:8080/actuator/health/liveness >/dev/null; then
               break
             fi
             sleep 2
           done
-          curl --fail --silent http://localhost:8080/actuator/health >/dev/null
+          curl --fail --silent http://localhost:8080/actuator/health/liveness >/dev/null
           pnpm --dir web run contract:check
 
       - name: Build backend container image
