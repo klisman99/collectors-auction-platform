@@ -37,15 +37,14 @@ jobs:
           java-version: '25'
           cache: maven
 
-      - name: Set up Node 24 LTS
-        uses: actions/setup-node@v6
+      - name: Set up Node 24 LTS and pnpm
+        uses: pnpm/setup@v2
         with:
-          node-version: 24.20.0
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-
-      - name: Enable the pinned package manager
-        run: corepack enable
+          version: 11.19.0
+          runtime: node@24.20.0
+          working-directory: web
+          cache: true
+          install: false
 
       - name: Validate documentation
         run: node scripts/check-docs.mjs
