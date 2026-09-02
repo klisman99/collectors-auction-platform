@@ -76,6 +76,16 @@ GitHub Actions validates documentation, backend and frontend builds, tests, gene
 - [Apache Maven downloads](https://maven.apache.org/download.cgi)
 - [PostgreSQL versioning policy](https://www.postgresql.org/support/versioning/)
 
+Additional first-slice dependencies were verified against official sources on 2026-08-31:
+
+- [Spring Boot Flyway guidance](https://docs.spring.io/spring-boot/how-to/data-initialization.html)
+- [Spring Boot OpenTelemetry tracing](https://docs.spring.io/spring-boot/reference/actuator/tracing.html)
+- [springdoc compatibility and stable release](https://springdoc.org/)
+- [Hey API OpenAPI TypeScript generator](https://www.npmjs.com/package/@hey-api/openapi-ts)
+- [NGINX official container tags](https://hub.docker.com/_/nginx)
+- [MinIO server release and final official container tag](https://github.com/minio/minio/releases/tag/RELEASE.2025-09-07T16-13-09Z)
+- [MinIO client release and official container tag](https://github.com/minio/mc/releases/tag/RELEASE.2025-08-13T08-35-41Z)
+
 ## Dependency update workflow
 
 1. Check official project pages, system requirements, compatibility matrices, and release notes.

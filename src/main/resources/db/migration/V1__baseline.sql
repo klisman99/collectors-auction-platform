@@ -1,0 +1,2 @@
+-- Infrastructure migration baseline.
+-- Product tables are intentionally introduced only by their owning vertical slices.

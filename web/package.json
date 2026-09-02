@@ -1,0 +1,34 @@
+{
+  "name": "collectors-auction-platform-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": "24.20.0",
+    "pnpm": "11.19.0"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --pretty false",
+    "format:check": "node scripts/check-format.mjs",
+    "openapi:generate": "node codegen/generate.mjs",
+    "contract:check": "node scripts/check-contract-drift.mjs",
+    "ci": "npm run format:check && npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "@headlessui/react": "2.2.10",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
+  }
+}

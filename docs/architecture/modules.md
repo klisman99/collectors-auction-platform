@@ -14,6 +14,7 @@ flowchart LR
     Settlement[settlement]
     Notifications[notifications]
     Audit[audit]
+    Platform[platform]
 
     Moderation --> Identity
     Moderation --> Catalog
@@ -36,6 +37,8 @@ flowchart LR
 ~~~
 
 Dashed dependencies represent reactions to durable after-commit application events. The final allowed graph must be encoded in Spring Modulith declarations and verified in tests.
+
+`platform` is the dependency-free application-shell capability. It owns cross-cutting HTTP entry conventions, security configuration, status/OpenAPI contracts, and operational instrumentation. Product modules must not depend on it.
 
 ## Module responsibilities
 
@@ -70,6 +73,10 @@ Projects durable committed events into Mailpit transactional email and STOMP cli
 ### audit
 
 Stores append-only domain and administrative facts and produces public, participant, moderator, and administrator projections. It must not become a generic debug-log table.
+
+### platform
+
+Owns the same-origin application shell: status and OpenAPI endpoints, request tracing, stable HTTP errors, session/CSRF configuration, and operational wiring. It contains technical adapters only inside this explicit module and has no dependency on product modules.
 
 ## Interaction rules
 

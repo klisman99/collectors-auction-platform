@@ -1,0 +1,10 @@
+.env
+.idea/
+.vscode/
+.mvn/timing.properties
+target/
+node_modules/
+web/dist/
+web/.vite/
+*.log
+coverage/

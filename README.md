@@ -50,4 +50,39 @@ The goal is not to accumulate technologies. Every architectural addition must so
 
 ## Current status
 
-M0 product and architecture specification. No application code has been implemented yet. Implementation work is tracked as vertical slices in GitHub Issues.
+The executable platform baseline is available on the `platform-baseline` branch. Product behavior remains tracked as vertical slices in GitHub Issues.
+
+## Run the platform locally
+
+Requirements: Docker with Compose support. From a clean checkout:
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Open `http://localhost:8080`. The same-origin NGINX shell proxies `/api`, `/actuator`, and `/v3/api-docs` to the Spring Boot application.
+
+To add Prometheus, Grafana, and Tempo and export backend traces to Tempo:
+
+```bash
+OTEL_TRACING_ENABLED=true docker compose --profile observability up --build
+```
+
+## Local verification
+
+Use Java 25 LTS, Node 24.20.0, and the package-manager version pinned in `web/package.json`:
+
+```bash
+node scripts/check-docs.mjs
+pwsh ./scripts/check-java-format.ps1
+./mvnw --batch-mode --no-transfer-progress verify
+corepack pnpm@11.19.0 --dir web install --frozen-lockfile
+corepack pnpm@11.19.0 --dir web run ci
+```
+
+With the backend running, verify that generated frontend types match the live backend contract:
+
+```bash
+corepack pnpm@11.19.0 --dir web run contract:check
+```
