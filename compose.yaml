@@ -66,6 +66,9 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-collectors-images}
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+      PUBLIC_WEB_BASE_URL: http://localhost:${WEB_PORT:-8080}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
       OTEL_TRACING_ENABLED: ${OTEL_TRACING_ENABLED:-false}
       SESSION_COOKIE_SECURE: "false"

@@ -1,6 +1,6 @@
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'vite';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -11,5 +11,10 @@ export default defineConfig({
       '/actuator': 'http://localhost:8080',
       '/v3/api-docs': 'http://localhost:8080',
     },
+  },
+  test: {
+    environment: 'jsdom',
+    exclude: [...configDefaults.exclude, 'e2e/**'],
+    setupFiles: './src/test/setup.ts',
   },
 });

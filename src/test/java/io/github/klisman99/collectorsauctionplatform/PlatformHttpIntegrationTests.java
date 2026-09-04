@@ -67,10 +67,11 @@ class PlatformHttpIntegrationTests {
         var result = mockMvc.perform(get("/api/v1/csrf"))
                 .andExpect(status().isOk())
                 .andExpect(cookie().exists("XSRF-TOKEN"))
+                .andExpect(cookie().exists("JSESSIONID"))
                 .andExpect(jsonPath("$.headerName").value("X-XSRF-TOKEN"))
                 .andReturn();
 
-        assertThat(result.getRequest().getSession(false)).isNotNull();
+        assertThat(result.getResponse().getCookie("JSESSIONID")).isNotNull();
     }
 
     @Test

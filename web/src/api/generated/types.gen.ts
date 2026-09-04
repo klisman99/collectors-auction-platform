@@ -4,6 +4,47 @@ export type ClientOptions = {
     baseUrl: 'http://localhost:8080' | (string & {});
 };
 
+export type VerifyEmailRequest = {
+    token: string;
+};
+
+/**
+ * The result of consuming an email-verification token.
+ */
+export type EmailVerification = {
+    publicHandle?: string;
+    status?: string;
+};
+
+export type SignInRequest = {
+    email: string;
+    password: string;
+};
+
+/**
+ * The current authenticated regular-account session state.
+ */
+export type AuthenticatedSession = {
+    publicHandle?: string;
+    status?: string;
+    verified?: boolean;
+    canTrade?: boolean;
+};
+
+export type RegistrationRequest = {
+    email: string;
+    publicHandle: string;
+    password: string;
+};
+
+/**
+ * The accepted public state of a newly registered regular account.
+ */
+export type Registration = {
+    publicHandle?: string;
+    status?: string;
+};
+
 /**
  * Current operational state of the application.
  */
@@ -18,6 +59,54 @@ export type CsrfToken = {
     token?: string;
     headerName?: string;
 };
+
+export type VerifyRegularAccountEmailData = {
+    body: VerifyEmailRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/verify-email';
+};
+
+export type VerifyRegularAccountEmailResponses = {
+    /**
+     * OK
+     */
+    200: EmailVerification;
+};
+
+export type VerifyRegularAccountEmailResponse = VerifyRegularAccountEmailResponses[keyof VerifyRegularAccountEmailResponses];
+
+export type SignInRegularAccountData = {
+    body: SignInRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/sign-in';
+};
+
+export type SignInRegularAccountResponses = {
+    /**
+     * OK
+     */
+    200: AuthenticatedSession;
+};
+
+export type SignInRegularAccountResponse = SignInRegularAccountResponses[keyof SignInRegularAccountResponses];
+
+export type RegisterRegularAccountData = {
+    body: RegistrationRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/register';
+};
+
+export type RegisterRegularAccountResponses = {
+    /**
+     * Created
+     */
+    201: Registration;
+};
+
+export type RegisterRegularAccountResponse = RegisterRegularAccountResponses[keyof RegisterRegularAccountResponses];
 
 export type GetPlatformStatusData = {
     body?: never;
@@ -50,3 +139,19 @@ export type CsrfTokenResponses = {
 };
 
 export type CsrfTokenResponse = CsrfTokenResponses[keyof CsrfTokenResponses];
+
+export type GetAuthenticatedSessionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/session';
+};
+
+export type GetAuthenticatedSessionResponses = {
+    /**
+     * OK
+     */
+    200: AuthenticatedSession;
+};
+
+export type GetAuthenticatedSessionResponse = GetAuthenticatedSessionResponses[keyof GetAuthenticatedSessionResponses];
