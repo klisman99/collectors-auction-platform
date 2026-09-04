@@ -33,7 +33,7 @@ class PostgreSqlMigrationIntegrationTests {
     private Flyway flyway;
 
     @Test
-    void appliesTheForwardOnlyBaselineAgainstPostgreSql() {
-        assertThat(flyway.info().applied()).hasSize(1);
+    void appliesTheForwardOnlyMigrationsAgainstPostgreSql() {
+        assertThat(flyway.info().applied()).hasSize(2);
     }
 }

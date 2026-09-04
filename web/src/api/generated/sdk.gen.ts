@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CsrfTokenData, CsrfTokenResponses, GetPlatformStatusData, GetPlatformStatusResponses } from './types.gen';
+import type { CsrfTokenData, CsrfTokenResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetPlatformStatusData, GetPlatformStatusResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, SignInRegularAccountData, SignInRegularAccountResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -19,8 +19,49 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 };
 
 /**
+ * Verify a regular account with a single-use email token
+ */
+export const verifyRegularAccountEmail = <ThrowOnError extends boolean = false>(options: Options<VerifyRegularAccountEmailData, ThrowOnError>): RequestResult<VerifyRegularAccountEmailResponses, unknown, ThrowOnError> => (options.client ?? client).post<VerifyRegularAccountEmailResponses, unknown, ThrowOnError>({
+    url: '/api/v1/auth/verify-email',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Sign in with a revocable server-side session
+ */
+export const signInRegularAccount = <ThrowOnError extends boolean = false>(options: Options<SignInRegularAccountData, ThrowOnError>): RequestResult<SignInRegularAccountResponses, unknown, ThrowOnError> => (options.client ?? client).post<SignInRegularAccountResponses, unknown, ThrowOnError>({
+    url: '/api/v1/auth/sign-in',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Register a regular account and request email verification
+ */
+export const registerRegularAccount = <ThrowOnError extends boolean = false>(options: Options<RegisterRegularAccountData, ThrowOnError>): RequestResult<RegisterRegularAccountResponses, unknown, ThrowOnError> => (options.client ?? client).post<RegisterRegularAccountResponses, unknown, ThrowOnError>({
+    url: '/api/v1/auth/register',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Read the public platform status
  */
 export const getPlatformStatus = <ThrowOnError extends boolean = false>(options?: Options<GetPlatformStatusData, ThrowOnError>): RequestResult<GetPlatformStatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetPlatformStatusResponses, unknown, ThrowOnError>({ url: '/api/v1/status', ...options });
 
 export const csrfToken = <ThrowOnError extends boolean = false>(options?: Options<CsrfTokenData, ThrowOnError>): RequestResult<CsrfTokenResponses, unknown, ThrowOnError> => (options?.client ?? client).get<CsrfTokenResponses, unknown, ThrowOnError>({ url: '/api/v1/csrf', ...options });
+
+/**
+ * Read the authenticated account state
+ */
+export const getAuthenticatedSession = <ThrowOnError extends boolean = false>(options?: Options<GetAuthenticatedSessionData, ThrowOnError>): RequestResult<GetAuthenticatedSessionResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetAuthenticatedSessionResponses, unknown, ThrowOnError>({ url: '/api/v1/auth/session', ...options });

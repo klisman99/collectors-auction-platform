@@ -3,6 +3,8 @@ spring:
     name: collectors-auction-platform
   modulith:
     detection-strategy: explicitly-annotated
+    events:
+      republish-outstanding-events-on-restart: true
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/collectors_auction}
     username: ${DATABASE_USERNAME:collectors}
@@ -23,8 +25,17 @@ spring:
       max-request-size: 25MB
   session:
     timeout: 30d
+    jdbc:
+      initialize-schema: never
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
 
 server:
+  # Tomcat rewrites getRemoteAddr() from X-Forwarded-For only when the
+  # connection comes from its internal-proxy allowlist. Nginx overwrites the
+  # header at the edge, so the controller never has to trust client input.
+  forward-headers-strategy: native
   servlet:
     session:
       cookie:
@@ -69,6 +80,9 @@ logging:
       console: logstash
 
 platform:
+  mail:
+    from: ${MAIL_FROM:no-reply@collectors-auction.local}
+    web-base-url: ${PUBLIC_WEB_BASE_URL:http://localhost:8080}
   image-storage:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     access-key: ${MINIO_ROOT_USER:minioadmin}

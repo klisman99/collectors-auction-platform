@@ -2,10 +2,14 @@ package io.github.klisman99.collectorsauctionplatform.platform.web;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
@@ -13,21 +17,44 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 class SecurityConfiguration {
 
     private final ApiProblemWriter problemWriter;
+    private final AbsoluteSessionExpiryFilter absoluteSessionExpiryFilter;
 
-    SecurityConfiguration(ApiProblemWriter problemWriter) {
+    SecurityConfiguration(ApiProblemWriter problemWriter, AbsoluteSessionExpiryFilter absoluteSessionExpiryFilter) {
         this.problemWriter = problemWriter;
+        this.absoluteSessionExpiryFilter = absoluteSessionExpiryFilter;
     }
 
     @Bean
-    SecurityFilterChain applicationSecurity(HttpSecurity http) throws Exception {
+    SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
+    }
+
+    @Bean
+    SecurityFilterChain applicationSecurity(HttpSecurity http, SecurityContextRepository securityContextRepository)
+            throws Exception {
         CookieCsrfTokenRepository csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrfTokens.setCookiePath("/");
 
         return http
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/v1/**", "/v3/api-docs/**", "/actuator/health/**").permitAll()
+                        .requestMatchers(
+                                "/v3/api-docs/**",
+                                "/actuator/health/**",
+                                "/api/v1/csrf",
+                                "/api/v1/status",
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/verify-email",
+                                "/api/v1/auth/sign-in",
+                                "/api/v1/test/**")
+                        .permitAll()
+                        .requestMatchers("/api/v1/auth/session").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
+                        .requestMatchers("/api/v1/**").hasAuthority("TRADING_ELIGIBLE")
                         .anyRequest().denyAll())
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokens))
+                .securityContext(context -> context
+                        .securityContextRepository(securityContextRepository)
+                        .requireExplicitSave(true))
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) -> problemWriter.write(
                                 request,
@@ -41,11 +68,14 @@ class SecurityConfiguration {
                                 org.springframework.http.HttpStatus.FORBIDDEN,
                                 "ACCESS_DENIED",
                                 "The authenticated account cannot access this resource.")))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                        .sessionFixation(fixation -> fixation.newSession()))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .headers(Customizer.withDefaults())
+                .addFilterBefore(absoluteSessionExpiryFilter, SecurityContextHolderFilter.class)
                 .build();
     }
 }

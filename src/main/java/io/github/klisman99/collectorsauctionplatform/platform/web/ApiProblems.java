@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.ErrorResponseException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -55,6 +56,15 @@ class ApiProblems {
                 "REQUEST_BODY_UNREADABLE",
                 "The request body is missing or malformed.",
                 request);
+    }
+
+    @ExceptionHandler(ErrorResponseException.class)
+    ResponseEntity<ProblemDetail> applicationFailure(
+            ErrorResponseException exception,
+            HttpServletRequest request) {
+        ProblemDetail problem = exception.getBody();
+        problem.setProperty("traceId", request.getAttribute(RequestTraceFilter.TRACE_ID_ATTRIBUTE));
+        return ResponseEntity.status(exception.getStatusCode()).body(problem);
     }
 
     @ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})

@@ -1,74 +1,382 @@
-import { Description } from '@headlessui/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
-import { getPlatformStatus, type PlatformStatus } from './api/client';
+import {
+  ApiError,
+  getAuthenticatedSession,
+  registerAccount,
+  signIn,
+  verifyEmail,
+  type AuthenticatedSession,
+} from './api/client';
 
-type StatusState =
-  | { kind: 'loading' }
-  | { kind: 'ready'; status: PlatformStatus }
-  | { kind: 'error' };
+type Page = 'register' | 'sign-in' | 'verify';
+type FieldErrors = Record<string, string>;
+
+const initialRegistration = { email: '', publicHandle: '', password: '' };
+const initialSignIn = { email: '', password: '' };
 
 export function App() {
-  const [state, setState] = useState<StatusState>({ kind: 'loading' });
+  const verificationToken = new URLSearchParams(window.location.search).get('verificationToken') ?? '';
+  const [page, setPage] = useState<Page>(verificationToken === '' ? 'register' : 'verify');
+  const [session, setSession] = useState<AuthenticatedSession | null | undefined>(undefined);
+  const [registration, setRegistration] = useState(initialRegistration);
+  const [credentials, setCredentials] = useState(initialSignIn);
+  const [token, setToken] = useState(verificationToken);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [notice, setNotice] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    let active = true;
-
-    getPlatformStatus()
-      .then((status) => {
-        if (active) {
-          setState({ kind: 'ready', status });
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setState({ kind: 'error' });
-        }
-      });
-
-    return () => {
-      active = false;
-    };
+    getAuthenticatedSession().then(setSession).catch(() => setSession(null));
   }, []);
 
-  return (
-    <main className="min-h-screen bg-slate-950 px-6 py-16 text-slate-100 sm:px-10">
-      <section className="mx-auto max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-8 shadow-2xl shadow-slate-950/50">
-        <p className="text-sm font-semibold tracking-[0.2em] text-cyan-300 uppercase">Platform baseline</p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Collectors Auction Platform</h1>
-        <Description as="p" className="mt-3 max-w-xl text-base leading-7 text-slate-300">
-          The application shell is connected to the authoritative backend status endpoint.
-        </Description>
+  if (session === undefined) {
+    return <PageFrame><p className="text-slate-300">Loading your account…</p></PageFrame>;
+  }
 
-        <div className="mt-8 rounded-xl border border-slate-700 bg-slate-950/60 p-5" aria-live="polite">
-          {state.kind === 'loading' && <p className="text-slate-300">Checking platform status…</p>}
-          {state.kind === 'error' && (
-            <p className="text-rose-300">The backend status endpoint is unavailable. Start the local platform and retry.</p>
-          )}
-          {state.kind === 'ready' && (
-            <dl className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <dt className="text-sm text-slate-400">Service</dt>
-                <dd className="mt-1 font-medium text-slate-100">{state.status.service}</dd>
-              </div>
-              <div>
-                <dt className="text-sm text-slate-400">Status</dt>
-                <dd className="mt-1 font-medium text-emerald-300">{state.status.status}</dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-sm text-slate-400">Reported at</dt>
-                <dd className="mt-1 font-medium text-slate-100">
-                  {new Intl.DateTimeFormat('en-US', {
-                    dateStyle: 'medium',
-                    timeStyle: 'medium',
-                    timeZone: 'America/Sao_Paulo',
-                  }).format(new Date(state.status.timestamp))}
-                </dd>
-              </div>
-            </dl>
-          )}
-        </div>
+  // A verification link must take precedence over an existing (possibly stale)
+  // session. This is important when the user registered in another tab and is
+  // already signed in with the pending account.
+  if (session !== null && page !== 'verify') {
+    return <AuthenticatedHome session={session} />;
+  }
+
+  function moveTo(nextPage: Page) {
+    if (nextPage !== 'verify' && verificationToken !== '') {
+      window.history.replaceState({}, '', window.location.pathname);
+      setToken('');
+    }
+    setPage(nextPage);
+    setNotice(null);
+    setFailure(null);
+    setFieldErrors({});
+  }
+
+  async function submitRegistration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const errors = validateRegistration(registration);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setSubmitting(true);
+    setFieldErrors({});
+    setFailure(null);
+    try {
+      await registerAccount({
+        email: registration.email.trim(),
+        publicHandle: registration.publicHandle.trim(),
+        password: registration.password,
+      });
+      setNotice('Registration received. Check Mailpit for your single-use verification link.');
+      setPage('verify');
+    } catch (error) {
+      applyApiError(error, setFieldErrors, setFailure);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitVerification(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (token.trim() === '') {
+      setFieldErrors({ token: 'Enter the verification token from your email.' });
+      return;
+    }
+
+    setSubmitting(true);
+    setFieldErrors({});
+    setFailure(null);
+    try {
+      await verifyEmail(token.trim());
+      window.history.replaceState({}, '', window.location.pathname);
+      setNotice('Your email is verified. Sign in to continue.');
+      // The existing pending cookie still contains the old account state. Make
+      // the user sign in again so the server issues a fresh verified session.
+      setSession(null);
+      setPage('sign-in');
+    } catch (error) {
+      applyApiError(error, setFieldErrors, setFailure);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitSignIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const errors = validateSignIn(credentials);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setSubmitting(true);
+    setFieldErrors({});
+    setFailure(null);
+    try {
+      setSession(await signIn({ email: credentials.email.trim(), password: credentials.password }));
+    } catch (error) {
+      applyApiError(error, setFieldErrors, setFailure);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <PageFrame>
+      <header className="mb-8">
+        <p className="text-sm font-semibold tracking-[0.2em] text-cyan-300 uppercase">Collectors Auction Platform</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+          Start collecting with confidence.
+        </h1>
+        <p className="mt-3 max-w-xl text-base leading-7 text-slate-300">
+          Register a regular account, verify your email, and sign in with a secure server-side session.
+        </p>
+      </header>
+
+      {notice !== null && <Notice>{notice}</Notice>}
+      {failure !== null && <Failure>{failure}</Failure>}
+
+      {page === 'register' && (
+        <form className="space-y-5" noValidate onSubmit={submitRegistration}>
+          <FormHeading title="Create your account" subtitle="Your public handle is permanent and appears on your seller profile." />
+          <TextField
+            autoComplete="email"
+            error={fieldErrors.email}
+            id="registration-email"
+            label="Email address"
+            onChange={(email) => setRegistration({ ...registration, email })}
+            type="email"
+            value={registration.email}
+          />
+          <TextField
+            autoComplete="username"
+            error={fieldErrors.publicHandle}
+            id="registration-handle"
+            label="Public handle"
+            onChange={(publicHandle) => setRegistration({ ...registration, publicHandle })}
+            value={registration.publicHandle}
+          />
+          <p className="-mt-3 text-sm text-slate-400">3–30 letters, numbers, or underscores.</p>
+          <TextField
+            autoComplete="new-password"
+            error={fieldErrors.password}
+            id="registration-password"
+            label="Password"
+            onChange={(password) => setRegistration({ ...registration, password })}
+            type="password"
+            value={registration.password}
+          />
+          <p className="-mt-3 text-sm text-slate-400">Use 12–128 characters. No composition rules apply.</p>
+          <SubmitButton disabled={submitting}>{submitting ? 'Creating account…' : 'Create account'}</SubmitButton>
+          <p className="text-sm text-slate-300">
+            Already registered?{' '}
+            <PageLink onClick={() => moveTo('sign-in')}>Sign in</PageLink>
+          </p>
+        </form>
+      )}
+
+      {page === 'verify' && (
+        <form className="space-y-5" noValidate onSubmit={submitVerification}>
+          <FormHeading title="Verify your email" subtitle="Use the token from your verification email. It expires after 24 hours and can be used only once." />
+          <TextField
+            error={fieldErrors.token}
+            id="verification-token"
+            label="Verification token"
+            onChange={setToken}
+            value={token}
+          />
+          <SubmitButton disabled={submitting}>{submitting ? 'Verifying…' : 'Verify email'}</SubmitButton>
+          <p className="text-sm text-slate-300">
+            Prefer to sign in?{' '}
+            <PageLink onClick={() => moveTo('sign-in')}>Sign in</PageLink>
+          </p>
+        </form>
+      )}
+
+      {page === 'sign-in' && (
+        <form className="space-y-5" noValidate onSubmit={submitSignIn}>
+          <FormHeading title="Sign in" subtitle="Your session expires after 30 days of inactivity or 90 days in total." />
+          <TextField
+            autoComplete="email"
+            error={fieldErrors.email}
+            id="sign-in-email"
+            label="Email address"
+            onChange={(email) => setCredentials({ ...credentials, email })}
+            type="email"
+            value={credentials.email}
+          />
+          <TextField
+            autoComplete="current-password"
+            error={fieldErrors.password}
+            id="sign-in-password"
+            label="Password"
+            onChange={(password) => setCredentials({ ...credentials, password })}
+            type="password"
+            value={credentials.password}
+          />
+          <SubmitButton disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</SubmitButton>
+          <p className="text-sm text-slate-300">
+            New here?{' '}
+            <PageLink onClick={() => moveTo('register')}>Create an account</PageLink>
+          </p>
+        </form>
+      )}
+    </PageFrame>
+  );
+}
+
+function AuthenticatedHome({ session }: { session: AuthenticatedSession }) {
+  const verified = session.verified === true;
+  const handle = session.publicHandle ?? 'collector';
+
+  return (
+    <PageFrame>
+      <p className="text-sm font-semibold tracking-[0.2em] text-cyan-300 uppercase">Authenticated home</p>
+      <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Welcome back, {handle}.</h1>
+      <section className="mt-8 rounded-xl border border-slate-700 bg-slate-950/60 p-5" aria-live="polite">
+        <p className={`text-sm font-semibold ${verified ? 'text-emerald-300' : 'text-amber-300'}`}>
+          {verified ? 'Trading access is active.' : 'Email verification is still required for trading.'}
+        </p>
+        <p className="mt-2 leading-6 text-slate-300">
+          {verified
+            ? 'You can now use marketplace commands when they become available.'
+            : 'You can browse the platform, but submitting items, scheduling auctions, and bidding remain unavailable.'}
+        </p>
+      </section>
+    </PageFrame>
+  );
+}
+
+function PageFrame({ children }: { children: ReactNode }) {
+  return (
+    <main className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100 sm:px-10 sm:py-16">
+      <section className="mx-auto max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-7 shadow-2xl shadow-slate-950/50 sm:p-8">
+        {children}
       </section>
     </main>
   );
+}
+
+function FormHeading({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div>
+      <h2 className="text-2xl font-semibold text-white">{title}</h2>
+      <p className="mt-2 leading-6 text-slate-300">{subtitle}</p>
+    </div>
+  );
+}
+
+function TextField({
+  autoComplete,
+  error,
+  id,
+  label,
+  onChange,
+  type = 'text',
+  value,
+}: {
+  autoComplete?: string;
+  error?: string;
+  id: string;
+  label: string;
+  onChange: (value: string) => void;
+  type?: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-100" htmlFor={id}>{label}</label>
+      <input
+        aria-describedby={error === undefined ? undefined : `${id}-error`}
+        aria-invalid={error !== undefined}
+        autoComplete={autoComplete}
+        className="mt-2 block w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/30"
+        id={id}
+        onChange={(event) => onChange(event.target.value)}
+        type={type}
+        value={value}
+      />
+      {error !== undefined && <p className="mt-2 text-sm text-rose-300" id={`${id}-error`}>{error}</p>}
+    </div>
+  );
+}
+
+function SubmitButton({ children, disabled }: { children: ReactNode; disabled: boolean }) {
+  return (
+    <button
+      className="w-full rounded-lg bg-cyan-300 px-4 py-2.5 font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={disabled}
+      type="submit"
+    >
+      {children}
+    </button>
+  );
+}
+
+function PageLink({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+  return <button className="font-medium text-cyan-300 hover:text-cyan-200" onClick={onClick} type="button">{children}</button>;
+}
+
+function Notice({ children }: { children: ReactNode }) {
+  return <p className="mb-6 rounded-lg border border-emerald-700/70 bg-emerald-950/40 p-4 text-sm leading-6 text-emerald-200" role="status">{children}</p>;
+}
+
+function Failure({ children }: { children: ReactNode }) {
+  return <p className="mb-6 rounded-lg border border-rose-700/70 bg-rose-950/40 p-4 text-sm leading-6 text-rose-200" role="alert">{children}</p>;
+}
+
+function validateRegistration(input: typeof initialRegistration): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!validEmail(input.email)) {
+    errors.email = 'Enter a valid email address.';
+  }
+  if (!/^[A-Za-z0-9_]{3,30}$/.test(input.publicHandle.trim())) {
+    errors.publicHandle = 'Use 3–30 letters, numbers, or underscores.';
+  }
+  const passwordLength = [...input.password].length;
+  if (passwordLength < 12 || passwordLength > 128) {
+    errors.password = 'Password must contain between 12 and 128 characters.';
+  }
+  return errors;
+}
+
+function validateSignIn(input: typeof initialSignIn): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!validEmail(input.email)) {
+    errors.email = 'Enter a valid email address.';
+  }
+  if (input.password.length === 0) {
+    errors.password = 'Enter your password.';
+  }
+  return errors;
+}
+
+function validEmail(email: string): boolean {
+  return /^\S+@\S+\.\S+$/.test(email.trim());
+}
+
+function applyApiError(
+  error: unknown,
+  setFieldErrors: (errors: FieldErrors) => void,
+  setFailure: (message: string) => void,
+) {
+  if (error instanceof ApiError) {
+    const serverErrors = Object.fromEntries(
+      (error.fieldErrors ?? [])
+        .filter((fieldError) => fieldError.field !== undefined && fieldError.message !== undefined)
+        .map((fieldError) => [fieldError.field as string, fieldError.message as string]),
+    );
+    setFieldErrors(serverErrors);
+    if (error.code === 'VERIFICATION_TOKEN_INVALID') {
+      setFailure('This verification link is invalid, expired, or has already been used. Register again to request a new link.');
+      return;
+    }
+    setFailure(error.message);
+    return;
+  }
+
+  setFailure('The request could not be completed. Please try again.');
 }

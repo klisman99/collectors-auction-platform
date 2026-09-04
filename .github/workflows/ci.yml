@@ -86,3 +86,46 @@ jobs:
 
       - name: Build frontend container image
         run: docker build --tag collectors-auction-platform-web:${{ github.sha }} ./web
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Node 24 LTS and pnpm
+        uses: pnpm/setup@v2.1.0
+        with:
+          version: 11.19.0
+          runtime: node@24.20.0
+          working-directory: web
+          cache: true
+          install: false
+
+      - name: Install frontend dependencies
+        run: pnpm --dir web install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm --dir web exec playwright install --with-deps chromium
+
+      - name: Start application stack
+        shell: bash
+        run: |
+          docker compose up --detach --build
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8080/actuator/health/liveness >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:8080/actuator/health/liveness >/dev/null
+
+      - name: Run browser integration tests
+        run: pnpm --dir web run e2e
+        env:
+          BASE_URL: http://127.0.0.1:8080
+          MAILPIT_URL: http://127.0.0.1:8025
+
+      - name: Tear down application stack
+        if: always()
+        run: docker compose down --volumes
