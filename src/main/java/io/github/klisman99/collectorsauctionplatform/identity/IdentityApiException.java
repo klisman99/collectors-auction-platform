@@ -46,6 +46,14 @@ class IdentityApiException extends ErrorResponseException {
                 "The verification token is invalid, expired, or already used.");
     }
 
+    static IdentityApiException invalidPasswordRecoveryToken() {
+        return new IdentityApiException(
+                HttpStatus.BAD_REQUEST,
+                "PASSWORD_RECOVERY_TOKEN_INVALID",
+                "BR-AUTH-005",
+                "The password recovery token is invalid, expired, or already used.");
+    }
+
     static IdentityApiException invalidCredentials() {
         return new IdentityApiException(
                 HttpStatus.UNAUTHORIZED,
@@ -60,6 +68,14 @@ class IdentityApiException extends ErrorResponseException {
                 "LOGIN_RATE_LIMIT_EXCEEDED",
                 "BR-AUTH-015",
                 "Too many sign-in attempts. Try again in one minute.");
+    }
+
+    static IdentityApiException passwordRecoveryRateLimited() {
+        return new IdentityApiException(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "PASSWORD_RECOVERY_RATE_LIMIT_EXCEEDED",
+                "BR-AUTH-015",
+                "Too many password recovery requests. Try again in one hour.");
     }
 
     private static ProblemDetail problem(HttpStatus status, String code, String ruleId, String detail) {

@@ -45,9 +45,15 @@ class SecurityConfiguration {
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/verify-email",
                                 "/api/v1/auth/sign-in",
+                                "/api/v1/auth/request-password-recovery",
+                                "/api/v1/auth/reset-password",
                                 "/api/v1/test/**")
                         .permitAll()
-                        .requestMatchers("/api/v1/auth/session").authenticated()
+                        .requestMatchers(
+                                "/api/v1/auth/session",
+                                "/api/v1/auth/sign-out",
+                                "/api/v1/auth/revoke-all-sessions")
+                        .authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
                         .requestMatchers("/api/v1/**").hasAuthority("TRADING_ELIGIBLE")
                         .anyRequest().denyAll())

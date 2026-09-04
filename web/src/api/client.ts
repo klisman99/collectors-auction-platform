@@ -4,6 +4,10 @@ import {
   getAuthenticatedSession as requestAuthenticatedSession,
   getPlatformStatus as requestPlatformStatus,
   registerRegularAccount,
+  requestPasswordRecovery as requestPasswordRecoveryCommand,
+  resetPassword as resetPasswordCommand,
+  revokeAllSessions as revokeAllSessionsCommand,
+  signOut as signOutCommand,
   signInRegularAccount,
   verifyRegularAccountEmail,
 } from './generated/sdk.gen';
@@ -13,10 +17,24 @@ import type {
   PlatformStatus,
   Registration,
   RegistrationRequest,
+  PasswordRecoveryRequest,
+  PasswordRecoveryRequestAccepted,
+  PasswordResetRequest,
+  PasswordReset,
   SignInRequest,
 } from './generated/types.gen';
 
-export type { AuthenticatedSession, PlatformStatus, Registration, RegistrationRequest, SignInRequest } from './generated/types.gen';
+export type {
+  AuthenticatedSession,
+  PasswordRecoveryRequest,
+  PasswordRecoveryRequestAccepted,
+  PasswordReset,
+  PasswordResetRequest,
+  PlatformStatus,
+  Registration,
+  RegistrationRequest,
+  SignInRequest,
+} from './generated/types.gen';
 
 client.setConfig({ baseUrl: '/', credentials: 'same-origin' });
 
@@ -62,6 +80,30 @@ export async function verifyEmail(token: string): Promise<EmailVerification> {
 export async function signIn(input: SignInRequest): Promise<AuthenticatedSession> {
   const { data, error } = await signInRegularAccount({ body: input, ...(await csrfHeaders()) });
   return required(data, error, 'Sign-in could not be completed.');
+}
+
+export async function requestPasswordRecovery(input: PasswordRecoveryRequest): Promise<PasswordRecoveryRequestAccepted> {
+  const { data, error } = await requestPasswordRecoveryCommand({ body: input, ...(await csrfHeaders()) });
+  return required(data, error, 'Password recovery could not be requested.');
+}
+
+export async function resetPassword(input: PasswordResetRequest): Promise<PasswordReset> {
+  const { data, error } = await resetPasswordCommand({ body: input, ...(await csrfHeaders()) });
+  return required(data, error, 'Password could not be reset.');
+}
+
+export async function signOut(): Promise<void> {
+  const { error } = await signOutCommand(await csrfHeaders());
+  if (error !== undefined) {
+    throw new ApiError(error as ApiProblem, 'Sign-out could not be completed.');
+  }
+}
+
+export async function revokeAllSessions(): Promise<void> {
+  const { error } = await revokeAllSessionsCommand(await csrfHeaders());
+  if (error !== undefined) {
+    throw new ApiError(error as ApiProblem, 'Sessions could not be revoked.');
+  }
 }
 
 async function csrfHeaders(): Promise<{ headers: Record<string, string> }> {

@@ -36,17 +36,26 @@ class AuthenticationController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
     private final LoginAttemptRateLimiter loginAttemptRateLimiter;
+    private final PasswordRecoveryService passwordRecoveryService;
+    private final PasswordRecoveryRateLimiter passwordRecoveryRateLimiter;
+    private final AccountSessionRevocationService sessionRevocationService;
     private final SecurityContextHolderStrategy securityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
 
     AuthenticationController(
             RegistrationService registrationService,
             AuthenticationManager authenticationManager,
             SecurityContextRepository securityContextRepository,
-            LoginAttemptRateLimiter loginAttemptRateLimiter) {
+            LoginAttemptRateLimiter loginAttemptRateLimiter,
+            PasswordRecoveryService passwordRecoveryService,
+            PasswordRecoveryRateLimiter passwordRecoveryRateLimiter,
+            AccountSessionRevocationService sessionRevocationService) {
         this.registrationService = registrationService;
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.loginAttemptRateLimiter = loginAttemptRateLimiter;
+        this.passwordRecoveryService = passwordRecoveryService;
+        this.passwordRecoveryRateLimiter = passwordRecoveryRateLimiter;
+        this.sessionRevocationService = sessionRevocationService;
     }
 
     @PostMapping(path = "/register", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -107,6 +116,56 @@ class AuthenticationController {
         return SessionResponse.from((AccountSessionPrincipal) authentication.getPrincipal());
     }
 
+    @PostMapping(path = "/request-password-recovery", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @Operation(operationId = "requestPasswordRecovery", summary = "Request a single-use password recovery email")
+    PasswordRecoveryResponse requestPasswordRecovery(
+            @Valid @RequestBody PasswordRecoveryRequest request,
+            HttpServletRequest servletRequest) {
+        String normalizedEmail = IdentityNormalization.email(request.email());
+        passwordRecoveryRateLimiter.recordAttempt(clientIp(servletRequest), normalizedEmail);
+        passwordRecoveryService.request(normalizedEmail);
+        return new PasswordRecoveryResponse("RECOVERY_REQUEST_RECEIVED");
+    }
+
+    @PostMapping(path = "/reset-password", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(operationId = "resetPassword", summary = "Consume a password recovery token and change the password")
+    PasswordResetResponse resetPassword(
+            @Valid @RequestBody PasswordResetRequest request,
+            HttpServletRequest servletRequest) {
+        passwordRecoveryService.reset(request.token(), request.password());
+        invalidateCurrentSession(servletRequest);
+        return new PasswordResetResponse("PASSWORD_RESET");
+    }
+
+    @PostMapping(path = "/sign-out")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(operationId = "signOut", summary = "Revoke the current server-side session")
+    void signOut(HttpServletRequest servletRequest) {
+        HttpSession session = servletRequest.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        securityContextHolderStrategy.clearContext();
+    }
+
+    @PostMapping(path = "/revoke-all-sessions")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(operationId = "revokeAllSessions", summary = "Revoke every server-side session for the account")
+    void revokeAllSessions(Authentication authentication, HttpServletRequest servletRequest) {
+        AccountSessionPrincipal principal = (AccountSessionPrincipal) authentication.getPrincipal();
+        sessionRevocationService.revokeAll(principal.accountId());
+        invalidateCurrentSession(servletRequest);
+    }
+
+    private void invalidateCurrentSession(HttpServletRequest servletRequest) {
+        HttpSession session = servletRequest.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        securityContextHolderStrategy.clearContext();
+    }
+
     private String clientIp(HttpServletRequest request) {
         // X-Forwarded-For is only meaningful when set by a trusted proxy.
         // The edge proxy overwrites it with the connected client address;
@@ -136,6 +195,16 @@ class AuthenticationController {
         }
     }
 
+    record PasswordRecoveryRequest(@NotBlank @Email @Size(max = 254) String email) {
+
+        PasswordRecoveryRequest {
+            email = email == null ? null : email.trim();
+        }
+    }
+
+    record PasswordResetRequest(@NotBlank @Size(max = 128) String token, @NotNull String password) {
+    }
+
     @Schema(name = "Registration", description = "The accepted public state of a newly registered regular account.")
     record RegistrationResponse(String publicHandle, String status) {
     }
@@ -154,5 +223,13 @@ class AuthenticationController {
                     principal.isVerified(),
                     principal.canTrade());
         }
+    }
+
+    @Schema(name = "PasswordRecoveryRequestAccepted", description = "A generic response that does not reveal whether an account exists.")
+    record PasswordRecoveryResponse(String status) {
+    }
+
+    @Schema(name = "PasswordReset", description = "The result of consuming a password recovery token.")
+    record PasswordResetResponse(String status) {
     }
 }

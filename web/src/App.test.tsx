@@ -8,12 +8,26 @@ vi.mock('./api/client', () => ({
   },
   getAuthenticatedSession: vi.fn(),
   registerAccount: vi.fn(),
+  requestPasswordRecovery: vi.fn(),
+  resetPassword: vi.fn(),
+  revokeAllSessions: vi.fn(),
+  signOut: vi.fn(),
   signIn: vi.fn(),
   verifyEmail: vi.fn(),
 }));
 
 import { App } from './App';
-import { ApiError, getAuthenticatedSession, registerAccount, signIn, verifyEmail } from './api/client';
+import {
+  ApiError,
+  getAuthenticatedSession,
+  registerAccount,
+  requestPasswordRecovery,
+  resetPassword,
+  revokeAllSessions,
+  signIn,
+  signOut,
+  verifyEmail,
+} from './api/client';
 
 describe('App', () => {
   afterEach(cleanup);
@@ -21,6 +35,10 @@ describe('App', () => {
   beforeEach(() => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue(null);
     vi.mocked(registerAccount).mockReset();
+    vi.mocked(requestPasswordRecovery).mockReset();
+    vi.mocked(resetPassword).mockReset();
+    vi.mocked(revokeAllSessions).mockReset();
+    vi.mocked(signOut).mockReset();
     vi.mocked(signIn).mockReset();
     vi.mocked(verifyEmail).mockReset();
     window.history.replaceState({}, '', '/');
@@ -102,5 +120,60 @@ describe('App', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Verify email' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('invalid, expired, or has already been used');
+  });
+
+  test('requests password recovery without revealing whether the email exists', async () => {
+    vi.mocked(requestPasswordRecovery).mockResolvedValue({ status: 'RECOVERY_REQUEST_RECEIVED' });
+    render(<App />);
+
+    await screen.findByRole('heading', { name: 'Start collecting with confidence.' });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }));
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'collector@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send recovery link' }));
+
+    await waitFor(() => expect(requestPasswordRecovery).toHaveBeenCalledWith({ email: 'collector@example.com' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('If an account exists for that email, a recovery link is on its way.');
+  });
+
+  test('consumes a recovery link and returns to sign in after resetting the password', async () => {
+    vi.mocked(resetPassword).mockResolvedValue({ status: 'PASSWORD_RESET' });
+    window.history.replaceState({}, '', '/?recoveryToken=recovery-token-28');
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Reset your password' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a replacement password' } });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'a replacement password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }));
+
+    await waitFor(() => expect(resetPassword).toHaveBeenCalledWith({
+      token: 'recovery-token-28',
+      password: 'a replacement password',
+    }));
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Your password has been reset. Sign in with your new password.');
+  });
+
+  test('can sign out or revoke every session from the authenticated home', async () => {
+    vi.mocked(getAuthenticatedSession).mockResolvedValue({
+      publicHandle: 'collector_28', status: 'ACTIVE', verified: true, canTrade: true,
+    });
+    vi.mocked(signOut).mockResolvedValue(undefined);
+    render(<App />);
+
+    await screen.findByText('Welcome back, collector_28.');
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(signOut).toHaveBeenCalled());
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+
+    vi.mocked(getAuthenticatedSession).mockResolvedValue({
+      publicHandle: 'collector_28', status: 'ACTIVE', verified: true, canTrade: true,
+    });
+    cleanup();
+    render(<App />);
+    await screen.findByText('Welcome back, collector_28.');
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out all sessions' }));
+    await waitFor(() => expect(revokeAllSessions).toHaveBeenCalled());
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
   });
 });
