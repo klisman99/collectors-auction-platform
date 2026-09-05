@@ -70,6 +70,10 @@ class RegularAccount {
         this.verifiedAt = verifiedAt;
     }
 
+    void changePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     UUID id() {
         return id;
     }

@@ -31,6 +31,29 @@ export type AuthenticatedSession = {
     canTrade?: boolean;
 };
 
+export type PasswordResetRequest = {
+    token: string;
+    password: string;
+};
+
+/**
+ * The result of consuming a password recovery token.
+ */
+export type PasswordReset = {
+    status?: string;
+};
+
+export type PasswordRecoveryRequest = {
+    email: string;
+};
+
+/**
+ * A generic response that does not reveal whether an account exists.
+ */
+export type PasswordRecoveryRequestAccepted = {
+    status?: string;
+};
+
 export type RegistrationRequest = {
     email: string;
     publicHandle: string;
@@ -76,6 +99,22 @@ export type VerifyRegularAccountEmailResponses = {
 
 export type VerifyRegularAccountEmailResponse = VerifyRegularAccountEmailResponses[keyof VerifyRegularAccountEmailResponses];
 
+export type SignOutData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/sign-out';
+};
+
+export type SignOutResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type SignOutResponse = SignOutResponses[keyof SignOutResponses];
+
 export type SignInRegularAccountData = {
     body: SignInRequest;
     path?: never;
@@ -91,6 +130,54 @@ export type SignInRegularAccountResponses = {
 };
 
 export type SignInRegularAccountResponse = SignInRegularAccountResponses[keyof SignInRegularAccountResponses];
+
+export type RevokeAllSessionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/revoke-all-sessions';
+};
+
+export type RevokeAllSessionsResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type RevokeAllSessionsResponse = RevokeAllSessionsResponses[keyof RevokeAllSessionsResponses];
+
+export type ResetPasswordData = {
+    body: PasswordResetRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/reset-password';
+};
+
+export type ResetPasswordResponses = {
+    /**
+     * OK
+     */
+    200: PasswordReset;
+};
+
+export type ResetPasswordResponse = ResetPasswordResponses[keyof ResetPasswordResponses];
+
+export type RequestPasswordRecoveryData = {
+    body: PasswordRecoveryRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/request-password-recovery';
+};
+
+export type RequestPasswordRecoveryResponses = {
+    /**
+     * Accepted
+     */
+    202: PasswordRecoveryRequestAccepted;
+};
+
+export type RequestPasswordRecoveryResponse = RequestPasswordRecoveryResponses[keyof RequestPasswordRecoveryResponses];
 
 export type RegisterRegularAccountData = {
     body: RegistrationRequest;

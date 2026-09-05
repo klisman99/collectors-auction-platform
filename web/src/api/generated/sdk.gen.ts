@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CsrfTokenData, CsrfTokenResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetPlatformStatusData, GetPlatformStatusResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, SignInRegularAccountData, SignInRegularAccountResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
+import type { CsrfTokenData, CsrfTokenResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetPlatformStatusData, GetPlatformStatusResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -31,10 +31,44 @@ export const verifyRegularAccountEmail = <ThrowOnError extends boolean = false>(
 });
 
 /**
+ * Revoke the current server-side session
+ */
+export const signOut = <ThrowOnError extends boolean = false>(options?: Options<SignOutData, ThrowOnError>): RequestResult<SignOutResponses, unknown, ThrowOnError> => (options?.client ?? client).post<SignOutResponses, unknown, ThrowOnError>({ url: '/api/v1/auth/sign-out', ...options });
+
+/**
  * Sign in with a revocable server-side session
  */
 export const signInRegularAccount = <ThrowOnError extends boolean = false>(options: Options<SignInRegularAccountData, ThrowOnError>): RequestResult<SignInRegularAccountResponses, unknown, ThrowOnError> => (options.client ?? client).post<SignInRegularAccountResponses, unknown, ThrowOnError>({
     url: '/api/v1/auth/sign-in',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke every server-side session for the account
+ */
+export const revokeAllSessions = <ThrowOnError extends boolean = false>(options?: Options<RevokeAllSessionsData, ThrowOnError>): RequestResult<RevokeAllSessionsResponses, unknown, ThrowOnError> => (options?.client ?? client).post<RevokeAllSessionsResponses, unknown, ThrowOnError>({ url: '/api/v1/auth/revoke-all-sessions', ...options });
+
+/**
+ * Consume a password recovery token and change the password
+ */
+export const resetPassword = <ThrowOnError extends boolean = false>(options: Options<ResetPasswordData, ThrowOnError>): RequestResult<ResetPasswordResponses, unknown, ThrowOnError> => (options.client ?? client).post<ResetPasswordResponses, unknown, ThrowOnError>({
+    url: '/api/v1/auth/reset-password',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Request a single-use password recovery email
+ */
+export const requestPasswordRecovery = <ThrowOnError extends boolean = false>(options: Options<RequestPasswordRecoveryData, ThrowOnError>): RequestResult<RequestPasswordRecoveryResponses, unknown, ThrowOnError> => (options.client ?? client).post<RequestPasswordRecoveryResponses, unknown, ThrowOnError>({
+    url: '/api/v1/auth/request-password-recovery',
     ...options,
     headers: {
         'Content-Type': 'application/json',

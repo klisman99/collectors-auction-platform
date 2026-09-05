@@ -4,24 +4,33 @@ import {
   ApiError,
   getAuthenticatedSession,
   registerAccount,
+  requestPasswordRecovery,
+  resetPassword,
+  revokeAllSessions,
   signIn,
+  signOut,
   verifyEmail,
   type AuthenticatedSession,
 } from './api/client';
 
-type Page = 'register' | 'sign-in' | 'verify';
+type Page = 'register' | 'sign-in' | 'verify' | 'recover' | 'reset';
 type FieldErrors = Record<string, string>;
 
 const initialRegistration = { email: '', publicHandle: '', password: '' };
 const initialSignIn = { email: '', password: '' };
+const initialReset = { password: '', confirmation: '' };
 
 export function App() {
   const verificationToken = new URLSearchParams(window.location.search).get('verificationToken') ?? '';
-  const [page, setPage] = useState<Page>(verificationToken === '' ? 'register' : 'verify');
+  const recoveryToken = new URLSearchParams(window.location.search).get('recoveryToken') ?? '';
+  const [page, setPage] = useState<Page>(
+    verificationToken !== '' ? 'verify' : recoveryToken !== '' ? 'reset' : 'register',
+  );
   const [session, setSession] = useState<AuthenticatedSession | null | undefined>(undefined);
   const [registration, setRegistration] = useState(initialRegistration);
   const [credentials, setCredentials] = useState(initialSignIn);
   const [token, setToken] = useState(verificationToken);
+  const [reset, setReset] = useState(initialReset);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -38,12 +47,19 @@ export function App() {
   // A verification link must take precedence over an existing (possibly stale)
   // session. This is important when the user registered in another tab and is
   // already signed in with the pending account.
-  if (session !== null && page !== 'verify') {
-    return <AuthenticatedHome session={session} />;
+  if (session !== null && page !== 'verify' && page !== 'reset') {
+    return (
+      <AuthenticatedHome
+        failure={failure}
+        onRevokeAllSessions={() => endSession(true)}
+        onSignOut={() => endSession(false)}
+        session={session}
+      />
+    );
   }
 
   function moveTo(nextPage: Page) {
-    if (nextPage !== 'verify' && verificationToken !== '') {
+    if (nextPage !== 'verify' && nextPage !== 'reset' && (verificationToken !== '' || recoveryToken !== '')) {
       window.history.replaceState({}, '', window.location.pathname);
       setToken('');
     }
@@ -117,6 +133,71 @@ export function App() {
     setFailure(null);
     try {
       setSession(await signIn({ email: credentials.email.trim(), password: credentials.password }));
+    } catch (error) {
+      applyApiError(error, setFieldErrors, setFailure);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitPasswordRecovery(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const errors = validatePasswordRecovery(credentials.email);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setSubmitting(true);
+    setFieldErrors({});
+    setFailure(null);
+    try {
+      await requestPasswordRecovery({ email: credentials.email.trim() });
+      setNotice('If an account exists for that email, a recovery link is on its way.');
+    } catch (error) {
+      applyApiError(error, setFieldErrors, setFailure);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitPasswordReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const errors = validatePasswordReset(reset);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setSubmitting(true);
+    setFieldErrors({});
+    setFailure(null);
+    try {
+      await resetPassword({ token: recoveryToken.trim(), password: reset.password });
+      window.history.replaceState({}, '', window.location.pathname);
+      setNotice('Your password has been reset. Sign in with your new password.');
+      setSession(null);
+      setPage('sign-in');
+    } catch (error) {
+      applyApiError(error, setFieldErrors, setFailure);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function endSession(revokeAll: boolean) {
+    setSubmitting(true);
+    setFailure(null);
+    try {
+      if (revokeAll) {
+        await revokeAllSessions();
+        setNotice('All sessions have been signed out.');
+      } else {
+        await signOut();
+        setNotice('You have been signed out.');
+      }
+      setSession(null);
+      setPage('sign-in');
     } catch (error) {
       applyApiError(error, setFieldErrors, setFailure);
     } finally {
@@ -219,8 +300,61 @@ export function App() {
           />
           <SubmitButton disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</SubmitButton>
           <p className="text-sm text-slate-300">
+            Forgot your password?{' '}
+            <PageLink onClick={() => moveTo('recover')}>Forgot password?</PageLink>
+          </p>
+          <p className="text-sm text-slate-300">
             New here?{' '}
             <PageLink onClick={() => moveTo('register')}>Create an account</PageLink>
+          </p>
+        </form>
+      )}
+
+      {page === 'recover' && (
+        <form className="space-y-5" noValidate onSubmit={submitPasswordRecovery}>
+          <FormHeading title="Recover your password" subtitle="Enter your email and we’ll send a single-use recovery link if an account exists." />
+          <TextField
+            autoComplete="email"
+            error={fieldErrors.email}
+            id="recovery-email"
+            label="Email address"
+            onChange={(email) => setCredentials({ ...credentials, email })}
+            type="email"
+            value={credentials.email}
+          />
+          <SubmitButton disabled={submitting}>{submitting ? 'Sending…' : 'Send recovery link'}</SubmitButton>
+          <p className="text-sm text-slate-300">
+            Remembered your password?{' '}
+            <PageLink onClick={() => moveTo('sign-in')}>Sign in</PageLink>
+          </p>
+        </form>
+      )}
+
+      {page === 'reset' && (
+        <form className="space-y-5" noValidate onSubmit={submitPasswordReset}>
+          <FormHeading title="Reset your password" subtitle="Choose a new password. The recovery link expires after one hour and can be used only once." />
+          <TextField
+            autoComplete="new-password"
+            error={fieldErrors.password}
+            id="reset-password"
+            label="New password"
+            onChange={(password) => setReset({ ...reset, password })}
+            type="password"
+            value={reset.password}
+          />
+          <TextField
+            autoComplete="new-password"
+            error={fieldErrors.confirmation}
+            id="reset-password-confirmation"
+            label="Confirm new password"
+            onChange={(confirmation) => setReset({ ...reset, confirmation })}
+            type="password"
+            value={reset.confirmation}
+          />
+          <SubmitButton disabled={submitting}>{submitting ? 'Resetting…' : 'Reset password'}</SubmitButton>
+          <p className="text-sm text-slate-300">
+            Prefer to sign in?{' '}
+            <PageLink onClick={() => moveTo('sign-in')}>Sign in</PageLink>
           </p>
         </form>
       )}
@@ -228,7 +362,17 @@ export function App() {
   );
 }
 
-function AuthenticatedHome({ session }: { session: AuthenticatedSession }) {
+function AuthenticatedHome({
+  failure,
+  onRevokeAllSessions,
+  onSignOut,
+  session,
+}: {
+  failure: string | null;
+  onRevokeAllSessions: () => void;
+  onSignOut: () => void;
+  session: AuthenticatedSession;
+}) {
   const verified = session.verified === true;
   const handle = session.publicHandle ?? 'collector';
 
@@ -236,6 +380,7 @@ function AuthenticatedHome({ session }: { session: AuthenticatedSession }) {
     <PageFrame>
       <p className="text-sm font-semibold tracking-[0.2em] text-cyan-300 uppercase">Authenticated home</p>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Welcome back, {handle}.</h1>
+      {failure !== null && <Failure>{failure}</Failure>}
       <section className="mt-8 rounded-xl border border-slate-700 bg-slate-950/60 p-5" aria-live="polite">
         <p className={`text-sm font-semibold ${verified ? 'text-emerald-300' : 'text-amber-300'}`}>
           {verified ? 'Trading access is active.' : 'Email verification is still required for trading.'}
@@ -246,6 +391,22 @@ function AuthenticatedHome({ session }: { session: AuthenticatedSession }) {
             : 'You can browse the platform, but submitting items, scheduling auctions, and bidding remain unavailable.'}
         </p>
       </section>
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <button
+          className="rounded-lg border border-slate-600 px-4 py-2.5 font-semibold text-slate-100 transition hover:border-cyan-300 hover:text-cyan-200"
+          onClick={onSignOut}
+          type="button"
+        >
+          Sign out
+        </button>
+        <button
+          className="rounded-lg border border-rose-700/70 px-4 py-2.5 font-semibold text-rose-200 transition hover:border-rose-300 hover:text-rose-100"
+          onClick={onRevokeAllSessions}
+          type="button"
+        >
+          Sign out all sessions
+        </button>
+      </div>
     </PageFrame>
   );
 }
@@ -354,6 +515,22 @@ function validateSignIn(input: typeof initialSignIn): FieldErrors {
   return errors;
 }
 
+function validatePasswordRecovery(email: string): FieldErrors {
+  return validEmail(email) ? {} : { email: 'Enter a valid email address.' };
+}
+
+function validatePasswordReset(input: typeof initialReset): FieldErrors {
+  const errors: FieldErrors = {};
+  const passwordLength = [...input.password].length;
+  if (passwordLength < 12 || passwordLength > 128) {
+    errors.password = 'Password must contain between 12 and 128 characters.';
+  }
+  if (input.password !== input.confirmation) {
+    errors.confirmation = 'Passwords must match.';
+  }
+  return errors;
+}
+
 function validEmail(email: string): boolean {
   return /^\S+@\S+\.\S+$/.test(email.trim());
 }
@@ -372,6 +549,10 @@ function applyApiError(
     setFieldErrors(serverErrors);
     if (error.code === 'VERIFICATION_TOKEN_INVALID') {
       setFailure('This verification link is invalid, expired, or has already been used. Register again to request a new link.');
+      return;
+    }
+    if (error.code === 'PASSWORD_RECOVERY_TOKEN_INVALID') {
+      setFailure('This recovery link is invalid, expired, or has already been used. Request a new link to reset your password.');
       return;
     }
     setFailure(error.message);

@@ -19,6 +19,7 @@ class RegistrationService {
     private final RegularAccountRepository accounts;
     private final EmailVerificationTokenRepository verificationTokens;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordPolicy passwordPolicy;
     private final VerificationTokenGenerator tokenGenerator;
     private final ApplicationEventPublisher events;
     private final Clock clock;
@@ -27,12 +28,14 @@ class RegistrationService {
             RegularAccountRepository accounts,
             EmailVerificationTokenRepository verificationTokens,
             PasswordEncoder passwordEncoder,
+            PasswordPolicy passwordPolicy,
             VerificationTokenGenerator tokenGenerator,
             ApplicationEventPublisher events,
             Clock clock) {
         this.accounts = accounts;
         this.verificationTokens = verificationTokens;
         this.passwordEncoder = passwordEncoder;
+        this.passwordPolicy = passwordPolicy;
         this.tokenGenerator = tokenGenerator;
         this.events = events;
         this.clock = clock;
@@ -40,7 +43,7 @@ class RegistrationService {
 
     @Transactional
     RegistrationResult register(String email, String handle, String password) {
-        validatePasswordLength(password);
+        passwordPolicy.validate(password);
 
         String normalizedEmail = IdentityNormalization.email(email);
         String publicHandle = IdentityNormalization.publicHandle(handle);
@@ -97,13 +100,6 @@ class RegistrationService {
         }
         if (accounts.existsByPublicHandle(publicHandle)) {
             throw IdentityApiException.publicHandleUnavailable();
-        }
-    }
-
-    private void validatePasswordLength(String password) {
-        int characterCount = password.codePointCount(0, password.length());
-        if (characterCount < 12 || characterCount > 128) {
-            throw IdentityApiException.invalidPasswordLength();
         }
     }
 

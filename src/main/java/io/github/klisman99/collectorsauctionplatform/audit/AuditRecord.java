@@ -72,7 +72,11 @@ class AuditRecord {
 
     enum ActorType { SYSTEM, REGULAR_ACCOUNT }
 
-    enum AuditAction { REGULAR_ACCOUNT_REGISTERED, REGULAR_ACCOUNT_VERIFIED }
+    enum AuditAction {
+        REGULAR_ACCOUNT_REGISTERED,
+        REGULAR_ACCOUNT_VERIFIED,
+        REGULAR_ACCOUNT_PASSWORD_RESET
+    }
 
     enum TargetType { REGULAR_ACCOUNT }
 }
