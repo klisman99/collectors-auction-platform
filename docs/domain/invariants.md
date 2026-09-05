@@ -10,6 +10,8 @@ Invariants remain true regardless of retries, concurrency, process restarts, lis
 - A suspended regular account creates no new marketplace activity but may read history and finish existing settlements.
 - Operational accounts never own items, auctions, bids, or sales as participants.
 - The system always retains at least one active administrator.
+- An operational activation invitation is single-use and expires after 24 hours.
+- Deactivated operational accounts never regain access through authentication or invitation.
 - Historical actions remain associated with an account after suspension or deactivation.
 
 ## Item and ownership

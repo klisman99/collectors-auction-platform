@@ -11,18 +11,23 @@ import org.springframework.transaction.annotation.Transactional;
 class AccountSessionRevocationService {
 
     private final FindByIndexNameSessionRepository<? extends Session> sessions;
-    private final RegularAccountRepository accounts;
+    private final RegularAccountRepository regularAccounts;
+    private final OperationalAccountRepository operationalAccounts;
 
     AccountSessionRevocationService(
             FindByIndexNameSessionRepository<? extends Session> sessions,
-            RegularAccountRepository accounts) {
+            RegularAccountRepository regularAccounts,
+            OperationalAccountRepository operationalAccounts) {
         this.sessions = sessions;
-        this.accounts = accounts;
+        this.regularAccounts = regularAccounts;
+        this.operationalAccounts = operationalAccounts;
     }
 
     @Transactional
     void revokeAll(UUID accountId) {
-        accounts.findByIdForUpdate(accountId);
+        if (regularAccounts.findByIdForUpdate(accountId).isEmpty()) {
+            operationalAccounts.findByIdForUpdate(accountId);
+        }
         sessions.findByPrincipalName(accountId.toString())
                 .keySet()
                 .forEach(sessions::deleteById);

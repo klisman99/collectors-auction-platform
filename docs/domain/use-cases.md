@@ -24,7 +24,9 @@ The user requests a simulated recovery email, resets the password, signs out, or
 
 The administrator invites a dedicated moderator or administrator and may later deactivate it.
 
-**Outcome:** operational access is auditable, non-trading, and never converts to or from a regular account.
+The invitation carries a categorized public reason and optional internal note. The invitee activates the account with a single-use token and chooses a password.
+
+**Outcome:** operational access is auditable, non-trading, and never converts to or from a regular account. Deactivation revokes every session while preserving the account as the actor on historical records.
 
 ## UC-04 — Create a collectible draft
 

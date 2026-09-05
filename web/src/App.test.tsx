@@ -2,11 +2,16 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('./api/client', () => ({
+  activateOperationalAccount: vi.fn(),
   ApiError: class ApiError extends Error {
     code?: string;
     fieldErrors?: Array<{ field?: string; message?: string }>;
   },
+  deactivateOperationalAccount: vi.fn(),
+  getAdministrativeAuditRecords: vi.fn(),
   getAuthenticatedSession: vi.fn(),
+  getOperationalAccounts: vi.fn(),
+  inviteOperationalAccount: vi.fn(),
   registerAccount: vi.fn(),
   requestPasswordRecovery: vi.fn(),
   resetPassword: vi.fn(),
@@ -18,8 +23,13 @@ vi.mock('./api/client', () => ({
 
 import { App } from './App';
 import {
+  activateOperationalAccount,
   ApiError,
+  deactivateOperationalAccount,
+  getAdministrativeAuditRecords,
   getAuthenticatedSession,
+  getOperationalAccounts,
+  inviteOperationalAccount,
   registerAccount,
   requestPasswordRecovery,
   resetPassword,
@@ -34,6 +44,11 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue(null);
+    vi.mocked(activateOperationalAccount).mockReset();
+    vi.mocked(deactivateOperationalAccount).mockReset();
+    vi.mocked(getAdministrativeAuditRecords).mockReset();
+    vi.mocked(getOperationalAccounts).mockReset();
+    vi.mocked(inviteOperationalAccount).mockReset();
     vi.mocked(registerAccount).mockReset();
     vi.mocked(requestPasswordRecovery).mockReset();
     vi.mocked(resetPassword).mockReset();
@@ -152,6 +167,73 @@ describe('App', () => {
     }));
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Your password has been reset. Sign in with your new password.');
+  });
+
+  test('activates an operational account from its single-use link', async () => {
+    vi.mocked(activateOperationalAccount).mockResolvedValue({
+      email: 'moderator@example.com', role: 'MODERATOR', status: 'ACTIVE',
+    });
+    window.history.replaceState({}, '', '/?operationalActivationToken=activation-token-29');
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Activate your operational account' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a moderator password' } });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'a moderator password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Activate account' }));
+
+    await waitFor(() => expect(activateOperationalAccount).toHaveBeenCalledWith({
+      token: 'activation-token-29', password: 'a moderator password',
+    }));
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  test('renders the administrator console and submits invite and deactivation reasons', async () => {
+    vi.mocked(getAuthenticatedSession).mockResolvedValue({
+      accountId: 'admin-29', accountType: 'OPERATIONAL', role: 'ADMINISTRATOR', status: 'ACTIVE',
+      verified: true, canTrade: false,
+    });
+    vi.mocked(getOperationalAccounts).mockResolvedValue([{
+      id: 'moderator-29', email: 'moderator@example.com', role: 'MODERATOR', status: 'ACTIVE',
+      invitedAt: '2026-09-04T12:00:00Z',
+    }]);
+    vi.mocked(getAdministrativeAuditRecords).mockResolvedValue([{
+      id: 'audit-29', action: 'OPERATIONAL_ACCOUNT_INVITED', metadata: 'reasonCategory=STAFFING',
+      occurredAt: '2026-09-04T12:00:00Z',
+    }]);
+    vi.mocked(inviteOperationalAccount).mockResolvedValue({ email: 'new-moderator@example.com', role: 'MODERATOR', status: 'INVITED' });
+    vi.mocked(deactivateOperationalAccount).mockResolvedValue(undefined);
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Manage operational accounts' })).toBeInTheDocument();
+    expect(await screen.findByText('OPERATIONAL_ACCOUNT_INVITED')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'new-moderator@example.com' } });
+    fireEvent.change(screen.getByLabelText('Public reason', { selector: '#operational-invite-public-reason' }), { target: { value: 'Add evening coverage' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
+    await waitFor(() => expect(inviteOperationalAccount).toHaveBeenCalledWith({
+      email: 'new-moderator@example.com', role: 'MODERATOR', reasonCategory: 'STAFFING',
+      publicReason: 'Add evening coverage', internalNote: undefined,
+    }));
+
+    fireEvent.change(screen.getByLabelText('Account'), { target: { value: 'moderator-29' } });
+    fireEvent.change(screen.getByLabelText('Public reason', { selector: '#operational-deactivation-public-reason' }), { target: { value: 'Access is no longer required' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate account' }));
+    await waitFor(() => expect(deactivateOperationalAccount).toHaveBeenCalledWith('moderator-29', {
+      reasonCategory: 'SECURITY', publicReason: 'Access is no longer required', internalNote: undefined,
+    }));
+  });
+
+  test('keeps the administrator console hidden from moderators', async () => {
+    vi.mocked(getAuthenticatedSession).mockResolvedValue({
+      accountId: 'moderator-29', accountType: 'OPERATIONAL', role: 'MODERATOR', status: 'ACTIVE',
+      verified: true, canTrade: false,
+    });
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Moderator access is active.' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Manage operational accounts' })).not.toBeInTheDocument();
+    expect(getOperationalAccounts).not.toHaveBeenCalled();
+    expect(getAdministrativeAuditRecords).not.toHaveBeenCalled();
   });
 
   test('can sign out or revoke every session from the authenticated home', async () => {

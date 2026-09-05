@@ -38,7 +38,7 @@ class AuditRecord {
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false, updatable = false, length = 4000)
     private String metadata;
 
     protected AuditRecord() {
@@ -70,13 +70,80 @@ class AuditRecord {
         return new AuditRecord(ActorType.REGULAR_ACCOUNT, accountId, action, TargetType.REGULAR_ACCOUNT, accountId, occurredAt, metadata);
     }
 
-    enum ActorType { SYSTEM, REGULAR_ACCOUNT }
+    static AuditRecord operationalAction(
+            AuditAction action,
+            UUID actorId,
+            UUID targetId,
+            Instant occurredAt,
+            String metadata) {
+        return new AuditRecord(
+                ActorType.OPERATIONAL_ACCOUNT,
+                actorId,
+                action,
+                TargetType.OPERATIONAL_ACCOUNT,
+                targetId,
+                occurredAt,
+                metadata);
+    }
+
+    static AuditRecord systemOperationalAction(
+            AuditAction action,
+            UUID targetId,
+            Instant occurredAt,
+            String metadata) {
+        return new AuditRecord(
+                ActorType.SYSTEM,
+                null,
+                action,
+                TargetType.OPERATIONAL_ACCOUNT,
+                targetId,
+                occurredAt,
+                metadata);
+    }
+
+    UUID id() {
+        return id;
+    }
+
+    ActorType actorType() {
+        return actorType;
+    }
+
+    UUID actorId() {
+        return actorId;
+    }
+
+    AuditAction action() {
+        return action;
+    }
+
+    TargetType targetType() {
+        return targetType;
+    }
+
+    UUID targetId() {
+        return targetId;
+    }
+
+    Instant occurredAt() {
+        return occurredAt;
+    }
+
+    String metadata() {
+        return metadata;
+    }
+
+    enum ActorType { SYSTEM, REGULAR_ACCOUNT, OPERATIONAL_ACCOUNT }
 
     enum AuditAction {
         REGULAR_ACCOUNT_REGISTERED,
         REGULAR_ACCOUNT_VERIFIED,
-        REGULAR_ACCOUNT_PASSWORD_RESET
+        REGULAR_ACCOUNT_PASSWORD_RESET,
+        INITIAL_ADMINISTRATOR_CREATED,
+        OPERATIONAL_ACCOUNT_INVITED,
+        OPERATIONAL_ACCOUNT_ACTIVATED,
+        OPERATIONAL_ACCOUNT_DEACTIVATED
     }
 
-    enum TargetType { REGULAR_ACCOUNT }
+    enum TargetType { REGULAR_ACCOUNT, OPERATIONAL_ACCOUNT }
 }

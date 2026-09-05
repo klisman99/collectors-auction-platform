@@ -39,7 +39,8 @@ class AuthenticationController {
     private final IdentityAttemptRateLimiter attemptRateLimiter;
     private final PasswordRecoveryService passwordRecoveryService;
     private final AccountSessionRevocationService sessionRevocationService;
-    private final RegularAccountRepository accounts;
+    private final RegularAccountRepository regularAccounts;
+    private final OperationalAccountRepository operationalAccounts;
     private final SecurityContextHolderStrategy securityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
 
     AuthenticationController(
@@ -49,14 +50,16 @@ class AuthenticationController {
             IdentityAttemptRateLimiter attemptRateLimiter,
             PasswordRecoveryService passwordRecoveryService,
             AccountSessionRevocationService sessionRevocationService,
-            RegularAccountRepository accounts) {
+            RegularAccountRepository regularAccounts,
+            OperationalAccountRepository operationalAccounts) {
         this.registrationService = registrationService;
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.attemptRateLimiter = attemptRateLimiter;
         this.passwordRecoveryService = passwordRecoveryService;
         this.sessionRevocationService = sessionRevocationService;
-        this.accounts = accounts;
+        this.regularAccounts = regularAccounts;
+        this.operationalAccounts = operationalAccounts;
     }
 
     @PostMapping(path = "/register", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -87,7 +90,8 @@ class AuthenticationController {
         // Serializes session creation with password changes and account-wide
         // session revocation. The lock is held until saveContext has persisted
         // the new server-side session.
-        accounts.findByNormalizedEmailForUpdate(normalizedEmail);
+        regularAccounts.findByNormalizedEmailForUpdate(normalizedEmail);
+        operationalAccounts.findByNormalizedEmailForUpdate(normalizedEmail);
 
         Authentication authenticated;
         try {
@@ -215,13 +219,23 @@ class AuthenticationController {
     record VerificationResponse(String publicHandle, String status) {
     }
 
-    @Schema(name = "AuthenticatedSession", description = "The current authenticated regular-account session state.")
-    record SessionResponse(String publicHandle, String status, boolean verified, boolean canTrade) {
+    @Schema(name = "AuthenticatedSession", description = "The current authenticated account session state.")
+    record SessionResponse(
+            java.util.UUID accountId,
+            String accountType,
+            String publicHandle,
+            String status,
+            String role,
+            boolean verified,
+            boolean canTrade) {
 
         static SessionResponse from(AccountSessionPrincipal principal) {
             return new SessionResponse(
+                    principal.accountId(),
+                    principal.accountTypeName(),
                     principal.publicHandle(),
-                    principal.status().name(),
+                    principal.statusName(),
+                    principal.roleName(),
                     principal.isVerified(),
                     principal.canTrade());
         }
