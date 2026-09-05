@@ -57,7 +57,12 @@ class InitialAdministratorService {
         if (regularAccounts.existsByNormalizedEmail(normalizedEmail)) {
             throw new IllegalStateException("The configured initial administrator email belongs to a regular account.");
         }
-        if (operationalAccounts.findByNormalizedEmailForUpdate(normalizedEmail).isPresent()) {
+        java.util.Optional<OperationalAccount> configuredAccount = operationalAccounts.findByNormalizedEmailForUpdate(normalizedEmail);
+        if (configuredAccount.isPresent()) {
+            if (!configuredAccount.get().isActiveAdministrator()) {
+                throw new IllegalStateException(
+                        "The configured initial administrator email must belong to an active administrator.");
+            }
             return;
         }
 

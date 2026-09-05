@@ -15,16 +15,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping(path = "/api/v1/admin/audit-records", produces = MediaType.APPLICATION_JSON_VALUE)
 class AuditController {
 
-    private final AuditRecordRepository auditRecords;
+    private final AuditQueryService auditQueryService;
 
-    AuditController(AuditRecordRepository auditRecords) {
-        this.auditRecords = auditRecords;
+    AuditController(AuditQueryService auditQueryService) {
+        this.auditQueryService = auditQueryService;
     }
 
     @GetMapping
     @Operation(operationId = "listAdministrativeAuditRecords", summary = "List the administrator audit summary")
     List<AuditResponse> list() {
-        return auditRecords.findTop100ByOrderByOccurredAtDesc().stream()
+        return auditQueryService.listAll().stream()
                 .map(AuditResponse::from)
                 .toList();
     }

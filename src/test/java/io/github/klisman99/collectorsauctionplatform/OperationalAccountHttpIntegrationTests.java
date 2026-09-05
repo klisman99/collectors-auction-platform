@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.sql.Timestamp;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
@@ -29,14 +30,20 @@ import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = {
         "platform.identity.initial-administrator.email=bootstrap-29@example.com",
         "platform.identity.initial-administrator.password=bootstrap administrator password"
@@ -45,6 +52,20 @@ import tools.jackson.databind.ObjectMapper;
 class OperationalAccountHttpIntegrationTests {
 
     private static final Pattern ACTIVATION_TOKEN = Pattern.compile("operationalActivationToken=([^\\s]+)");
+
+    @Container
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18.6-alpine")
+            .withDatabaseName("collectors_auction")
+            .withUsername("collectors")
+            .withPassword("collectors");
+
+    @DynamicPropertySource
+    static void databaseProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -80,7 +101,7 @@ class OperationalAccountHttpIntegrationTests {
                 .andExpect(jsonPath("$.canTrade").value(false))
                 .andReturn();
 
-        mockMvc.perform(post("/api/v1/admin/operational-accounts")
+        MvcResult invitationResult = mockMvc.perform(post("/api/v1/admin/operational-accounts")
                         .cookie(csrf.cookie(), sessionCookie(administrator))
                         .header("X-XSRF-TOKEN", csrf.token())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -96,12 +117,18 @@ class OperationalAccountHttpIntegrationTests {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.email").value("moderator-29@example.com"))
                 .andExpect(jsonPath("$.role").value("MODERATOR"))
-                .andExpect(jsonPath("$.status").value("INVITED"));
+                .andExpect(jsonPath("$.status").value("INVITED"))
+                .andReturn();
+        String invitedAccountId = objectMapper.readTree(invitationResult.getResponse().getContentAsString()).get("id").asText();
 
         MimeMessage invitation = mailSender.awaitMessage();
         assertThat(invitation.getAllRecipients()[0].toString()).isEqualTo("moderator-29@example.com");
         assertThat(invitation.getSubject()).isEqualTo("You are invited to Collectors Auction Platform operations");
         String token = activationToken(invitation.getContent().toString());
+
+        signIn(csrf, "moderator-29@example.com", "not activated yet", "198.51.100.139")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
 
         mockMvc.perform(post("/api/v1/auth/register")
                         .cookie(csrf.cookie())
@@ -130,6 +157,47 @@ class OperationalAccountHttpIntegrationTests {
                 .andExpect(jsonPath("$.accountType").value("OPERATIONAL"))
                 .andExpect(jsonPath("$.role").value("MODERATOR"))
                 .andExpect(jsonPath("$.canTrade").value(false));
+
+        mockMvc.perform(get("/api/v1/admin/audit-records")
+                        .cookie(csrf.cookie(), sessionCookie(administrator)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.targetId == '%s' && @.action == 'OPERATIONAL_ACCOUNT_INVITED')].metadata"
+                        .formatted(invitedAccountId)).value(org.hamcrest.Matchers.hasItem(
+                                org.hamcrest.Matchers.containsString("internalNote=Invited for the M1 support rotation."))))
+                .andExpect(jsonPath("$[?(@.targetId == '%s' && @.action == 'OPERATIONAL_ACCOUNT_ACTIVATED')]"
+                        .formatted(invitedAccountId)).isNotEmpty());
+    }
+
+    @Test
+    void anExistingRegularEmailCannotReceiveAnOperationalInvitation() throws Exception {
+        Csrf csrf = csrf();
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        String email = "regular-first-" + suffix + "@example.com";
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .cookie(csrf.cookie())
+                        .header("X-XSRF-TOKEN", csrf.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"publicHandle\":\"regular_first_%s\",\"password\":\"regular account password\"}"
+                                .formatted(email, suffix)))
+                .andExpect(status().isCreated());
+        MvcResult administrator = signIn(csrf, "bootstrap-29@example.com", "bootstrap administrator password", "198.51.100.140")
+                .andExpect(status().isOk())
+                .andReturn();
+
+        mockMvc.perform(post("/api/v1/admin/operational-accounts")
+                        .cookie(csrf.cookie(), sessionCookie(administrator))
+                        .header("X-XSRF-TOKEN", csrf.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "role": "MODERATOR",
+                                  "reasonCategory": "STAFFING",
+                                  "publicReason": "This must not be accepted"
+                                }
+                                """.formatted(email)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("OPERATIONAL_EMAIL_ALREADY_REGISTERED"));
     }
 
     @Test
@@ -157,7 +225,7 @@ class OperationalAccountHttpIntegrationTests {
         String expiredAccountId = invite(csrf, administrator, "expired-29@example.com", "MODERATOR");
         String expiredToken = activationToken(mailSender.awaitMessage().getContent().toString());
         jdbcTemplate.update("UPDATE operational_account_invitations SET expires_at = ? WHERE operational_account_id = ?",
-                Instant.now().minusSeconds(1), UUID.fromString(expiredAccountId));
+                Timestamp.from(Instant.now().minusSeconds(1)), UUID.fromString(expiredAccountId));
         activateWithStatus(csrf, expiredToken)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("OPERATIONAL_ACTIVATION_TOKEN_INVALID"));
@@ -181,6 +249,13 @@ class OperationalAccountHttpIntegrationTests {
                         "198.51.100.132")
                 .andExpect(status().isOk())
                 .andReturn();
+        MvcResult secondTargetSession = signIn(
+                        csrf,
+                        "administrator-29@example.com",
+                        "administrator activation password",
+                        "198.51.100.141")
+                .andExpect(status().isOk())
+                .andReturn();
 
         mockMvc.perform(post("/api/v1/admin/operational-accounts/" + accountId + "/deactivate")
                         .cookie(csrf.cookie(), sessionCookie(administrator))
@@ -196,6 +271,8 @@ class OperationalAccountHttpIntegrationTests {
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/v1/auth/session").cookie(sessionCookie(targetSession)))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/auth/session").cookie(sessionCookie(secondTargetSession)))
                 .andExpect(status().isUnauthorized());
         signIn(csrf, "administrator-29@example.com", "administrator activation password", "198.51.100.133")
                 .andExpect(status().isUnauthorized())

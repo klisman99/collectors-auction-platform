@@ -72,7 +72,12 @@ class OperationalAccountService {
 
         Instant now = Instant.now(clock);
         OperationalAccount account = OperationalAccount.invite(
-                UUID.randomUUID(), normalizedEmail, operationalRole, now, actorId);
+                UUID.randomUUID(),
+                normalizedEmail,
+                operationalRole,
+                passwordEncoder.encode(UUID.randomUUID().toString()),
+                now,
+                actorId);
         String rawToken = tokenGenerator.generate();
         OperationalAccountInvitation invitation = new OperationalAccountInvitation(
                 UUID.randomUUID(),

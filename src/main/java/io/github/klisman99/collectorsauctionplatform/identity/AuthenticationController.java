@@ -232,7 +232,7 @@ class AuthenticationController {
         static SessionResponse from(AccountSessionPrincipal principal) {
             return new SessionResponse(
                     principal.accountId(),
-                    principal.accountType().name(),
+                    principal.accountTypeName(),
                     principal.publicHandle(),
                     principal.statusName(),
                     principal.roleName(),

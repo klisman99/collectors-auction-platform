@@ -223,6 +223,19 @@ describe('App', () => {
     }));
   });
 
+  test('keeps the administrator console hidden from moderators', async () => {
+    vi.mocked(getAuthenticatedSession).mockResolvedValue({
+      accountId: 'moderator-29', accountType: 'OPERATIONAL', role: 'MODERATOR', status: 'ACTIVE',
+      verified: true, canTrade: false,
+    });
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Moderator access is active.' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Manage operational accounts' })).not.toBeInTheDocument();
+    expect(getOperationalAccounts).not.toHaveBeenCalled();
+    expect(getAdministrativeAuditRecords).not.toHaveBeenCalled();
+  });
+
   test('can sign out or revoke every session from the authenticated home', async () => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue({
       publicHandle: 'collector_28', status: 'ACTIVE', verified: true, canTrade: true,

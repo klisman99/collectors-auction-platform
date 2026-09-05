@@ -59,6 +59,15 @@ export function App() {
   // already signed in with the pending account.
   if (session !== null && page !== 'verify' && page !== 'reset' && page !== 'activate-operational') {
     if (session.accountType === 'OPERATIONAL') {
+      if (session.role !== 'ADMINISTRATOR') {
+        return (
+          <OperationalModeratorHome
+            onRevokeAllSessions={() => endSession(true)}
+            onSignOut={() => endSession(false)}
+            session={session}
+          />
+        );
+      }
       return (
         <OperationalHome
           failure={failure}
@@ -486,6 +495,43 @@ function AuthenticatedHome({
   );
 }
 
+function OperationalModeratorHome({
+  onRevokeAllSessions,
+  onSignOut,
+  session,
+}: {
+  onRevokeAllSessions: () => void;
+  onSignOut: () => void;
+  session: AuthenticatedSession;
+}) {
+  return (
+    <PageFrame>
+      <p className="text-sm font-semibold tracking-[0.2em] text-cyan-300 uppercase">Operations workspace</p>
+      <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Moderator access is active.</h1>
+      <p className="mt-4 leading-7 text-slate-300">
+        This dedicated moderator identity can review platform activity when moderation tools are enabled. It cannot sell, bid, invite operational accounts, or view administrator audit records.
+      </p>
+      <p className="mt-4 text-sm text-slate-400">Signed in as {session.role === 'MODERATOR' ? 'Moderator' : 'Operational user'}.</p>
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <button
+          className="rounded-lg border border-slate-600 px-4 py-2.5 font-semibold text-slate-100 transition hover:border-cyan-300 hover:text-cyan-200"
+          onClick={onSignOut}
+          type="button"
+        >
+          Sign out
+        </button>
+        <button
+          className="rounded-lg border border-rose-700/70 px-4 py-2.5 font-semibold text-rose-200 transition hover:border-rose-300 hover:text-rose-100"
+          onClick={onRevokeAllSessions}
+          type="button"
+        >
+          Sign out all sessions
+        </button>
+      </div>
+    </PageFrame>
+  );
+}
+
 function OperationalHome({
   failure,
   notice,
@@ -570,7 +616,7 @@ function OperationalHome({
     event.preventDefault();
     if (deactivation.accountId === '' || deactivation.publicReason.trim() === '') {
       setFormErrors({
-        ...(deactivation.accountId === '' ? { accountId: 'Select an active account.' } : {}),
+        ...(deactivation.accountId === '' ? { accountId: 'Select an account.' } : {}),
         ...(deactivation.publicReason.trim() === '' ? { deactivationPublicReason: 'Enter a public reason.' } : {}),
       });
       return;
@@ -663,8 +709,8 @@ function OperationalHome({
 
       <section className="mt-8 rounded-xl border border-slate-700 bg-slate-950/60 p-5" aria-labelledby="audit-summary-heading">
         <h2 className="text-xl font-semibold text-white" id="audit-summary-heading">Audit summary</h2>
-        <p className="mt-1 text-sm text-slate-400">Recent administrator-visible identity actions, including categorized reasons and internal notes.</p>
-        <ul className="mt-4 space-y-3 text-sm">{auditRecords.slice(0, 10).map((record) => <li className="rounded-lg border border-slate-800 p-3" key={record.id}><p className="font-medium text-slate-100">{record.action}</p><p className="mt-1 text-slate-400">{formatDate(record.occurredAt)} · {record.metadata}</p></li>)}</ul>
+        <p className="mt-1 text-sm text-slate-400">Complete administrator-visible identity history, including categorized reasons and internal notes.</p>
+        <ul className="mt-4 space-y-3 text-sm">{auditRecords.length === 0 ? <li className="text-slate-400">No audit records yet.</li> : auditRecords.map((record) => <li className="rounded-lg border border-slate-800 p-3" key={record.id}><p className="font-medium text-slate-100">{record.action}</p><p className="mt-1 text-slate-400">{formatDate(record.occurredAt)} · {record.metadata}</p></li>)}</ul>
       </section>
     </PageFrame>
   );
@@ -672,7 +718,11 @@ function OperationalHome({
 
 function formatDate(value: string | undefined): string {
   if (value === undefined) return '—';
-  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date(value));
 }
 
 function PageFrame({ children, maxWidth = 'max-w-xl' }: { children: ReactNode; maxWidth?: string }) {

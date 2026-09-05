@@ -14,8 +14,6 @@ import jakarta.persistence.Table;
 @Table(name = "operational_accounts")
 class OperationalAccount {
 
-    private static final String INVITED_PASSWORD_SENTINEL = "{invited}";
-
     @Id
     private UUID id;
 
@@ -69,13 +67,14 @@ class OperationalAccount {
             UUID id,
             String normalizedEmail,
             OperationalRole role,
+            String passwordHash,
             Instant invitedAt,
             UUID invitedBy) {
         return new OperationalAccount(
                 id,
                 normalizedEmail,
                 role,
-                INVITED_PASSWORD_SENTINEL,
+                passwordHash,
                 invitedAt,
                 invitedBy,
                 OperationalStatus.INVITED);
