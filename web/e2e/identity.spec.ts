@@ -45,15 +45,15 @@ test('recovers a password and rejects every existing session on its next request
 
     await recoveryPage.goto(await mailpitLink(request, 'recoveryToken'));
     const newPassword = 'a replacement passphrase';
-    await recoveryPage.getByLabel('New password').fill(newPassword);
+    await recoveryPage.getByLabel('New password', { exact: true }).fill(newPassword);
     await recoveryPage.getByLabel('Confirm new password').fill(newPassword);
     await recoveryPage.getByRole('button', { name: 'Reset password' }).click();
     await expect(recoveryPage.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Start collecting with confidence.' })).toBeVisible();
     await existingSessionPage.reload();
-    await expect(existingSessionPage.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+    await expect(existingSessionPage.getByRole('heading', { name: 'Start collecting with confidence.' })).toBeVisible();
 
     await recoveryPage.getByLabel('Email address').fill(email);
     await recoveryPage.getByLabel('Password').fill(newPassword);
