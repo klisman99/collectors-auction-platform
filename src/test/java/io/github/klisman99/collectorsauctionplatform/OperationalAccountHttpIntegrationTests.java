@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -101,6 +103,16 @@ class OperationalAccountHttpIntegrationTests {
         assertThat(invitation.getSubject()).isEqualTo("You are invited to Collectors Auction Platform operations");
         String token = activationToken(invitation.getContent().toString());
 
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .cookie(csrf.cookie())
+                        .header("X-XSRF-TOKEN", csrf.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"moderator-29@example.com","publicHandle":"regular_29","password":"regular account password"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_REGISTERED"));
+
         mockMvc.perform(post("/api/v1/auth/activate-operational-account")
                         .cookie(csrf.cookie())
                         .header("X-XSRF-TOKEN", csrf.token())
@@ -118,6 +130,37 @@ class OperationalAccountHttpIntegrationTests {
                 .andExpect(jsonPath("$.accountType").value("OPERATIONAL"))
                 .andExpect(jsonPath("$.role").value("MODERATOR"))
                 .andExpect(jsonPath("$.canTrade").value(false));
+    }
+
+    @Test
+    void administratorCanRevokePendingInvitationsAndExpiredInvitationsCannotActivate() throws Exception {
+        Csrf csrf = csrf();
+        MvcResult administrator = signIn(csrf, "bootstrap-29@example.com", "bootstrap administrator password", "198.51.100.137")
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String pendingAccountId = invite(csrf, administrator, "pending-29@example.com", "MODERATOR");
+        String pendingToken = activationToken(mailSender.awaitMessage().getContent().toString());
+
+        mockMvc.perform(post("/api/v1/admin/operational-accounts/" + pendingAccountId + "/deactivate")
+                        .cookie(csrf.cookie(), sessionCookie(administrator))
+                        .header("X-XSRF-TOKEN", csrf.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reasonCategory":"SECURITY","publicReason":"Invitation no longer required"}
+                                """))
+                .andExpect(status().isNoContent());
+        activateWithStatus(csrf, pendingToken)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("OPERATIONAL_ACTIVATION_TOKEN_INVALID"));
+
+        String expiredAccountId = invite(csrf, administrator, "expired-29@example.com", "MODERATOR");
+        String expiredToken = activationToken(mailSender.awaitMessage().getContent().toString());
+        jdbcTemplate.update("UPDATE operational_account_invitations SET expires_at = ? WHERE operational_account_id = ?",
+                Instant.now().minusSeconds(1), UUID.fromString(expiredAccountId));
+        activateWithStatus(csrf, expiredToken)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("OPERATIONAL_ACTIVATION_TOKEN_INVALID"));
     }
 
     @Test
@@ -204,6 +247,30 @@ class OperationalAccountHttpIntegrationTests {
     }
 
     @Test
+    void concurrentAdministratorDeactivationsRetainOneActiveAdministrator() throws Exception {
+        Csrf csrf = csrf();
+        MvcResult administrator = signIn(csrf, "bootstrap-29@example.com", "bootstrap administrator password", "198.51.100.138")
+                .andExpect(status().isOk())
+                .andReturn();
+        String firstAdministratorId = inviteAndActivate(csrf, administrator, "administrator-29a@example.com", "ADMINISTRATOR");
+        String secondAdministratorId = inviteAndActivate(csrf, administrator, "administrator-29b@example.com", "ADMINISTRATOR");
+        Cookie administratorSession = sessionCookie(administrator);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<Integer> first = executor.submit(() -> deactivate(csrf, administratorSession, firstAdministratorId, "Remove first administrator"));
+            Future<Integer> second = executor.submit(() -> deactivate(csrf, administratorSession, secondAdministratorId, "Remove second administrator"));
+            assertThat(java.util.List.of(first.get(), second.get()))
+                    .containsExactlyInAnyOrder(204, 204);
+        }
+
+        mockMvc.perform(get("/api/v1/admin/operational-accounts")
+                        .cookie(csrf.cookie(), administratorSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.role == 'ADMINISTRATOR' && @.status == 'ACTIVE')]")
+                        .value(org.hamcrest.Matchers.hasSize(1)));
+    }
+
+    @Test
     void consumesAnOperationalInvitationExactlyOnceWhenActivationIsRetriedConcurrently() throws Exception {
         Csrf csrf = csrf();
         MvcResult administrator = signIn(csrf, "bootstrap-29@example.com", "bootstrap administrator password", "198.51.100.136")
@@ -229,19 +296,7 @@ class OperationalAccountHttpIntegrationTests {
     }
 
     private String inviteAndActivate(Csrf csrf, MvcResult administrator, String email, String role) throws Exception {
-        mockMvc.perform(post("/api/v1/admin/operational-accounts")
-                        .cookie(csrf.cookie(), sessionCookie(administrator))
-                        .header("X-XSRF-TOKEN", csrf.token())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "%s",
-                                  "role": "%s",
-                                  "reasonCategory": "STAFFING",
-                                  "publicReason": "Support the operations team"
-                                }
-                                """.formatted(email, role)))
-                .andExpect(status().isCreated());
+        invite(csrf, administrator, email, role);
         String token = activationToken(mailSender.awaitMessage().getContent().toString());
         return objectMapper.readTree(mockMvc.perform(post("/api/v1/auth/activate-operational-account")
                                 .cookie(csrf.cookie())
@@ -258,6 +313,50 @@ class OperationalAccountHttpIntegrationTests {
                         .getContentAsString())
                 .get("id")
                 .asText();
+    }
+
+    private String invite(Csrf csrf, MvcResult administrator, String email, String role) throws Exception {
+        return objectMapper.readTree(mockMvc.perform(post("/api/v1/admin/operational-accounts")
+                        .cookie(csrf.cookie(), sessionCookie(administrator))
+                        .header("X-XSRF-TOKEN", csrf.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "role": "%s",
+                                  "reasonCategory": "STAFFING",
+                                  "publicReason": "Support the operations team"
+                                }
+                                """.formatted(email, role)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString())
+                .get("id")
+                .asText();
+    }
+
+    private org.springframework.test.web.servlet.ResultActions activateWithStatus(Csrf csrf, String token) throws Exception {
+        return mockMvc.perform(post("/api/v1/auth/activate-operational-account")
+                .cookie(csrf.cookie())
+                .header("X-XSRF-TOKEN", csrf.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"token":"%s","password":"activation password"}
+                        """.formatted(token)));
+    }
+
+    private int deactivate(Csrf csrf, Cookie administratorSession, String accountId, String publicReason) throws Exception {
+        return mockMvc.perform(post("/api/v1/admin/operational-accounts/" + accountId + "/deactivate")
+                        .cookie(csrf.cookie(), administratorSession)
+                        .header("X-XSRF-TOKEN", csrf.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reasonCategory":"SECURITY","publicReason":"%s"}
+                                """.formatted(publicReason)))
+                .andReturn()
+                .getResponse()
+                .getStatus();
     }
 
     private int activate(Csrf csrf, String token) throws Exception {
@@ -336,7 +435,7 @@ class OperationalAccountHttpIntegrationTests {
                 Thread.sleep(25);
             }
             assertThat(messages).isNotEmpty();
-            return messages.getFirst();
+            return messages.getLast();
         }
 
         void clear() {

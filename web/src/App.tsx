@@ -594,7 +594,7 @@ function OperationalHome({
     }
   }
 
-  const activeAccounts = accounts.filter((account) => account.status === 'ACTIVE');
+  const deactivatableAccounts = accounts.filter((account) => account.status !== 'DEACTIVATED');
   const roleLabel = session.role === 'ADMINISTRATOR' ? 'Administrator' : 'Moderator';
 
   return (
@@ -639,8 +639,8 @@ function OperationalHome({
           <FormHeading title="Deactivate an account" subtitle="Deactivation is permanent, revokes all sessions, and preserves the account as the actor on historical records." />
           <label className="block text-sm font-medium text-slate-100" htmlFor="operational-deactivation-account">Account</label>
           <select aria-describedby={formErrors.accountId === undefined ? undefined : 'operational-deactivation-account-error'} className="-mt-2 block w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2.5 text-slate-100" id="operational-deactivation-account" onChange={(event) => setDeactivation({ ...deactivation, accountId: event.target.value })} value={deactivation.accountId}>
-            <option value="">Select an active account</option>
-            {activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.email} · {account.role}</option>)}
+            <option value="">Select an account</option>
+            {deactivatableAccounts.map((account) => <option key={account.id} value={account.id}>{account.email} · {account.role} · {account.status}</option>)}
           </select>
           {formErrors.accountId !== undefined && <p className="text-sm text-rose-300" id="operational-deactivation-account-error">{formErrors.accountId}</p>}
           <label className="block text-sm font-medium text-slate-100" htmlFor="operational-deactivation-reason-category">Reason category</label>

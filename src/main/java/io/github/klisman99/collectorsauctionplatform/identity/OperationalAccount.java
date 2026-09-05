@@ -106,7 +106,7 @@ class OperationalAccount {
     }
 
     void deactivate(Instant deactivatedAt) {
-        if (status != OperationalStatus.ACTIVE) {
+        if (status == OperationalStatus.DEACTIVATED) {
             throw IdentityApiException.operationalAccountNotActive();
         }
         this.status = OperationalStatus.DEACTIVATED;

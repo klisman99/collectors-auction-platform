@@ -149,6 +149,7 @@ class OperationalAccountService {
 
         Instant now = Instant.now(clock);
         account.deactivate(now);
+        invitations.findAllByOperationalAccountIdAndUsedAtIsNull(account.id()).forEach(invitation -> invitation.markUsed(now));
         sessions.revokeAll(account.id());
         events.publishEvent(new OperationalAccountDeactivated(
                 account.id(),

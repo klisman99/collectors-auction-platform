@@ -38,7 +38,7 @@ class AuditRecord {
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false, updatable = false, length = 4000)
     private String metadata;
 
     protected AuditRecord() {
