@@ -710,7 +710,7 @@ function OperationalHome({
       <section className="mt-8 rounded-xl border border-slate-700 bg-slate-950/60 p-5" aria-labelledby="audit-summary-heading">
         <h2 className="text-xl font-semibold text-white" id="audit-summary-heading">Audit summary</h2>
         <p className="mt-1 text-sm text-slate-400">Complete administrator-visible identity history, including categorized reasons and internal notes.</p>
-        <ul className="mt-4 space-y-3 text-sm">{auditRecords.length === 0 ? <li className="text-slate-400">No audit records yet.</li> : auditRecords.map((record) => <li className="rounded-lg border border-slate-800 p-3" key={record.id}><p className="font-medium text-slate-100">{record.action}</p><p className="mt-1 text-slate-400">{formatDate(record.occurredAt)} · {record.metadata}</p></li>)}</ul>
+        <ul className="mt-4 space-y-3 text-sm">{auditRecords.length === 0 ? <li className="text-slate-400">No audit records yet.</li> : auditRecords.map((record) => <li className="rounded-lg border border-slate-800 p-3" key={record.id}><p className="font-medium text-slate-100">{record.action}</p><p className="mt-1 text-slate-400">{formatDate(record.occurredAt)} · {record.metadata}</p><p className="mt-1 text-xs text-slate-500">Actor: {record.actorType === 'SYSTEM' ? 'System' : `${record.actorType ?? 'Unknown'} ${record.actorId ?? 'unknown'}`} · Target: {record.targetType ?? 'Unknown'} {record.targetId ?? 'unknown'}</p></li>)}</ul>
       </section>
     </PageFrame>
   );

@@ -114,10 +114,14 @@ class OperationalAccountService {
     ActivationResult activate(String rawToken, String password) {
         passwordPolicy.validate(password);
         Instant now = Instant.now(clock);
-        OperationalAccountInvitation invitation = invitations.findByTokenDigestForUpdate(tokenGenerator.digest(rawToken))
-                .filter(candidate -> candidate.isUsableAt(now))
+        String tokenDigest = tokenGenerator.digest(rawToken);
+        UUID accountId = invitations.findByTokenDigest(tokenDigest)
+                .map(OperationalAccountInvitation::operationalAccountId)
                 .orElseThrow(IdentityApiException::invalidOperationalActivationToken);
-        OperationalAccount account = operationalAccounts.findByIdForUpdate(invitation.operationalAccountId())
+        OperationalAccount account = operationalAccounts.findByIdForUpdate(accountId)
+                .orElseThrow(IdentityApiException::invalidOperationalActivationToken);
+        OperationalAccountInvitation invitation = invitations.findByTokenDigestForUpdate(tokenDigest)
+                .filter(candidate -> candidate.isUsableAt(now))
                 .orElseThrow(IdentityApiException::invalidOperationalActivationToken);
 
         account.activate(passwordEncoder.encode(password), now);
@@ -154,7 +158,7 @@ class OperationalAccountService {
 
         Instant now = Instant.now(clock);
         account.deactivate(now);
-        invitations.findAllByOperationalAccountIdAndUsedAtIsNull(account.id()).forEach(invitation -> invitation.markUsed(now));
+        invitations.findUnusedByOperationalAccountIdForUpdate(account.id()).forEach(invitation -> invitation.markUsed(now));
         sessions.revokeAll(account.id());
         events.publishEvent(new OperationalAccountDeactivated(
                 account.id(),

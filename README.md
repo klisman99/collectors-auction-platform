@@ -58,10 +58,11 @@ Requirements: Docker with Compose support. From a clean checkout:
 
 ```bash
 cp .env.example .env
+# Set INITIAL_ADMINISTRATOR_EMAIL and INITIAL_ADMINISTRATOR_PASSWORD in .env
 docker compose up --build
 ```
 
-Open `http://localhost:8080`. The same-origin NGINX shell proxies `/api`, `/actuator`, and `/v3/api-docs` to the Spring Boot application.
+Open `http://localhost:8080`. A fresh database requires bootstrap administrator credentials. The same-origin NGINX shell proxies `/api`, `/actuator`, and `/v3/api-docs` to the Spring Boot application.
 
 To enable the administrator operations console, configure the bootstrap administrator through deployment secrets before starting the stack:
 

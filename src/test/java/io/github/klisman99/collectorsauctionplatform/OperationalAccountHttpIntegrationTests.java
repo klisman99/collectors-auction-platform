@@ -348,6 +348,30 @@ class OperationalAccountHttpIntegrationTests {
     }
 
     @Test
+    void concurrentActivationAndRevocationHaveOneDeterministicOutcome() throws Exception {
+        Csrf csrf = csrf();
+        MvcResult administrator = signIn(csrf, "bootstrap-29@example.com", "bootstrap administrator password", "198.51.100.142")
+                .andExpect(status().isOk())
+                .andReturn();
+        String accountId = invite(csrf, administrator, "raced-operational-29@example.com", "MODERATOR");
+        String token = activationToken(mailSender.awaitMessage().getContent().toString());
+        Cookie administratorSession = sessionCookie(administrator);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<Integer> activation = executor.submit(() -> activate(csrf, token));
+            Future<Integer> deactivation = executor.submit(() -> deactivate(csrf, administratorSession, accountId, "Revoke raced invitation"));
+            assertThat(java.util.List.of(activation.get(), deactivation.get()))
+                    .contains(204)
+                    .doesNotContain(500);
+        }
+
+        mockMvc.perform(get("/api/v1/admin/operational-accounts")
+                        .cookie(csrf.cookie(), administratorSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')].status".formatted(accountId)).value("DEACTIVATED"));
+    }
+
+    @Test
     void consumesAnOperationalInvitationExactlyOnceWhenActivationIsRetriedConcurrently() throws Exception {
         Csrf csrf = csrf();
         MvcResult administrator = signIn(csrf, "bootstrap-29@example.com", "bootstrap administrator password", "198.51.100.136")

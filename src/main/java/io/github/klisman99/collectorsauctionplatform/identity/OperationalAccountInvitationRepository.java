@@ -11,9 +11,14 @@ import org.springframework.data.jpa.repository.Query;
 
 interface OperationalAccountInvitationRepository extends JpaRepository<OperationalAccountInvitation, UUID> {
 
+    Optional<OperationalAccountInvitation> findByTokenDigest(String tokenDigest);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select invitation from OperationalAccountInvitation invitation where invitation.tokenDigest = ?1")
     Optional<OperationalAccountInvitation> findByTokenDigestForUpdate(String tokenDigest);
 
-    List<OperationalAccountInvitation> findAllByOperationalAccountIdAndUsedAtIsNull(UUID operationalAccountId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select invitation from OperationalAccountInvitation invitation "
+            + "where invitation.operationalAccountId = ?1 and invitation.usedAt is null")
+    List<OperationalAccountInvitation> findUnusedByOperationalAccountIdForUpdate(UUID operationalAccountId);
 }

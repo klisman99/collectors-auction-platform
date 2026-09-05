@@ -42,6 +42,10 @@ class InitialAdministratorService {
         boolean emailConfigured = email != null && !email.isBlank();
         boolean passwordConfigured = password != null && !password.isBlank();
         if (!emailConfigured && !passwordConfigured) {
+            if (operationalAccounts.countByRoleAndStatus(OperationalRole.ADMINISTRATOR, OperationalStatus.ACTIVE) == 0) {
+                throw new IllegalStateException(
+                        "An active administrator is required before bootstrap credentials can be left unset.");
+            }
             return;
         }
         if (!emailConfigured || !passwordConfigured) {

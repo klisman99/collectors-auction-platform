@@ -82,8 +82,8 @@ logging:
 platform:
   identity:
     initial-administrator:
-      # Configure both values through deployment secrets to create the first
-      # active administrator. Blank values leave bootstrap disabled.
+      # Configure both values through deployment secrets before the first
+      # start. Once an active administrator exists, blank values are allowed.
       email: ${INITIAL_ADMINISTRATOR_EMAIL:}
       password: ${INITIAL_ADMINISTRATOR_PASSWORD:}
   mail:
