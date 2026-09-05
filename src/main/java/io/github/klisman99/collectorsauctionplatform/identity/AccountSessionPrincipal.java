@@ -11,7 +11,10 @@ import org.springframework.security.core.GrantedAuthority;
 record AccountSessionPrincipal(
         UUID accountId,
         String publicHandle,
+        AccountType accountType,
         AccountStatus status,
+        OperationalRole operationalRole,
+        OperationalStatus operationalStatus,
         boolean verified,
         Collection<? extends GrantedAuthority> authorities) implements Principal, Serializable {
 
@@ -23,7 +26,17 @@ record AccountSessionPrincipal(
     }
 
     boolean canTrade() {
-        return verified && status == AccountStatus.ACTIVE;
+        return accountType == AccountType.REGULAR && verified && status == AccountStatus.ACTIVE;
+    }
+
+    String statusName() {
+        return accountType == AccountType.OPERATIONAL
+                ? operationalStatus.name()
+                : status.name();
+    }
+
+    String roleName() {
+        return operationalRole == null ? null : operationalRole.name();
     }
 
     @Override

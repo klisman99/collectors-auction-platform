@@ -78,6 +78,62 @@ class IdentityApiException extends ErrorResponseException {
                 "Too many password recovery requests. Try again in one hour.");
     }
 
+    static IdentityApiException operationalEmailAlreadyRegistered() {
+        return new IdentityApiException(
+                HttpStatus.CONFLICT,
+                "OPERATIONAL_EMAIL_ALREADY_REGISTERED",
+                "BR-AUTH-011",
+                "An operational or regular account already uses that email address.");
+    }
+
+    static IdentityApiException invalidOperationalRole() {
+        return new IdentityApiException(
+                HttpStatus.BAD_REQUEST,
+                "OPERATIONAL_ROLE_INVALID",
+                "BR-AUTH-011",
+                "Operational account role must be MODERATOR or ADMINISTRATOR.");
+    }
+
+    static IdentityApiException invalidAdministrativeReason() {
+        return new IdentityApiException(
+                HttpStatus.BAD_REQUEST,
+                "ADMINISTRATIVE_REASON_INVALID",
+                "BR-AUDIT-005",
+                "A categorized public reason is required for this administrative action.");
+    }
+
+    static IdentityApiException invalidOperationalActivationToken() {
+        return new IdentityApiException(
+                HttpStatus.BAD_REQUEST,
+                "OPERATIONAL_ACTIVATION_TOKEN_INVALID",
+                "BR-AUTH-011",
+                "The operational activation token is invalid, expired, or already used.");
+    }
+
+    static IdentityApiException operationalAccountNotActive() {
+        return new IdentityApiException(
+                HttpStatus.CONFLICT,
+                "OPERATIONAL_ACCOUNT_NOT_ACTIVE",
+                "BR-AUTH-012",
+                "The operational account is not active.");
+    }
+
+    static IdentityApiException operationalAccountNotFound() {
+        return new IdentityApiException(
+                HttpStatus.NOT_FOUND,
+                "OPERATIONAL_ACCOUNT_NOT_FOUND",
+                "BR-AUTH-013",
+                "The operational account does not exist.");
+    }
+
+    static IdentityApiException lastAdministrator() {
+        return new IdentityApiException(
+                HttpStatus.CONFLICT,
+                "LAST_ADMINISTRATOR_PROTECTED",
+                "BR-AUTH-014",
+                "The platform must retain at least one active administrator.");
+    }
+
     private static ProblemDetail problem(HttpStatus status, String code, String ruleId, String detail) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setType(URI.create("urn:collectors-auction-platform:problem:" + code.toLowerCase(Locale.ROOT)));

@@ -63,6 +63,16 @@ docker compose up --build
 
 Open `http://localhost:8080`. The same-origin NGINX shell proxies `/api`, `/actuator`, and `/v3/api-docs` to the Spring Boot application.
 
+To enable the administrator operations console, configure the bootstrap administrator through deployment secrets before starting the stack:
+
+```bash
+INITIAL_ADMINISTRATOR_EMAIL=admin@example.com \
+INITIAL_ADMINISTRATOR_PASSWORD='a password with at least 12 characters' \
+docker compose up --build
+```
+
+The bootstrap account is created as an active, non-trading administrator. Later moderators and administrators are created only through single-use email invitations.
+
 To add Prometheus, Grafana, and Tempo and export backend traces to Tempo:
 
 ```bash

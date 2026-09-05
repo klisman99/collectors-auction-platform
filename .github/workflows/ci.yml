@@ -111,6 +111,8 @@ jobs:
       - name: Start application stack
         shell: bash
         run: |
+          INITIAL_ADMINISTRATOR_EMAIL=admin-e2e@example.com \
+          INITIAL_ADMINISTRATOR_PASSWORD='e2e administrator password' \
           docker compose up --detach --build
           for attempt in {1..60}; do
             if curl --fail --silent http://127.0.0.1:8080/actuator/health/liveness >/dev/null; then
@@ -125,6 +127,8 @@ jobs:
         env:
           BASE_URL: http://127.0.0.1:8080
           MAILPIT_URL: http://127.0.0.1:8025
+          INITIAL_ADMINISTRATOR_EMAIL: admin-e2e@example.com
+          INITIAL_ADMINISTRATOR_PASSWORD: e2e administrator password
 
       - name: Tear down application stack
         if: always()

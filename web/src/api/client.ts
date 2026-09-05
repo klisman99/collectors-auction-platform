@@ -1,8 +1,13 @@
 import { client } from './generated/client.gen';
 import {
+  activateOperationalAccount as activateOperationalAccountCommand,
   csrfToken as requestCsrfToken,
+  deactivateOperationalAccount as deactivateOperationalAccountCommand,
   getAuthenticatedSession as requestAuthenticatedSession,
   getPlatformStatus as requestPlatformStatus,
+  inviteOperationalAccount as inviteOperationalAccountCommand,
+  listAdministrativeAuditRecords as requestAdministrativeAuditRecords,
+  listOperationalAccounts as requestOperationalAccounts,
   registerRegularAccount,
   requestPasswordRecovery as requestPasswordRecoveryCommand,
   resetPassword as resetPasswordCommand,
@@ -12,8 +17,15 @@ import {
   verifyRegularAccountEmail,
 } from './generated/sdk.gen';
 import type {
+  ActivateOperationalAccountRequest,
+  AuditRecord,
   AuthenticatedSession,
+  DeactivateOperationalAccountRequest,
   EmailVerification,
+  InviteOperationalAccountRequest,
+  OperationalAccount,
+  OperationalAccountActivation,
+  OperationalAccountView,
   PlatformStatus,
   Registration,
   RegistrationRequest,
@@ -25,7 +37,14 @@ import type {
 } from './generated/types.gen';
 
 export type {
+  ActivateOperationalAccountRequest,
+  AuditRecord,
   AuthenticatedSession,
+  DeactivateOperationalAccountRequest,
+  InviteOperationalAccountRequest,
+  OperationalAccount,
+  OperationalAccountActivation,
+  OperationalAccountView,
   PasswordRecoveryRequest,
   PasswordRecoveryRequestAccepted,
   PasswordReset,
@@ -90,6 +109,37 @@ export async function requestPasswordRecovery(input: PasswordRecoveryRequest): P
 export async function resetPassword(input: PasswordResetRequest): Promise<PasswordReset> {
   const { data, error } = await resetPasswordCommand({ body: input, ...(await csrfHeaders()) });
   return required(data, error, 'Password could not be reset.');
+}
+
+export async function activateOperationalAccount(input: ActivateOperationalAccountRequest): Promise<OperationalAccountActivation> {
+  const { data, error } = await activateOperationalAccountCommand({ body: input, ...(await csrfHeaders()) });
+  return required(data, error, 'Operational account activation could not be completed.');
+}
+
+export async function inviteOperationalAccount(input: InviteOperationalAccountRequest): Promise<OperationalAccount> {
+  const { data, error } = await inviteOperationalAccountCommand({ body: input, ...(await csrfHeaders()) });
+  return required(data, error, 'Operational account invitation could not be sent.');
+}
+
+export async function getOperationalAccounts(): Promise<OperationalAccountView[]> {
+  const { data, error } = await requestOperationalAccounts();
+  return required(data, error, 'Operational accounts could not be loaded.');
+}
+
+export async function deactivateOperationalAccount(accountId: string, input: DeactivateOperationalAccountRequest): Promise<void> {
+  const { error } = await deactivateOperationalAccountCommand({
+    body: input,
+    path: { accountId },
+    ...(await csrfHeaders()),
+  });
+  if (error !== undefined) {
+    throw new ApiError(error as ApiProblem, 'Operational account could not be deactivated.');
+  }
+}
+
+export async function getAdministrativeAuditRecords(): Promise<AuditRecord[]> {
+  const { data, error } = await requestAdministrativeAuditRecords();
+  return required(data, error, 'Audit records could not be loaded.');
 }
 
 export async function signOut(): Promise<void> {

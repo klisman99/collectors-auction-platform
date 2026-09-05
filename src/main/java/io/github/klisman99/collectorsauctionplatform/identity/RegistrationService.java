@@ -17,6 +17,7 @@ class RegistrationService {
     private static final Duration VERIFICATION_TOKEN_LIFETIME = Duration.ofHours(24);
 
     private final RegularAccountRepository accounts;
+    private final IdentityMutationGuardRepository mutationGuards;
     private final EmailVerificationTokenRepository verificationTokens;
     private final PasswordEncoder passwordEncoder;
     private final PasswordPolicy passwordPolicy;
@@ -26,6 +27,7 @@ class RegistrationService {
 
     RegistrationService(
             RegularAccountRepository accounts,
+            IdentityMutationGuardRepository mutationGuards,
             EmailVerificationTokenRepository verificationTokens,
             PasswordEncoder passwordEncoder,
             PasswordPolicy passwordPolicy,
@@ -33,6 +35,7 @@ class RegistrationService {
             ApplicationEventPublisher events,
             Clock clock) {
         this.accounts = accounts;
+        this.mutationGuards = mutationGuards;
         this.verificationTokens = verificationTokens;
         this.passwordEncoder = passwordEncoder;
         this.passwordPolicy = passwordPolicy;
@@ -47,6 +50,8 @@ class RegistrationService {
 
         String normalizedEmail = IdentityNormalization.email(email);
         String publicHandle = IdentityNormalization.publicHandle(handle);
+        mutationGuards.findForUpdate().orElseThrow(() -> new IllegalStateException(
+                "The identity mutation guard row is missing."));
         assertIdentifiersAvailable(normalizedEmail, publicHandle);
 
         Instant now = Instant.now(clock);
