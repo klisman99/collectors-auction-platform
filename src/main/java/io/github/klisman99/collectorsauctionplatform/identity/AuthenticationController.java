@@ -21,6 +21,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,27 +36,27 @@ class AuthenticationController {
     private final RegistrationService registrationService;
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
-    private final LoginAttemptRateLimiter loginAttemptRateLimiter;
+    private final IdentityAttemptRateLimiter attemptRateLimiter;
     private final PasswordRecoveryService passwordRecoveryService;
-    private final PasswordRecoveryRateLimiter passwordRecoveryRateLimiter;
     private final AccountSessionRevocationService sessionRevocationService;
+    private final RegularAccountRepository accounts;
     private final SecurityContextHolderStrategy securityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
 
     AuthenticationController(
             RegistrationService registrationService,
             AuthenticationManager authenticationManager,
             SecurityContextRepository securityContextRepository,
-            LoginAttemptRateLimiter loginAttemptRateLimiter,
+            IdentityAttemptRateLimiter attemptRateLimiter,
             PasswordRecoveryService passwordRecoveryService,
-            PasswordRecoveryRateLimiter passwordRecoveryRateLimiter,
-            AccountSessionRevocationService sessionRevocationService) {
+            AccountSessionRevocationService sessionRevocationService,
+            RegularAccountRepository accounts) {
         this.registrationService = registrationService;
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
-        this.loginAttemptRateLimiter = loginAttemptRateLimiter;
+        this.attemptRateLimiter = attemptRateLimiter;
         this.passwordRecoveryService = passwordRecoveryService;
-        this.passwordRecoveryRateLimiter = passwordRecoveryRateLimiter;
         this.sessionRevocationService = sessionRevocationService;
+        this.accounts = accounts;
     }
 
     @PostMapping(path = "/register", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -76,12 +77,17 @@ class AuthenticationController {
 
     @PostMapping(path = "/sign-in", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(operationId = "signInRegularAccount", summary = "Sign in with a revocable server-side session")
+    @Transactional
     SessionResponse signIn(
             @Valid @RequestBody SignInRequest request,
             HttpServletRequest servletRequest,
             HttpServletResponse servletResponse) {
         String normalizedEmail = IdentityNormalization.email(request.email());
-        loginAttemptRateLimiter.recordAttempt(clientIp(servletRequest), normalizedEmail);
+        attemptRateLimiter.recordLoginAttempt(clientIp(servletRequest), normalizedEmail);
+        // Serializes session creation with password changes and account-wide
+        // session revocation. The lock is held until saveContext has persisted
+        // the new server-side session.
+        accounts.findByNormalizedEmailForUpdate(normalizedEmail);
 
         Authentication authenticated;
         try {
@@ -123,7 +129,7 @@ class AuthenticationController {
             @Valid @RequestBody PasswordRecoveryRequest request,
             HttpServletRequest servletRequest) {
         String normalizedEmail = IdentityNormalization.email(request.email());
-        passwordRecoveryRateLimiter.recordAttempt(clientIp(servletRequest), normalizedEmail);
+        attemptRateLimiter.recordPasswordRecoveryAttempt(clientIp(servletRequest), normalizedEmail);
         passwordRecoveryService.request(normalizedEmail);
         return new PasswordRecoveryResponse("RECOVERY_REQUEST_RECEIVED");
     }
@@ -142,11 +148,7 @@ class AuthenticationController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(operationId = "signOut", summary = "Revoke the current server-side session")
     void signOut(HttpServletRequest servletRequest) {
-        HttpSession session = servletRequest.getSession(false);
-        if (session != null) {
-            session.invalidate();
-        }
-        securityContextHolderStrategy.clearContext();
+        invalidateCurrentSession(servletRequest);
     }
 
     @PostMapping(path = "/revoke-all-sessions")

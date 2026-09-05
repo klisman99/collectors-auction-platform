@@ -48,7 +48,14 @@ export function App() {
   // session. This is important when the user registered in another tab and is
   // already signed in with the pending account.
   if (session !== null && page !== 'verify' && page !== 'reset') {
-    return <AuthenticatedHome onRevokeAllSessions={() => endSession(true)} onSignOut={() => endSession(false)} session={session} />;
+    return (
+      <AuthenticatedHome
+        failure={failure}
+        onRevokeAllSessions={() => endSession(true)}
+        onSignOut={() => endSession(false)}
+        session={session}
+      />
+    );
   }
 
   function moveTo(nextPage: Page) {
@@ -356,10 +363,12 @@ export function App() {
 }
 
 function AuthenticatedHome({
+  failure,
   onRevokeAllSessions,
   onSignOut,
   session,
 }: {
+  failure: string | null;
   onRevokeAllSessions: () => void;
   onSignOut: () => void;
   session: AuthenticatedSession;
@@ -371,6 +380,7 @@ function AuthenticatedHome({
     <PageFrame>
       <p className="text-sm font-semibold tracking-[0.2em] text-cyan-300 uppercase">Authenticated home</p>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Welcome back, {handle}.</h1>
+      {failure !== null && <Failure>{failure}</Failure>}
       <section className="mt-8 rounded-xl border border-slate-700 bg-slate-950/60 p-5" aria-live="polite">
         <p className={`text-sm font-semibold ${verified ? 'text-emerald-300' : 'text-amber-300'}`}>
           {verified ? 'Trading access is active.' : 'Email verification is still required for trading.'}

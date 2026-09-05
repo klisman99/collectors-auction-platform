@@ -176,4 +176,18 @@ describe('App', () => {
     await waitFor(() => expect(revokeAllSessions).toHaveBeenCalled());
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
   });
+
+  test('shows a failure when session management cannot complete', async () => {
+    vi.mocked(getAuthenticatedSession).mockResolvedValue({
+      publicHandle: 'collector_28', status: 'ACTIVE', verified: true, canTrade: true,
+    });
+    vi.mocked(signOut).mockRejectedValue(new Error('network unavailable'));
+    render(<App />);
+
+    await screen.findByText('Welcome back, collector_28.');
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('The request could not be completed. Please try again.');
+    expect(screen.getByText('Welcome back, collector_28.')).toBeInTheDocument();
+  });
 });

@@ -18,6 +18,7 @@ class PasswordRecoveryService {
     private final RegularAccountRepository accounts;
     private final PasswordRecoveryTokenRepository recoveryTokens;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordPolicy passwordPolicy;
     private final VerificationTokenGenerator tokenGenerator;
     private final AccountSessionRevocationService sessions;
     private final ApplicationEventPublisher events;
@@ -27,6 +28,7 @@ class PasswordRecoveryService {
             RegularAccountRepository accounts,
             PasswordRecoveryTokenRepository recoveryTokens,
             PasswordEncoder passwordEncoder,
+            PasswordPolicy passwordPolicy,
             VerificationTokenGenerator tokenGenerator,
             AccountSessionRevocationService sessions,
             ApplicationEventPublisher events,
@@ -34,6 +36,7 @@ class PasswordRecoveryService {
         this.accounts = accounts;
         this.recoveryTokens = recoveryTokens;
         this.passwordEncoder = passwordEncoder;
+        this.passwordPolicy = passwordPolicy;
         this.tokenGenerator = tokenGenerator;
         this.sessions = sessions;
         this.events = events;
@@ -43,7 +46,7 @@ class PasswordRecoveryService {
     @Transactional
     void request(String email) {
         String normalizedEmail = IdentityNormalization.email(email);
-        accounts.findByNormalizedEmail(normalizedEmail).ifPresent(account -> {
+        accounts.findByNormalizedEmailForUpdate(normalizedEmail).ifPresent(account -> {
             Instant now = Instant.now(clock);
             invalidateExistingTokens(account.id(), now);
 
@@ -64,12 +67,16 @@ class PasswordRecoveryService {
 
     @Transactional
     void reset(String rawToken, String password) {
-        validatePasswordLength(password);
+        passwordPolicy.validate(password);
         Instant now = Instant.now(clock);
-        PasswordRecoveryToken token = recoveryTokens.findByTokenDigest(tokenGenerator.digest(rawToken))
-                .filter(candidate -> candidate.isUsableAt(now))
+        String tokenDigest = tokenGenerator.digest(rawToken);
+        PasswordRecoveryToken candidate = recoveryTokens.findByTokenDigest(tokenDigest)
+                .filter(recoveryToken -> recoveryToken.isUsableAt(now))
                 .orElseThrow(IdentityApiException::invalidPasswordRecoveryToken);
-        RegularAccount account = accounts.findById(token.accountId())
+        RegularAccount account = accounts.findByIdForUpdate(candidate.accountId())
+                .orElseThrow(IdentityApiException::invalidPasswordRecoveryToken);
+        PasswordRecoveryToken token = recoveryTokens.findByTokenDigestForUpdate(tokenDigest)
+                .filter(recoveryToken -> recoveryToken.isUsableAt(now))
                 .orElseThrow(IdentityApiException::invalidPasswordRecoveryToken);
 
         account.changePassword(passwordEncoder.encode(password));
@@ -84,10 +91,4 @@ class PasswordRecoveryService {
                 .forEach(token -> token.markUsed(now));
     }
 
-    private void validatePasswordLength(String password) {
-        int characterCount = password.codePointCount(0, password.length());
-        if (characterCount < 12 || characterCount > 128) {
-            throw IdentityApiException.invalidPasswordLength();
-        }
-    }
 }

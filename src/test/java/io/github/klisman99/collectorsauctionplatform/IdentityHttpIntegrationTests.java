@@ -337,6 +337,30 @@ class IdentityHttpIntegrationTests {
     }
 
     @Test
+    void concurrentRecoveryRequestsLeaveExactlyOneUsableToken() throws Exception {
+        Csrf csrf = csrf();
+        String email = "concurrent-recovery-28@example.com";
+        register(csrf, email, "concurrent_recovery_28", "a concurrent recovery password");
+        verify(csrf, verificationToken(mailSender.awaitMessage().getContent().toString()));
+        mailSender.clear();
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<Integer> first = executor.submit(() -> requestPasswordRecovery(csrf, email, "198.51.100.50"));
+            Future<Integer> second = executor.submit(() -> requestPasswordRecovery(csrf, email, "198.51.100.51"));
+            assertThat(java.util.List.of(first.get(), second.get())).containsExactly(202, 202);
+        }
+
+        await(() -> mailSender.messages.size() == 2);
+        String firstToken = recoveryToken(mailSender.messages.getFirst().getContent().toString());
+        String secondToken = recoveryToken(mailSender.messages.getLast().getContent().toString());
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<Integer> first = executor.submit(() -> resetPassword(csrf, firstToken, "a concurrent replacement password"));
+            Future<Integer> second = executor.submit(() -> resetPassword(csrf, secondToken, "another concurrent replacement password"));
+            assertThat(java.util.List.of(first.get(), second.get())).containsExactlyInAnyOrder(200, 400);
+        }
+    }
+
+    @Test
     void returnsTheSameAcceptedRecoveryResponseForUnknownAddresses() throws Exception {
         Csrf csrf = csrf();
 
@@ -446,6 +470,28 @@ class IdentityHttpIntegrationTests {
             request.header("X-Forwarded-For", forwardedFor);
         }
         return mockMvc.perform(request);
+    }
+
+    private int requestPasswordRecovery(Csrf csrf, String email, String clientIp) throws Exception {
+        return mockMvc.perform(post("/api/v1/auth/request-password-recovery")
+                        .cookie(csrf.cookie())
+                        .header("X-XSRF-TOKEN", csrf.token())
+                        .with(request -> {
+                            request.setRemoteAddr(clientIp);
+                            return request;
+                        })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\"}"))
+                .andReturn().getResponse().getStatus();
+    }
+
+    private int resetPassword(Csrf csrf, String token, String password) throws Exception {
+        return mockMvc.perform(post("/api/v1/auth/reset-password")
+                        .cookie(csrf.cookie())
+                        .header("X-XSRF-TOKEN", csrf.token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"" + token + "\",\"password\":\"" + password + "\"}"))
+                .andReturn().getResponse().getStatus();
     }
 
     private void register(Csrf csrf, String email, String publicHandle, String password) throws Exception {
