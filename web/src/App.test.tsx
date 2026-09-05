@@ -205,7 +205,7 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Manage operational accounts' })).toBeInTheDocument();
-    expect(screen.getByText('OPERATIONAL_ACCOUNT_INVITED')).toBeInTheDocument();
+    expect(await screen.findByText('OPERATIONAL_ACCOUNT_INVITED')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'new-moderator@example.com' } });
     fireEvent.change(screen.getByLabelText('Public reason', { selector: '#operational-invite-public-reason' }), { target: { value: 'Add evening coverage' } });
