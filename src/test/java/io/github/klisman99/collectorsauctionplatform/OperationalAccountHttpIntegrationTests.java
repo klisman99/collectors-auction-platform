@@ -29,6 +29,8 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.session.Session;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -79,12 +81,43 @@ class OperationalAccountHttpIntegrationTests {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private FindByIndexNameSessionRepository<? extends Session> sessions;
+
     @BeforeEach
     void clearMessages() {
         jdbcTemplate.update("DELETE FROM operational_account_invitations");
         jdbcTemplate.update("DELETE FROM operational_accounts WHERE normalized_email <> ?", "bootstrap-29@example.com");
         jdbcTemplate.update("DELETE FROM audit_records WHERE target_type = 'OPERATIONAL_ACCOUNT'");
         mailSender.clear();
+    }
+
+    @Test
+    void persistsNewServerSideSessionsImmediately() {
+        assertSessionPersistence(sessions);
+    }
+
+    private <S extends Session> void assertSessionPersistence(FindByIndexNameSessionRepository<S> sessionRepository) {
+        S session = sessionRepository.createSession();
+        session.setAttribute("security-context", "newly-authenticated-principal");
+
+        try {
+            assertThat(storedSessionCount(session.getId())).isEqualTo(1);
+
+            sessionRepository.deleteById(session.getId());
+            sessionRepository.save(session);
+
+            assertThat(storedSessionCount(session.getId())).isZero();
+        } finally {
+            sessionRepository.deleteById(session.getId());
+        }
+    }
+
+    private Integer storedSessionCount(String sessionId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM spring_session WHERE session_id = ?",
+                Integer.class,
+                sessionId);
     }
 
     @Test
@@ -417,7 +450,8 @@ class OperationalAccountHttpIntegrationTests {
     }
 
     private String invite(Csrf csrf, MvcResult administrator, String email, String role) throws Exception {
-        return objectMapper.readTree(mockMvc.perform(post("/api/v1/admin/operational-accounts")
+        int messageCountBeforeInvitation = mailSender.messageCount();
+        String accountId = objectMapper.readTree(mockMvc.perform(post("/api/v1/admin/operational-accounts")
                         .cookie(csrf.cookie(), sessionCookie(administrator))
                         .header("X-XSRF-TOKEN", csrf.token())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -435,6 +469,8 @@ class OperationalAccountHttpIntegrationTests {
                 .getContentAsString())
                 .get("id")
                 .asText();
+        mailSender.awaitMessageAfter(messageCountBeforeInvitation);
+        return accountId;
     }
 
     private org.springframework.test.web.servlet.ResultActions activateWithStatus(Csrf csrf, String token) throws Exception {
@@ -537,6 +573,18 @@ class OperationalAccountHttpIntegrationTests {
             }
             assertThat(messages).isNotEmpty();
             return messages.getLast();
+        }
+
+        void awaitMessageAfter(int messageCount) throws InterruptedException {
+            long deadline = System.nanoTime() + 5_000_000_000L;
+            while (messages.size() <= messageCount && System.nanoTime() < deadline) {
+                Thread.sleep(25);
+            }
+            assertThat(messages.size()).isGreaterThan(messageCount);
+        }
+
+        int messageCount() {
+            return messages.size();
         }
 
         void clear() {
