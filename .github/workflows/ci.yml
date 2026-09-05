@@ -67,11 +67,13 @@ jobs:
           DATABASE_URL: jdbc:postgresql://localhost:5432/collectors_auction
           DATABASE_USERNAME: collectors
           DATABASE_PASSWORD: collectors
+          INITIAL_ADMINISTRATOR_EMAIL: admin-ci@example.com
+          INITIAL_ADMINISTRATOR_PASSWORD: ci administrator password
         shell: bash
         run: |
           ./mvnw --batch-mode --no-transfer-progress spring-boot:run > backend.log 2>&1 &
           backend_pid=$!
-          trap 'kill "$backend_pid"; cat backend.log' EXIT
+          trap 'kill "$backend_pid" 2>/dev/null || true; cat backend.log' EXIT
           for attempt in {1..60}; do
             if curl --fail --silent http://localhost:8080/actuator/health/liveness >/dev/null; then
               break
