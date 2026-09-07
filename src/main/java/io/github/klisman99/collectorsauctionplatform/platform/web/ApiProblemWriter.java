@@ -22,13 +22,17 @@ class ApiProblemWriter {
     void write(
             HttpServletRequest request,
             HttpServletResponse response,
-            HttpStatus status,
-            String code,
-            String detail) throws IOException {
+                HttpStatus status,
+                String code,
+                String detail) throws IOException {
+        write(request, response, status, code, null, detail);
+    }
+
+    void write(HttpServletRequest request, HttpServletResponse response, HttpStatus status, String code, String ruleId, String detail) throws IOException {
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         objectMapper.writeValue(
                 response.getOutputStream(),
-                ApiProblems.problem(status, code, null, detail, List.of(), request));
+                ApiProblems.problem(status, code, ruleId, detail, List.of(), request));
     }
 }
