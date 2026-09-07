@@ -58,6 +58,8 @@ class SecurityConfiguration {
                     .authenticated()
                     .requestMatchers("/api/v1/catalog/drafts/**")
                     .hasAuthority("TRADING_ELIGIBLE")
+                    .requestMatchers("/api/v1/moderation/**")
+                    .hasAnyRole("MODERATOR", "ADMINISTRATOR")
                     .requestMatchers(HttpMethod.GET, "/api/v1/**")
                     .permitAll()
                     .requestMatchers("/api/v1/**")

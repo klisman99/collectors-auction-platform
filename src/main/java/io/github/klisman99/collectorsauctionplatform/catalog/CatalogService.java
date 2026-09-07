@@ -32,14 +32,17 @@ class CatalogService {
 
   private final CollectibleItemRepository items;
   private final CollectibleItemMediaRepository media;
+  private final CollectibleItemReviewRepository reviews;
   private final CatalogImageStorage storage;
 
   CatalogService(
       CollectibleItemRepository items,
       CollectibleItemMediaRepository media,
+      CollectibleItemReviewRepository reviews,
       CatalogImageStorage storage) {
     this.items = items;
     this.media = media;
+    this.reviews = reviews;
     this.storage = storage;
   }
 
@@ -62,6 +65,10 @@ class CatalogService {
   @Transactional
   CollectibleItem update(UUID ownerId, UUID itemId, DraftRequest request) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
+      throw CatalogApiException.cannotSubmit(
+          "A submitted item is read-only until moderation decides it.");
+    }
     validate(request);
     item.apply(request, Instant.now());
     return items.save(item);
@@ -70,6 +77,10 @@ class CatalogService {
   @Transactional
   void delete(UUID ownerId, UUID itemId) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    if (item.status() == CollectibleItem.Status.UNDER_REVIEW
+        || item.status() == CollectibleItem.Status.APPROVED) {
+      throw CatalogApiException.cannotSubmit("A submitted item cannot be deleted.");
+    }
     List<CollectibleItemMedia> images = media.findAllByItemIdOrderBySortOrder(itemId);
 
     items.delete(item);
@@ -79,6 +90,10 @@ class CatalogService {
   @Transactional
   CollectibleItemMedia addImage(UUID ownerId, UUID itemId, MultipartFile file) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
+      throw CatalogApiException.cannotSubmit(
+          "A submitted item is read-only until moderation decides it.");
+    }
     validateImageSize(file);
 
     List<CollectibleItemMedia> existingImages = media.findAllByItemIdOrderBySortOrder(itemId);
@@ -158,6 +173,60 @@ class CatalogService {
 
   List<CollectibleItemMedia> images(UUID itemId) {
     return media.findAllByItemIdOrderBySortOrder(itemId);
+  }
+
+  @Transactional
+  CollectibleItem submit(UUID ownerId, UUID itemId) {
+    CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
+      throw CatalogApiException.cannotSubmit("This item is already under review.");
+    }
+    if (media.countByItemId(itemId) < 1) {
+      throw CatalogApiException.cannotSubmit("Submission requires at least one processed image.");
+    }
+    item.submit(Instant.now());
+    return item;
+  }
+
+  @Transactional(readOnly = true)
+  List<CollectibleItem> reviewQueue() {
+    return items.findAllByStatusOrderBySubmittedAtAsc(CollectibleItem.Status.UNDER_REVIEW);
+  }
+
+  @Transactional
+  CollectibleItem approve(UUID itemId, UUID reviewerId) {
+    CollectibleItem item =
+        items
+            .findByIdAndStatus(itemId, CollectibleItem.Status.UNDER_REVIEW)
+            .orElseThrow(CatalogApiException::reviewConflict);
+    Instant now = Instant.now();
+    item.approve(now);
+    reviews.save(
+        CollectibleItemReview.create(
+            itemId, reviewerId, CollectibleItemReview.Decision.APPROVED, null, null, now));
+    return item;
+  }
+
+  @Transactional
+  CollectibleItem reject(UUID itemId, UUID reviewerId, String reason, String internalNote) {
+    if (reason == null || reason.trim().length() < 5 || reason.length() > 2000) {
+      throw CatalogApiException.reviewReasonRequired();
+    }
+    CollectibleItem item =
+        items
+            .findByIdAndStatus(itemId, CollectibleItem.Status.UNDER_REVIEW)
+            .orElseThrow(CatalogApiException::reviewConflict);
+    Instant now = Instant.now();
+    item.reject(reason.trim(), now);
+    reviews.save(
+        CollectibleItemReview.create(
+            itemId,
+            reviewerId,
+            CollectibleItemReview.Decision.REJECTED,
+            reason.trim(),
+            internalNote,
+            now));
+    return item;
   }
 
   private void validateImageSize(MultipartFile file) {

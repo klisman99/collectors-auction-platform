@@ -69,6 +69,12 @@ class CatalogController {
     catalog.delete(accountId(principal), id);
   }
 
+  @PostMapping("/{id}/submit")
+  @Operation(operationId = "submitCatalogDraft", summary = "Submit a complete draft for moderation")
+  DraftResponse submit(Principal principal, @PathVariable UUID id) {
+    return response(catalog.submit(accountId(principal), id));
+  }
+
   @PostMapping(path = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   @Operation(
       operationId = "uploadCatalogDraftImage",
@@ -129,6 +135,8 @@ class CatalogController {
         item.condition(),
         item.conditionNotes(),
         item.ownershipDeclared(),
+        item.status(),
+        item.submissionReason(),
         catalog.images(item.id()).stream().map(this::imageResponse).toList(),
         item.createdAt(),
         item.updatedAt());
@@ -177,6 +185,8 @@ record DraftResponse(
     CollectibleItem.Condition condition,
     String conditionNotes,
     boolean ownershipDeclared,
+    CollectibleItem.Status status,
+    String submissionReason,
     List<ImageResponse> images,
     Instant createdAt,
     Instant updatedAt) {}

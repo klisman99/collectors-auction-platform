@@ -13,9 +13,18 @@ interface CollectibleItemRepository extends JpaRepository<CollectibleItem, UUID>
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   Optional<CollectibleItem> findByIdAndOwnerId(UUID id, UUID ownerId);
+
+  List<CollectibleItem> findAllByStatusOrderBySubmittedAtAsc(CollectibleItem.Status status);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  Optional<CollectibleItem> findByIdAndStatus(UUID id, CollectibleItem.Status status);
 }
 
 interface CollectibleItemMediaRepository extends JpaRepository<CollectibleItemMedia, UUID> {
 
   List<CollectibleItemMedia> findAllByItemIdOrderBySortOrder(UUID itemId);
+
+  long countByItemId(UUID itemId);
 }
+
+interface CollectibleItemReviewRepository extends JpaRepository<CollectibleItemReview, UUID> {}

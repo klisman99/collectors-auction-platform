@@ -10,6 +10,7 @@ access happens through a deliberate public API or a durable event, never a direc
 | `password_recovery_tokens` | `identity` | Single-use password recovery tokens | Identity only. |
 | `collectible_items` | `catalog` | Seller-owned collectible drafts and lifecycle | Other modules use catalog commands/snapshots. |
 | `collectible_item_media` | `catalog` | Private, normalized media metadata and order | Catalog only; object storage is accessed through its storage port. |
+| `collectible_item_reviews` | `catalog` | Durable moderation decision attached to a collectible lifecycle | Accessed through the moderation command boundary; no other module reads the table directly. |
 | `audit_records` | `audit` | Append-only auditable facts | Product modules publish facts; audit persists projections. |
 | `spring_session` | `platform` | Server-side HTTP session metadata | Only Spring Session through platform configuration. |
 | `spring_session_attributes` | `platform` | Server-side HTTP session attributes | Only Spring Session through platform configuration. |
