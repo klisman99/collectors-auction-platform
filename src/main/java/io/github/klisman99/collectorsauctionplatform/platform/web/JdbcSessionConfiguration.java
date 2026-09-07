@@ -11,13 +11,14 @@ import org.springframework.session.web.http.DefaultCookieSerializer;
 @EnableJdbcHttpSession(maxInactiveIntervalInSeconds = 30 * 24 * 60 * 60)
 class JdbcSessionConfiguration {
 
-    @Bean
-    CookieSerializer sessionCookieSerializer(@Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
-        DefaultCookieSerializer cookies = new DefaultCookieSerializer();
-        cookies.setCookieName("JSESSIONID");
-        cookies.setUseHttpOnlyCookie(true);
-        cookies.setSameSite("Lax");
-        cookies.setUseSecureCookie(secureCookie);
-        return cookies;
-    }
+  @Bean
+  CookieSerializer sessionCookieSerializer(
+      @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
+    DefaultCookieSerializer cookies = new DefaultCookieSerializer();
+    cookies.setCookieName("JSESSIONID");
+    cookies.setUseHttpOnlyCookie(true);
+    cookies.setSameSite("Lax");
+    cookies.setUseSecureCookie(secureCookie);
+    return cookies;
+  }
 }

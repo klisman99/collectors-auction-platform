@@ -7,22 +7,22 @@ import org.springframework.modulith.core.ApplicationModules;
 
 class ArchitectureTests {
 
-    @Test
-    void documentedBusinessModulesRespectTheirBoundaries() {
-        ApplicationModules modules = ApplicationModules.of(CollectorsAuctionPlatformApplication.class);
+  @Test
+  void documentedBusinessModulesRespectTheirBoundaries() {
+    ApplicationModules modules = ApplicationModules.of(CollectorsAuctionPlatformApplication.class);
 
-        assertThat(modules.stream().map(module -> module.getIdentifier().toString()))
-                .containsExactlyInAnyOrder(
-                        "identity",
-                        "catalog",
-                        "moderation",
-                        "auctions",
-                        "bidding",
-                        "settlement",
-                        "notifications",
-                        "audit",
-                        "platform");
+    assertThat(modules.stream().map(module -> module.getIdentifier().toString()))
+        .containsExactlyInAnyOrder(
+            "identity",
+            "catalog",
+            "moderation",
+            "auctions",
+            "bidding",
+            "settlement",
+            "notifications",
+            "audit",
+            "platform");
 
-        modules.verify();
-    }
+    modules.verify();
+  }
 }

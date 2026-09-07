@@ -40,6 +40,9 @@ Dashed dependencies represent reactions to durable after-commit application even
 
 `platform` is the dependency-free application-shell capability. It owns cross-cutting HTTP entry conventions, security configuration, status/OpenAPI contracts, and operational instrumentation. Product modules must not depend on it.
 
+Table ownership and the corresponding no-direct-access rule are documented in
+[table-ownership.md](table-ownership.md).
+
 ## Module responsibilities
 
 ### identity

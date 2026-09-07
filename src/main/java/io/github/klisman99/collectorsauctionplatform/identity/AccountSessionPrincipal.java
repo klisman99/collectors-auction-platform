@@ -5,29 +5,28 @@ import java.io.Serializable;
 import java.security.Principal;
 import java.util.Collection;
 import java.util.UUID;
-
 import org.springframework.security.core.GrantedAuthority;
 
 record AccountSessionPrincipal(
-        UUID accountId,
-        String publicHandle,
-        AccountStatus status,
-        boolean verified,
-        Collection<? extends GrantedAuthority> authorities) implements Principal, Serializable {
+    UUID accountId,
+    String publicHandle,
+    AccountStatus status,
+    boolean verified,
+    Collection<? extends GrantedAuthority> authorities)
+    implements Principal, Serializable {
 
-    @Serial
-    private static final long serialVersionUID = 1L;
+  @Serial private static final long serialVersionUID = 1L;
 
-    boolean isVerified() {
-        return verified;
-    }
+  boolean isVerified() {
+    return verified;
+  }
 
-    boolean canTrade() {
-        return verified && status == AccountStatus.ACTIVE;
-    }
+  boolean canTrade() {
+    return verified && status == AccountStatus.ACTIVE;
+  }
 
-    @Override
-    public String getName() {
-        return accountId.toString();
-    }
+  @Override
+  public String getName() {
+    return accountId.toString();
+  }
 }

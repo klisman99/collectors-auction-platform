@@ -94,6 +94,11 @@ The catalog media dependencies were verified on 2026-09-07:
 - [MinIO Java SDK Maven usage](https://github.com/minio/minio-java)
 - [Sejda WebP ImageIO 0.1.6 artifact](https://central.sonatype.com/artifact/org.sejda.imageio/webp-imageio/0.1.6)
 
+The Java formatting toolchain was verified on 2026-09-07:
+
+- [Spotless Maven Plugin 3.10.2 artifact](https://central.sonatype.com/artifact/com.diffplug.spotless/spotless-maven-plugin)
+- [google-java-format 1.36.0 release](https://github.com/google/google-java-format/releases/tag/v1.36.0)
+
 ## Dependency update workflow
 
 1. Check official project pages, system requirements, compatibility matrices, and release notes.

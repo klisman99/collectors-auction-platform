@@ -159,6 +159,21 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <!-- Verified on Maven Central and the official Spotless releases on 2026-09-07. -->
+                <version>3.10.2</version>
+                <configuration>
+                    <java>
+                        <!-- google-java-format 1.36.0 supports the project's Java 25 source level. -->
+                        <googleJavaFormat>
+                            <version>1.36.0</version>
+                        </googleJavaFormat>
+                        <removeUnusedImports/>
+                    </java>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
