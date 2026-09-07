@@ -16,24 +16,24 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers(disabledWithoutDocker = true)
 class PostgreSqlMigrationIntegrationTests {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18.6-alpine")
-            .withDatabaseName("collectors_auction")
-            .withUsername("collectors")
-            .withPassword("collectors");
+  @Container
+  static PostgreSQLContainer<?> postgres =
+      new PostgreSQLContainer<>("postgres:18.6-alpine")
+          .withDatabaseName("collectors_auction")
+          .withUsername("collectors")
+          .withPassword("collectors");
 
-    @DynamicPropertySource
-    static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
+  @DynamicPropertySource
+  static void databaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", postgres::getJdbcUrl);
+    registry.add("spring.datasource.username", postgres::getUsername);
+    registry.add("spring.datasource.password", postgres::getPassword);
+  }
 
-    @Autowired
-    private Flyway flyway;
+  @Autowired private Flyway flyway;
 
-    @Test
-    void appliesTheForwardOnlyMigrationsAgainstPostgreSql() {
-        assertThat(flyway.info().applied()).hasSize(5);
-    }
+  @Test
+  void appliesTheForwardOnlyMigrationsAgainstPostgreSql() {
+    assertThat(flyway.info().applied()).hasSize(5);
+  }
 }

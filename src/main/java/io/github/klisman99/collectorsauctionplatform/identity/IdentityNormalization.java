@@ -4,14 +4,13 @@ import java.util.Locale;
 
 final class IdentityNormalization {
 
-    private IdentityNormalization() {
-    }
+  private IdentityNormalization() {}
 
-    static String email(String value) {
-        return value.trim().toLowerCase(Locale.ROOT);
-    }
+  static String email(String value) {
+    return value.trim().toLowerCase(Locale.ROOT);
+  }
 
-    static String publicHandle(String value) {
-        return value.trim().toLowerCase(Locale.ROOT);
-    }
+  static String publicHandle(String value) {
+    return value.trim().toLowerCase(Locale.ROOT);
+  }
 }

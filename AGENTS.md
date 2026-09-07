@@ -17,6 +17,12 @@
 - Keep PostgreSQL as the source of truth. Persist accepted state before acknowledging it or publishing a real-time projection.
 - Do not introduce Redis, Kafka, microservices, or Kubernetes without measured evidence and a new ADR.
 
+## Code quality
+
+- Follow `docs/architecture/coding-standards.md` for implementation, error handling, persistence,
+  security, and verification conventions.
+- Keep `docs/architecture/table-ownership.md` current whenever a migration adds or changes a table.
+
 ## Agent skills
 
 ### Issue tracker

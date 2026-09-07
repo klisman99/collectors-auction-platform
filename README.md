@@ -75,7 +75,7 @@ Use Java 25 LTS, Node 24.20.0, and the package-manager version pinned in `web/pa
 
 ```bash
 node scripts/check-docs.mjs
-pwsh ./scripts/check-java-format.ps1
+./mvnw --batch-mode --no-transfer-progress spotless:check
 ./mvnw --batch-mode --no-transfer-progress verify
 corepack pnpm@11.19.0 --dir web install --frozen-lockfile
 corepack pnpm@11.19.0 --dir web run ci
