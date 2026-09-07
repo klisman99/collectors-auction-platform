@@ -391,6 +391,7 @@ function AuthenticatedHome({
             : 'You can browse the platform, but submitting items, scheduling auctions, and bidding remain unavailable.'}
         </p>
       </section>
+      {verified && <DraftWorkspace />}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <button
           className="rounded-lg border border-slate-600 px-4 py-2.5 font-semibold text-slate-100 transition hover:border-cyan-300 hover:text-cyan-200"
@@ -409,6 +410,25 @@ function AuthenticatedHome({
       </div>
     </PageFrame>
   );
+}
+
+function DraftWorkspace() {
+  const [drafts, setDrafts] = useState<import('./api/client').Draft[]>([]);
+  const [title, setTitle] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => { fetch('/api/v1/catalog/drafts', { credentials: 'same-origin' }).then((response) => response.ok ? response.json() : Promise.reject()).then(setDrafts).catch(() => setMessage('Drafts could not be loaded.')); }, []);
+  async function save(event: FormEvent) {
+    event.preventDefault(); setMessage(null);
+    try {
+      const csrfResponse = await fetch('/api/v1/csrf', { credentials: 'same-origin' });
+      const csrf = await csrfResponse.json() as { headerName: string; token: string };
+      const response = await fetch('/api/v1/catalog/drafts', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', [csrf.headerName]: csrf.token }, body: JSON.stringify({ category: 'OTHER', otherCategoryLabel: 'Collectible', title, description: 'A private collectible draft awaiting its full description.', condition: 'NOT_APPLICABLE', conditionNotes: 'Condition details to be completed.', ownershipDeclared: true }) });
+      if (!response.ok) throw new Error('Draft could not be saved.');
+      const draft = await response.json() as import('./api/client').Draft;
+      setDrafts([draft, ...drafts]); setTitle(''); setMessage('Private draft saved. Add images and complete the details before submitting.');
+    } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Draft could not be saved.'); }
+  }
+  return <section className="mt-8 rounded-xl border border-cyan-900/70 bg-slate-950/60 p-5"><h2 className="text-xl font-semibold text-white">Your private drafts</h2><p className="mt-2 text-sm leading-6 text-slate-300">One physical collectible per draft. Drafts remain private until you submit them for moderation.</p><form className="mt-5 flex gap-2" onSubmit={save}><input aria-label="Draft title" className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-slate-100" minLength={5} placeholder="Draft title" required value={title} onChange={(event) => setTitle(event.target.value)} /><button className="rounded-lg bg-cyan-300 px-4 py-2 font-semibold text-slate-950" type="submit">New draft</button></form>{message && <p className="mt-3 text-sm text-cyan-200" role="status">{message}</p>}<ul className="mt-5 space-y-2">{drafts.map((draft) => <li className="rounded-lg border border-slate-700 p-3" key={draft.id}><span className="font-medium text-white">{draft.title}</span><span className="ml-2 text-sm text-slate-400">{draft.images.length}/5 images</span></li>)}</ul></section>;
 }
 
 function PageFrame({ children }: { children: ReactNode }) {

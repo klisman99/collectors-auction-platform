@@ -54,6 +54,7 @@ class SecurityConfiguration {
                                 "/api/v1/auth/sign-out",
                                 "/api/v1/auth/revoke-all-sessions")
                         .authenticated()
+                        .requestMatchers("/api/v1/catalog/drafts/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
                         .requestMatchers("/api/v1/**").hasAuthority("TRADING_ELIGIBLE")
                         .anyRequest().denyAll())

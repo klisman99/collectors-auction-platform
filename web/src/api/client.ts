@@ -36,6 +36,8 @@ export type {
   SignInRequest,
 } from './generated/types.gen';
 
+export type Draft = { id: string; category: string; otherCategoryLabel?: string; title: string; description: string; condition: string; conditionNotes: string; ownershipDeclared: boolean; images: Array<{ id: string; url: string; contentType: string; sortOrder: number }> };
+
 client.setConfig({ baseUrl: '/', credentials: 'same-origin' });
 
 export type ApiProblem = {
@@ -104,6 +106,32 @@ export async function revokeAllSessions(): Promise<void> {
   if (error !== undefined) {
     throw new ApiError(error as ApiProblem, 'Sessions could not be revoked.');
   }
+}
+
+export async function listDrafts(): Promise<Draft[]> {
+  const response = await fetch('/api/v1/catalog/drafts', { credentials: 'same-origin' });
+  if (!response.ok) throw await apiError(response, 'Drafts could not be loaded.');
+  return response.json() as Promise<Draft[]>;
+}
+
+export async function createDraft(input: Omit<Draft, 'id' | 'images'>): Promise<Draft> {
+  return draftRequest('/api/v1/catalog/drafts', 'POST', input);
+}
+
+export async function updateDraft(id: string, input: Omit<Draft, 'id' | 'images'>): Promise<Draft> {
+  return draftRequest(`/api/v1/catalog/drafts/${id}`, 'PUT', input);
+}
+
+async function draftRequest(url: string, method: string, body: unknown): Promise<Draft> {
+  const csrf = await csrfHeaders();
+  const response = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...csrf.headers }, body: JSON.stringify(body) });
+  if (!response.ok) throw await apiError(response, 'Draft could not be saved.');
+  return response.json() as Promise<Draft>;
+}
+
+async function apiError(response: Response, fallback: string): Promise<ApiError> {
+  const problem = await response.json().catch(() => ({}));
+  return new ApiError(problem as ApiProblem, fallback);
 }
 
 async function csrfHeaders(): Promise<{ headers: Record<string, string> }> {
