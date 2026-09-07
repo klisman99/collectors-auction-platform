@@ -53,6 +53,9 @@ class AccountCredentialsPrincipal implements UserDetails, Serializable {
     private List<GrantedAuthority> authorities() {
         List<GrantedAuthority> authorities = new java.util.ArrayList<>();
         authorities.add(new SimpleGrantedAuthority("ROLE_REGULAR_ACCOUNT"));
+        if (status == AccountStatus.SUSPENDED) {
+            authorities.add(new SimpleGrantedAuthority("ACCOUNT_SUSPENDED"));
+        }
         if (verified && status == AccountStatus.ACTIVE) {
             authorities.add(new SimpleGrantedAuthority("TRADING_ELIGIBLE"));
         }

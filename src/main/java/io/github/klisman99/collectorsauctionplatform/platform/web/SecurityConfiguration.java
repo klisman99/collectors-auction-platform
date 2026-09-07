@@ -54,6 +54,7 @@ class SecurityConfiguration {
                                 "/api/v1/auth/sign-out",
                                 "/api/v1/auth/revoke-all-sessions")
                         .authenticated()
+                        .requestMatchers("/api/v1/catalog/drafts/**").hasAuthority("TRADING_ELIGIBLE")
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
                         .requestMatchers("/api/v1/**").hasAuthority("TRADING_ELIGIBLE")
                         .anyRequest().denyAll())
@@ -68,12 +69,17 @@ class SecurityConfiguration {
                                 org.springframework.http.HttpStatus.UNAUTHORIZED,
                                 "AUTHENTICATION_REQUIRED",
                                 "Authentication is required to access this resource."))
-                        .accessDeniedHandler((request, response, exception) -> problemWriter.write(
-                                request,
-                                response,
-                                org.springframework.http.HttpStatus.FORBIDDEN,
-                                "ACCESS_DENIED",
-                                "The authenticated account cannot access this resource.")))
+                        .accessDeniedHandler((request, response, exception) -> {
+                            if (!request.getRequestURI().startsWith("/api/v1/catalog/drafts")) {
+                                problemWriter.write(request, response, org.springframework.http.HttpStatus.FORBIDDEN, "ACCESS_DENIED", "The authenticated account cannot access this resource.");
+                                return;
+                            }
+                            var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                            boolean suspended = authentication != null && authentication.getAuthorities().stream().anyMatch(authority -> authority.getAuthority().equals("ACCOUNT_SUSPENDED"));
+                            problemWriter.write(request, response, org.springframework.http.HttpStatus.FORBIDDEN,
+                                    suspended ? "ACCOUNT_SUSPENDED" : "ACCOUNT_NOT_VERIFIED", suspended ? "BR-AUTH-009" : "BR-AUTH-004",
+                                    suspended ? "A suspended account cannot change collectible drafts." : "Email verification is required to change collectible drafts.");
+                        }))
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation(fixation -> fixation.newSession()))
