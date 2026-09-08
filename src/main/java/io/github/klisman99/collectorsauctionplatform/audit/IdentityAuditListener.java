@@ -1,5 +1,6 @@
 package io.github.klisman99.collectorsauctionplatform.audit;
 
+import io.github.klisman99.collectorsauctionplatform.catalog.CollectibleSubmitted;
 import io.github.klisman99.collectorsauctionplatform.identity.InitialAdministratorCreated;
 import io.github.klisman99.collectorsauctionplatform.identity.OperationalAccountActivated;
 import io.github.klisman99.collectorsauctionplatform.identity.OperationalAccountDeactivated;
@@ -7,6 +8,7 @@ import io.github.klisman99.collectorsauctionplatform.identity.OperationalAccount
 import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountPasswordReset;
 import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountRegistered;
 import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountVerified;
+import io.github.klisman99.collectorsauctionplatform.moderation.ModerationDecisionMade;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
@@ -99,6 +101,32 @@ class IdentityAuditListener {
                 "reasonCategory=" + event.reasonCategory(),
                 "publicReason=" + event.publicReason(),
                 "internalNote=" + event.internalNote())));
+  }
+
+  @ApplicationModuleListener
+  void auditCollectibleSubmission(CollectibleSubmitted event) {
+    auditRecords.save(
+        AuditRecord.accountCollectibleAction(
+            AuditRecord.AuditAction.COLLECTIBLE_SUBMITTED,
+            event.ownerId(),
+            event.itemId(),
+            event.occurredAt(),
+            "title=" + event.title()));
+  }
+
+  @ApplicationModuleListener
+  void auditModerationDecision(ModerationDecisionMade event) {
+    AuditRecord.AuditAction action =
+        event.decision() == ModerationDecisionMade.Decision.APPROVED
+            ? AuditRecord.AuditAction.COLLECTIBLE_APPROVED
+            : AuditRecord.AuditAction.COLLECTIBLE_REJECTED;
+    auditRecords.save(
+        AuditRecord.operationalCollectibleAction(
+            action,
+            event.reviewerId(),
+            event.itemId(),
+            event.occurredAt(),
+            "publicReason=" + (event.publicReason() == null ? "" : event.publicReason())));
   }
 
   private String administrativeMetadata(String... fields) {

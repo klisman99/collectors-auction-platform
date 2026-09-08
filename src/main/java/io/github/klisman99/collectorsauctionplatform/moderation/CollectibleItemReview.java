@@ -1,4 +1,4 @@
-package io.github.klisman99.collectorsauctionplatform.catalog;
+package io.github.klisman99.collectorsauctionplatform.moderation;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -30,10 +30,10 @@ class CollectibleItemReview {
   @Column(nullable = false, updatable = false)
   private Decision decision;
 
-  @Column(name = "public_reason")
+  @Column(name = "public_reason", updatable = false)
   private String publicReason;
 
-  @Column(name = "internal_note")
+  @Column(name = "internal_note", updatable = false)
   private String internalNote;
 
   @Column(name = "decided_at", nullable = false, updatable = false)

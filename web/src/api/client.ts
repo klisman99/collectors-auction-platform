@@ -59,6 +59,7 @@ export type Category = 'CARDS' | 'COINS_AND_CURRENCY' | 'STAMPS' | 'COMICS_AND_B
 export type Condition = 'NEW_SEALED' | 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'FAIR' | 'POOR' | 'NOT_APPLICABLE';
 export type DraftInput = { category: Category; otherCategoryLabel?: string; title: string; description: string; condition: Condition; conditionNotes: string; ownershipDeclared: boolean };
 export type Draft = DraftInput & { id: string; status: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED'; submissionReason?: string; images: Array<{ id: string; url: string; thumbnailUrl: string; contentType: string; sortOrder: number }> };
+export type ModerationSubmission = { id: string; category: string; otherCategoryLabel?: string; title: string; description: string; condition: string; conditionNotes: string; ownershipDeclared: boolean; submittedAt: string; images: Array<{ id: string; url: string; contentType: string; sortOrder: number }> };
 
 client.setConfig({ baseUrl: '/', credentials: 'same-origin' });
 
@@ -178,6 +179,20 @@ export async function submitDraft(id: string): Promise<Draft> {
   return draftRequest(`/api/v1/catalog/drafts/${id}/submit`, 'POST');
 }
 
+export async function listModerationSubmissions(): Promise<ModerationSubmission[]> {
+  const response = await fetch('/api/v1/moderation/submissions', { credentials: 'same-origin' });
+  if (!response.ok) throw await apiError(response, 'Moderation submissions could not be loaded.');
+  return response.json() as Promise<ModerationSubmission[]>;
+}
+
+export async function approveModerationSubmission(id: string): Promise<ModerationSubmission> {
+  return moderationRequest(`/api/v1/moderation/submissions/${id}/approve`, 'POST');
+}
+
+export async function rejectModerationSubmission(id: string, publicReason: string): Promise<ModerationSubmission> {
+  return moderationRequest(`/api/v1/moderation/submissions/${id}/reject`, 'POST', { publicReason });
+}
+
 export async function deleteDraft(id: string): Promise<void> { await emptyDraftRequest(`/api/v1/catalog/drafts/${id}`, 'DELETE'); }
 export async function uploadDraftImage(id: string, file: File): Promise<Draft['images'][number]> {
   const csrf = await csrfHeaders(); const form = new FormData(); form.append('file', file);
@@ -192,6 +207,13 @@ async function draftRequest(url: string, method: string, body?: unknown): Promis
   const response = await fetch(url, { method, credentials: 'same-origin', headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...csrf.headers }, body: body ? JSON.stringify(body) : undefined });
   if (!response.ok) throw await apiError(response, 'Draft could not be saved.');
   return response.json() as Promise<Draft>;
+}
+
+async function moderationRequest(url: string, method: string, body?: unknown): Promise<ModerationSubmission> {
+  const csrf = await csrfHeaders();
+  const response = await fetch(url, { method, credentials: 'same-origin', headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...csrf.headers }, body: body ? JSON.stringify(body) : undefined });
+  if (!response.ok) throw await apiError(response, 'The moderation decision could not be saved.');
+  return response.json() as Promise<ModerationSubmission>;
 }
 
 async function apiError(response: Response, fallback: string): Promise<ApiError> {

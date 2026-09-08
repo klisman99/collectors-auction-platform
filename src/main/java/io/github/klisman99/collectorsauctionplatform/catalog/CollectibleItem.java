@@ -179,6 +179,15 @@ class CollectibleItem {
     updatedAt = now;
   }
 
+  void invalidateApproval(Instant now) {
+    if (status == Status.APPROVED) {
+      status = Status.DRAFT;
+      submissionReason = null;
+      submittedAt = null;
+      updatedAt = now;
+    }
+  }
+
   void reject(String reason, Instant now) {
     status = Status.DRAFT;
     submissionReason = reason;

@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -32,18 +33,18 @@ class CatalogService {
 
   private final CollectibleItemRepository items;
   private final CollectibleItemMediaRepository media;
-  private final CollectibleItemReviewRepository reviews;
   private final CatalogImageStorage storage;
+  private final ApplicationEventPublisher events;
 
   CatalogService(
       CollectibleItemRepository items,
       CollectibleItemMediaRepository media,
-      CollectibleItemReviewRepository reviews,
-      CatalogImageStorage storage) {
+      CatalogImageStorage storage,
+      ApplicationEventPublisher events) {
     this.items = items;
     this.media = media;
-    this.reviews = reviews;
     this.storage = storage;
+    this.events = events;
   }
 
   @Transactional(readOnly = true)
@@ -69,6 +70,7 @@ class CatalogService {
       throw CatalogApiException.cannotSubmit(
           "A submitted item is read-only until moderation decides it.");
     }
+    item.invalidateApproval(Instant.now());
     validate(request);
     item.apply(request, Instant.now());
     return items.save(item);
@@ -94,6 +96,7 @@ class CatalogService {
       throw CatalogApiException.cannotSubmit(
           "A submitted item is read-only until moderation decides it.");
     }
+    item.invalidateApproval(Instant.now());
     validateImageSize(file);
 
     List<CollectibleItemMedia> existingImages = media.findAllByItemIdOrderBySortOrder(itemId);
@@ -143,7 +146,12 @@ class CatalogService {
 
   @Transactional
   void reorder(UUID ownerId, UUID itemId, List<UUID> mediaIdsInOrder) {
-    ownedForUpdate(ownerId, itemId);
+    CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
+      throw CatalogApiException.cannotSubmit(
+          "A submitted item is read-only until moderation decides it.");
+    }
+    item.invalidateApproval(Instant.now());
     List<CollectibleItemMedia> images = media.findAllByItemIdOrderBySortOrder(itemId);
     assertCompleteImageOrder(mediaIdsInOrder, images);
 
@@ -178,54 +186,15 @@ class CatalogService {
   @Transactional
   CollectibleItem submit(UUID ownerId, UUID itemId) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
-    if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
-      throw CatalogApiException.cannotSubmit("This item is already under review.");
+    if (item.status() != CollectibleItem.Status.DRAFT) {
+      throw CatalogApiException.cannotSubmit("Only a draft can be submitted for moderation.");
     }
     if (media.countByItemId(itemId) < 1) {
       throw CatalogApiException.cannotSubmit("Submission requires at least one processed image.");
     }
     item.submit(Instant.now());
-    return item;
-  }
-
-  @Transactional(readOnly = true)
-  List<CollectibleItem> reviewQueue() {
-    return items.findAllByStatusOrderBySubmittedAtAsc(CollectibleItem.Status.UNDER_REVIEW);
-  }
-
-  @Transactional
-  CollectibleItem approve(UUID itemId, UUID reviewerId) {
-    CollectibleItem item =
-        items
-            .findByIdAndStatus(itemId, CollectibleItem.Status.UNDER_REVIEW)
-            .orElseThrow(CatalogApiException::reviewConflict);
-    Instant now = Instant.now();
-    item.approve(now);
-    reviews.save(
-        CollectibleItemReview.create(
-            itemId, reviewerId, CollectibleItemReview.Decision.APPROVED, null, null, now));
-    return item;
-  }
-
-  @Transactional
-  CollectibleItem reject(UUID itemId, UUID reviewerId, String reason, String internalNote) {
-    if (reason == null || reason.trim().length() < 5 || reason.length() > 2000) {
-      throw CatalogApiException.reviewReasonRequired();
-    }
-    CollectibleItem item =
-        items
-            .findByIdAndStatus(itemId, CollectibleItem.Status.UNDER_REVIEW)
-            .orElseThrow(CatalogApiException::reviewConflict);
-    Instant now = Instant.now();
-    item.reject(reason.trim(), now);
-    reviews.save(
-        CollectibleItemReview.create(
-            itemId,
-            reviewerId,
-            CollectibleItemReview.Decision.REJECTED,
-            reason.trim(),
-            internalNote,
-            now));
+    events.publishEvent(
+        new CollectibleSubmitted(item.id(), ownerId, item.title(), item.submittedAt()));
     return item;
   }
 

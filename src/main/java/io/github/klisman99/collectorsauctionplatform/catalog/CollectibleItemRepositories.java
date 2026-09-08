@@ -26,5 +26,3 @@ interface CollectibleItemMediaRepository extends JpaRepository<CollectibleItemMe
 
   long countByItemId(UUID itemId);
 }
-
-interface CollectibleItemReviewRepository extends JpaRepository<CollectibleItemReview, UUID> {}
