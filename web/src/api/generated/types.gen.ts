@@ -4,6 +4,42 @@ export type ClientOptions = {
     baseUrl: 'http://localhost:8080' | (string & {});
 };
 
+export type DraftRequestPayload = {
+    category: 'CARDS' | 'COINS_AND_CURRENCY' | 'STAMPS' | 'COMICS_AND_BOOKS' | 'TOYS_AND_FIGURES' | 'MEMORABILIA' | 'ART_AND_ANTIQUES' | 'OTHER';
+    otherCategoryLabel?: string;
+    title?: string;
+    description?: string;
+    condition: 'NEW_SEALED' | 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'FAIR' | 'POOR' | 'NOT_APPLICABLE';
+    conditionNotes?: string;
+    ownershipDeclared?: boolean;
+};
+
+export type DraftResponse = {
+    id?: string;
+    category?: 'CARDS' | 'COINS_AND_CURRENCY' | 'STAMPS' | 'COMICS_AND_BOOKS' | 'TOYS_AND_FIGURES' | 'MEMORABILIA' | 'ART_AND_ANTIQUES' | 'OTHER';
+    otherCategoryLabel?: string;
+    title?: string;
+    description?: string;
+    condition?: 'NEW_SEALED' | 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'FAIR' | 'POOR' | 'NOT_APPLICABLE';
+    conditionNotes?: string;
+    ownershipDeclared?: boolean;
+    images?: Array<ImageResponse>;
+    createdAt?: string;
+    updatedAt?: string;
+};
+
+export type ImageResponse = {
+    id?: string;
+    url?: string;
+    thumbnailUrl?: string;
+    contentType?: string;
+    sortOrder?: number;
+};
+
+export type ImageOrder = {
+    mediaIds?: Array<string>;
+};
+
 export type VerifyEmailRequest = {
     token: string;
 };
@@ -148,6 +184,130 @@ export type AuditRecord = {
     occurredAt?: string;
     metadata?: string;
 };
+
+export type DeleteCatalogDraftData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/catalog/drafts/{id}';
+};
+
+export type DeleteCatalogDraftResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type DeleteCatalogDraftResponse = DeleteCatalogDraftResponses[keyof DeleteCatalogDraftResponses];
+
+export type GetCatalogDraftData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/catalog/drafts/{id}';
+};
+
+export type GetCatalogDraftResponses = {
+    /**
+     * OK
+     */
+    200: DraftResponse;
+};
+
+export type GetCatalogDraftResponse = GetCatalogDraftResponses[keyof GetCatalogDraftResponses];
+
+export type UpdateCatalogDraftData = {
+    body: DraftRequestPayload;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/catalog/drafts/{id}';
+};
+
+export type UpdateCatalogDraftResponses = {
+    /**
+     * OK
+     */
+    200: DraftResponse;
+};
+
+export type UpdateCatalogDraftResponse = UpdateCatalogDraftResponses[keyof UpdateCatalogDraftResponses];
+
+export type ReorderCatalogDraftImagesData = {
+    body: ImageOrder;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/catalog/drafts/{id}/images/order';
+};
+
+export type ReorderCatalogDraftImagesResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type ReorderCatalogDraftImagesResponse = ReorderCatalogDraftImagesResponses[keyof ReorderCatalogDraftImagesResponses];
+
+export type ListCatalogDraftsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/catalog/drafts';
+};
+
+export type ListCatalogDraftsResponses = {
+    /**
+     * OK
+     */
+    200: Array<DraftResponse>;
+};
+
+export type ListCatalogDraftsResponse = ListCatalogDraftsResponses[keyof ListCatalogDraftsResponses];
+
+export type CreateCatalogDraftData = {
+    body: DraftRequestPayload;
+    path?: never;
+    query?: never;
+    url: '/api/v1/catalog/drafts';
+};
+
+export type CreateCatalogDraftResponses = {
+    /**
+     * Created
+     */
+    201: DraftResponse;
+};
+
+export type CreateCatalogDraftResponse = CreateCatalogDraftResponses[keyof CreateCatalogDraftResponses];
+
+export type UploadCatalogDraftImageData = {
+    body?: {
+        file: Blob | File;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/catalog/drafts/{id}/images';
+};
+
+export type UploadCatalogDraftImageResponses = {
+    /**
+     * OK
+     */
+    200: ImageResponse;
+};
+
+export type UploadCatalogDraftImageResponse = UploadCatalogDraftImageResponses[keyof UploadCatalogDraftImageResponses];
 
 export type VerifyRegularAccountEmailData = {
     body: VerifyEmailRequest;
@@ -358,6 +518,44 @@ export type CsrfTokenResponses = {
 };
 
 export type CsrfTokenResponse = CsrfTokenResponses[keyof CsrfTokenResponses];
+
+export type GetCatalogDraftImageData = {
+    body?: never;
+    path: {
+        id: string;
+        mediaId: string;
+    };
+    query?: never;
+    url: '/api/v1/catalog/drafts/{id}/images/{mediaId}';
+};
+
+export type GetCatalogDraftImageResponses = {
+    /**
+     * OK
+     */
+    200: string;
+};
+
+export type GetCatalogDraftImageResponse = GetCatalogDraftImageResponses[keyof GetCatalogDraftImageResponses];
+
+export type GetCatalogDraftImageThumbnailData = {
+    body?: never;
+    path: {
+        id: string;
+        mediaId: string;
+    };
+    query?: never;
+    url: '/api/v1/catalog/drafts/{id}/images/{mediaId}/thumbnail';
+};
+
+export type GetCatalogDraftImageThumbnailResponses = {
+    /**
+     * OK
+     */
+    200: string;
+};
+
+export type GetCatalogDraftImageThumbnailResponse = GetCatalogDraftImageThumbnailResponses[keyof GetCatalogDraftImageThumbnailResponses];
 
 export type GetAuthenticatedSessionData = {
     body?: never;

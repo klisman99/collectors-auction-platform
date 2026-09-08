@@ -55,6 +55,11 @@ export type {
   SignInRequest,
 } from './generated/types.gen';
 
+export type Category = 'CARDS' | 'COINS_AND_CURRENCY' | 'STAMPS' | 'COMICS_AND_BOOKS' | 'TOYS_AND_FIGURES' | 'MEMORABILIA' | 'ART_AND_ANTIQUES' | 'OTHER';
+export type Condition = 'NEW_SEALED' | 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'FAIR' | 'POOR' | 'NOT_APPLICABLE';
+export type DraftInput = { category: Category; otherCategoryLabel?: string; title: string; description: string; condition: Condition; conditionNotes: string; ownershipDeclared: boolean };
+export type Draft = DraftInput & { id: string; images: Array<{ id: string; url: string; thumbnailUrl: string; contentType: string; sortOrder: number }> };
+
 client.setConfig({ baseUrl: '/', credentials: 'same-origin' });
 
 export type ApiProblem = {
@@ -154,6 +159,41 @@ export async function revokeAllSessions(): Promise<void> {
   if (error !== undefined) {
     throw new ApiError(error as ApiProblem, 'Sessions could not be revoked.');
   }
+}
+
+export async function listDrafts(): Promise<Draft[]> {
+  const response = await fetch('/api/v1/catalog/drafts', { credentials: 'same-origin' });
+  if (!response.ok) throw await apiError(response, 'Drafts could not be loaded.');
+  return response.json() as Promise<Draft[]>;
+}
+
+export async function createDraft(input: DraftInput): Promise<Draft> {
+  return draftRequest('/api/v1/catalog/drafts', 'POST', input);
+}
+
+export async function updateDraft(id: string, input: DraftInput): Promise<Draft> {
+  return draftRequest(`/api/v1/catalog/drafts/${id}`, 'PUT', input);
+}
+
+export async function deleteDraft(id: string): Promise<void> { await emptyDraftRequest(`/api/v1/catalog/drafts/${id}`, 'DELETE'); }
+export async function uploadDraftImage(id: string, file: File): Promise<Draft['images'][number]> {
+  const csrf = await csrfHeaders(); const form = new FormData(); form.append('file', file);
+  const response = await fetch(`/api/v1/catalog/drafts/${id}/images`, { method: 'POST', credentials: 'same-origin', headers: csrf.headers, body: form });
+  if (!response.ok) throw await apiError(response, 'The image could not be uploaded.'); return response.json() as Promise<Draft['images'][number]>;
+}
+export async function reorderDraftImages(id: string, mediaIds: string[]): Promise<void> { await emptyDraftRequest(`/api/v1/catalog/drafts/${id}/images/order`, 'PUT', { mediaIds }); }
+async function emptyDraftRequest(url: string, method: string, body?: unknown): Promise<void> { const csrf = await csrfHeaders(); const response = await fetch(url, { method, credentials: 'same-origin', headers: { ...csrf.headers, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }); if (!response.ok) throw await apiError(response, 'The draft could not be changed.'); }
+
+async function draftRequest(url: string, method: string, body: unknown): Promise<Draft> {
+  const csrf = await csrfHeaders();
+  const response = await fetch(url, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...csrf.headers }, body: JSON.stringify(body) });
+  if (!response.ok) throw await apiError(response, 'Draft could not be saved.');
+  return response.json() as Promise<Draft>;
+}
+
+async function apiError(response: Response, fallback: string): Promise<ApiError> {
+  const problem = await response.json().catch(() => ({}));
+  return new ApiError(problem as ApiProblem, fallback);
 }
 
 async function csrfHeaders(): Promise<{ headers: Record<string, string> }> {

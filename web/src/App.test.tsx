@@ -19,6 +19,12 @@ vi.mock('./api/client', () => ({
   signOut: vi.fn(),
   signIn: vi.fn(),
   verifyEmail: vi.fn(),
+  listDrafts: vi.fn(),
+  createDraft: vi.fn(),
+  updateDraft: vi.fn(),
+  deleteDraft: vi.fn(),
+  uploadDraftImage: vi.fn(),
+  reorderDraftImages: vi.fn(),
 }));
 
 import { App } from './App';
@@ -37,6 +43,7 @@ import {
   signIn,
   signOut,
   verifyEmail,
+  listDrafts,
 } from './api/client';
 
 describe('App', () => {
@@ -56,6 +63,7 @@ describe('App', () => {
     vi.mocked(signOut).mockReset();
     vi.mocked(signIn).mockReset();
     vi.mocked(verifyEmail).mockReset();
+    vi.mocked(listDrafts).mockResolvedValue([]);
     window.history.replaceState({}, '', '/');
   });
 

@@ -15,30 +15,31 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
-@TestPropertySource(properties = {
-        "platform.identity.initial-administrator.email=migration-test@example.com",
-        "platform.identity.initial-administrator.password=migration test administrator password"
-})
+@TestPropertySource(
+    properties = {
+      "platform.identity.initial-administrator.email=migration-test@example.com",
+      "platform.identity.initial-administrator.password=migration test administrator password"
+    })
 class PostgreSqlMigrationIntegrationTests {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18.6-alpine")
-            .withDatabaseName("collectors_auction")
-            .withUsername("collectors")
-            .withPassword("collectors");
+  @Container
+  static PostgreSQLContainer<?> postgres =
+      new PostgreSQLContainer<>("postgres:18.6-alpine")
+          .withDatabaseName("collectors_auction")
+          .withUsername("collectors")
+          .withPassword("collectors");
 
-    @DynamicPropertySource
-    static void databaseProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
+  @DynamicPropertySource
+  static void databaseProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.datasource.url", postgres::getJdbcUrl);
+    registry.add("spring.datasource.username", postgres::getUsername);
+    registry.add("spring.datasource.password", postgres::getPassword);
+  }
 
-    @Autowired
-    private Flyway flyway;
+  @Autowired private Flyway flyway;
 
-    @Test
-    void appliesTheForwardOnlyMigrationsAgainstPostgreSql() {
-        assertThat(flyway.info().applied()).hasSize(5);
-    }
+  @Test
+  void appliesTheForwardOnlyMigrationsAgainstPostgreSql() {
+    assertThat(flyway.info().applied()).hasSize(7);
+  }
 }

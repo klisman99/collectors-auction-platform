@@ -8,9 +8,7 @@ import jakarta.persistence.Table;
 @Table(name = "identity_mutation_guard")
 class IdentityMutationGuard {
 
-    @Id
-    private Short id;
+  @Id private Short id;
 
-    protected IdentityMutationGuard() {
-    }
+  protected IdentityMutationGuard() {}
 }

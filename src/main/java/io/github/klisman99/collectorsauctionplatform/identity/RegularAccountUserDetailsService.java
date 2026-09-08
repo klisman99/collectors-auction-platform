@@ -6,16 +6,17 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 class RegularAccountUserDetailsService implements UserDetailsService {
 
-    private final RegularAccountRepository accounts;
+  private final RegularAccountRepository accounts;
 
-    RegularAccountUserDetailsService(RegularAccountRepository accounts) {
-        this.accounts = accounts;
-    }
+  RegularAccountUserDetailsService(RegularAccountRepository accounts) {
+    this.accounts = accounts;
+  }
 
-    @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return accounts.findByNormalizedEmail(IdentityNormalization.email(email))
-                .map(AccountCredentialsPrincipal::new)
-                .orElseThrow(() -> new UsernameNotFoundException("Account credentials are invalid."));
-    }
+  @Override
+  public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+    return accounts
+        .findByNormalizedEmail(IdentityNormalization.email(email))
+        .map(AccountCredentialsPrincipal::new)
+        .orElseThrow(() -> new UsernameNotFoundException("Account credentials are invalid."));
+  }
 }

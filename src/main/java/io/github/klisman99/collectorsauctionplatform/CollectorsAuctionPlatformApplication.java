@@ -7,7 +7,7 @@ import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoCon
 @SpringBootApplication(exclude = UserDetailsServiceAutoConfiguration.class)
 public class CollectorsAuctionPlatformApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(CollectorsAuctionPlatformApplication.class, args);
-    }
+  public static void main(String[] args) {
+    SpringApplication.run(CollectorsAuctionPlatformApplication.class, args);
+  }
 }

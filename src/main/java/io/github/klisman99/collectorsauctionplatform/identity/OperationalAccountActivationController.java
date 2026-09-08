@@ -16,25 +16,27 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping(path = "/api/v1/auth", produces = MediaType.APPLICATION_JSON_VALUE)
 class OperationalAccountActivationController {
 
-    private final OperationalAccountService service;
+  private final OperationalAccountService service;
 
-    OperationalAccountActivationController(OperationalAccountService service) {
-        this.service = service;
-    }
+  OperationalAccountActivationController(OperationalAccountService service) {
+    this.service = service;
+  }
 
-    @PostMapping(path = "/activate-operational-account", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(operationId = "activateOperationalAccount", summary = "Activate an invited operational account")
-    ActivationResponse activate(@Valid @RequestBody ActivateOperationalAccountRequest request) {
-        OperationalAccountService.ActivationResult result = service.activate(request.token(), request.password());
-        return new ActivationResponse(result.id(), result.email(), result.role(), result.status());
-    }
+  @PostMapping(path = "/activate-operational-account", consumes = MediaType.APPLICATION_JSON_VALUE)
+  @Operation(
+      operationId = "activateOperationalAccount",
+      summary = "Activate an invited operational account")
+  ActivationResponse activate(@Valid @RequestBody ActivateOperationalAccountRequest request) {
+    OperationalAccountService.ActivationResult result =
+        service.activate(request.token(), request.password());
+    return new ActivationResponse(result.id(), result.email(), result.role(), result.status());
+  }
 
-    record ActivateOperationalAccountRequest(
-            @NotBlank @Size(max = 128) String token,
-            @NotNull String password) {
-    }
+  record ActivateOperationalAccountRequest(
+      @NotBlank @Size(max = 128) String token, @NotNull String password) {}
 
-    @Schema(name = "OperationalAccountActivation", description = "The result of consuming an operational activation invitation.")
-    record ActivationResponse(java.util.UUID id, String email, String role, String status) {
-    }
+  @Schema(
+      name = "OperationalAccountActivation",
+      description = "The result of consuming an operational activation invitation.")
+  record ActivationResponse(java.util.UUID id, String email, String role, String status) {}
 }

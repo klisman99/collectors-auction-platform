@@ -10,11 +10,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class CsrfController {
 
-    @GetMapping(path = "/api/v1/csrf", produces = MediaType.APPLICATION_JSON_VALUE)
-    CsrfToken csrfToken(
-            @RequestAttribute("_csrf") CsrfToken csrfToken,
-            HttpSession session) {
-        session.getId();
-        return csrfToken;
-    }
+  @GetMapping(path = "/api/v1/csrf", produces = MediaType.APPLICATION_JSON_VALUE)
+  CsrfToken csrfToken(@RequestAttribute("_csrf") CsrfToken csrfToken, HttpSession session) {
+    session.getId();
+    return csrfToken;
+  }
 }

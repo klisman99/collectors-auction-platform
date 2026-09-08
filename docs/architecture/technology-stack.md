@@ -14,6 +14,8 @@ This document turns ADR-0002 into an implementation baseline. Exact backend vers
 | HTTP and validation | Spring MVC and Jakarta Validation | Boot-managed | Spring Boot BOM |
 | Authentication and authorization | Spring Security server-side sessions | Boot-managed | Spring Boot BOM |
 | Persistence and migrations | Spring Data JPA, PostgreSQL JDBC, Flyway | Boot-managed | Spring Boot BOM |
+| Managed image storage | MinIO Java SDK | 9.0.1 | Explicit, outside Spring Boot BOM |
+| WebP decoding | Sejda ImageIO WebP | 0.1.6 | Explicit, outside Spring Boot BOM |
 | Realtime | Spring WebSocket with STOMP simple broker | Boot-managed | Spring Boot BOM |
 | Operations | Actuator, Micrometer, OpenTelemetry | Boot-managed where available | Reviewed integration |
 | Testing | JUnit, Spring Boot Test, Modulith Test, Testcontainers | BOM-managed where available | Build configuration |
@@ -85,6 +87,17 @@ Additional first-slice dependencies were verified against official sources on 20
 - [NGINX official container tags](https://hub.docker.com/_/nginx)
 - [MinIO server release and final official container tag](https://github.com/minio/minio/releases/tag/RELEASE.2025-09-07T16-13-09Z)
 - [MinIO client release and official container tag](https://github.com/minio/mc/releases/tag/RELEASE.2025-08-13T08-35-41Z)
+
+The catalog media dependencies were verified on 2026-09-07:
+
+- [MinIO Java SDK 9.0.1 release](https://github.com/minio/minio-java/releases/tag/9.0.1)
+- [MinIO Java SDK Maven usage](https://github.com/minio/minio-java)
+- [Sejda WebP ImageIO 0.1.6 artifact](https://central.sonatype.com/artifact/org.sejda.imageio/webp-imageio/0.1.6)
+
+The Java formatting toolchain was verified on 2026-09-07:
+
+- [Spotless Maven Plugin 3.10.2 artifact](https://central.sonatype.com/artifact/com.diffplug.spotless/spotless-maven-plugin)
+- [google-java-format 1.36.0 release](https://github.com/google/google-java-format/releases/tag/v1.36.0)
 
 ## Dependency update workflow
 

@@ -50,8 +50,7 @@ jobs:
         run: node scripts/check-docs.mjs
 
       - name: Check Java formatting conventions
-        shell: pwsh
-        run: ./scripts/check-java-format.ps1
+        run: ./mvnw --batch-mode --no-transfer-progress spotless:check
 
       - name: Verify backend
         run: ./mvnw --batch-mode --no-transfer-progress verify
