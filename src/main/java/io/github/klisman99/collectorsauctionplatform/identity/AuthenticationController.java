@@ -13,6 +13,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -93,18 +94,18 @@ class AuthenticationController {
   }
 
   private void replaceSession(
-      AccountSessionPrincipal principal,
+      AccountSessionPrincipal sessionPrincipal,
       HttpServletRequest servletRequest,
       HttpServletResponse servletResponse) {
+    Authentication sessionAuthentication =
+        UsernamePasswordAuthenticationToken.authenticated(
+            sessionPrincipal, null, sessionPrincipal.authorities());
 
     HttpSession previousSession = servletRequest.getSession(false);
     if (previousSession != null) {
       previousSession.invalidate();
     }
 
-    Authentication sessionAuthentication =
-        org.springframework.security.authentication.UsernamePasswordAuthenticationToken
-            .authenticated(principal, null, principal.authorities());
     SecurityContext context = securityContextHolderStrategy.createEmptyContext();
     context.setAuthentication(sessionAuthentication);
     securityContextHolderStrategy.setContext(context);
@@ -218,13 +219,23 @@ class AuthenticationController {
 
   @Schema(
       name = "AuthenticatedSession",
-      description = "The current authenticated regular-account session state.")
-  record SessionResponse(String publicHandle, String status, boolean verified, boolean canTrade) {
+      description = "The current authenticated account session state.")
+  record SessionResponse(
+      java.util.UUID accountId,
+      String accountType,
+      String publicHandle,
+      String status,
+      String role,
+      boolean verified,
+      boolean canTrade) {
 
     static SessionResponse from(AccountSessionPrincipal principal) {
       return new SessionResponse(
+          principal.accountId(),
+          principal.accountTypeName(),
           principal.publicHandle(),
-          principal.status().name(),
+          principal.statusName(),
+          principal.roleName(),
           principal.isVerified(),
           principal.canTrade());
     }

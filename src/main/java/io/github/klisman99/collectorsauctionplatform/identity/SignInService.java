@@ -13,11 +13,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 class SignInService {
 
-  private final RegularAccountRepository accounts;
+  private final RegularAccountRepository regularAccounts;
+  private final OperationalAccountRepository operationalAccounts;
   private final AuthenticationManager authenticationManager;
 
-  SignInService(RegularAccountRepository accounts, AuthenticationManager authenticationManager) {
-    this.accounts = accounts;
+  SignInService(
+      RegularAccountRepository regularAccounts,
+      OperationalAccountRepository operationalAccounts,
+      AuthenticationManager authenticationManager) {
+    this.regularAccounts = regularAccounts;
+    this.operationalAccounts = operationalAccounts;
     this.authenticationManager = authenticationManager;
   }
 
@@ -25,7 +30,8 @@ class SignInService {
   AccountSessionPrincipal signIn(
       String normalizedEmail, String password, SessionReplacement sessionReplacement) {
 
-    accounts.findByNormalizedEmailForUpdate(normalizedEmail);
+    regularAccounts.findByNormalizedEmailForUpdate(normalizedEmail);
+    operationalAccounts.findByNormalizedEmailForUpdate(normalizedEmail);
 
     Authentication authenticated;
     try {

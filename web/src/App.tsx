@@ -1,45 +1,54 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
 import {
+  activateOperationalAccount,
   ApiError,
+  createDraft,
+  deactivateOperationalAccount,
+  deleteDraft,
+  getAdministrativeAuditRecords,
   getAuthenticatedSession,
+  getOperationalAccounts,
+  inviteOperationalAccount,
+  listDrafts,
   registerAccount,
   requestPasswordRecovery,
   resetPassword,
   revokeAllSessions,
   signIn,
   signOut,
-  verifyEmail,
-  createDraft,
-  deleteDraft,
-  listDrafts,
-  reorderDraftImages,
   submitDraft,
   updateDraft,
   uploadDraftImage,
+  verifyEmail,
+  type AuditRecord,
+  type AuthenticatedSession,
   type Draft,
   type DraftInput,
-  type AuthenticatedSession,
+  type OperationalAccountView,
 } from './api/client';
 
-type Page = 'register' | 'sign-in' | 'verify' | 'recover' | 'reset';
+type Page = 'register' | 'sign-in' | 'verify' | 'recover' | 'reset' | 'activate-operational';
 type FieldErrors = Record<string, string>;
 
 const initialRegistration = { email: '', publicHandle: '', password: '' };
 const initialSignIn = { email: '', password: '' };
 const initialReset = { password: '', confirmation: '' };
+const initialActivation = { password: '', confirmation: '' };
 
 export function App() {
   const verificationToken = new URLSearchParams(window.location.search).get('verificationToken') ?? '';
   const recoveryToken = new URLSearchParams(window.location.search).get('recoveryToken') ?? '';
+  const operationalActivationToken = new URLSearchParams(window.location.search).get('operationalActivationToken') ?? '';
   const [page, setPage] = useState<Page>(
-    verificationToken !== '' ? 'verify' : recoveryToken !== '' ? 'reset' : 'register',
+    verificationToken !== '' ? 'verify' : recoveryToken !== '' ? 'reset' : operationalActivationToken !== '' ? 'activate-operational' : 'register',
   );
   const [session, setSession] = useState<AuthenticatedSession | null | undefined>(undefined);
   const [registration, setRegistration] = useState(initialRegistration);
   const [credentials, setCredentials] = useState(initialSignIn);
   const [token, setToken] = useState(verificationToken);
   const [reset, setReset] = useState(initialReset);
+  const [activation, setActivation] = useState(initialActivation);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -56,7 +65,27 @@ export function App() {
   // A verification link must take precedence over an existing (possibly stale)
   // session. This is important when the user registered in another tab and is
   // already signed in with the pending account.
-  if (session !== null && page !== 'verify' && page !== 'reset') {
+  if (session !== null && page !== 'verify' && page !== 'reset' && page !== 'activate-operational') {
+    if (session.accountType === 'OPERATIONAL') {
+      if (session.role !== 'ADMINISTRATOR') {
+        return (
+          <OperationalModeratorHome
+            onRevokeAllSessions={() => endSession(true)}
+            onSignOut={() => endSession(false)}
+            session={session}
+          />
+        );
+      }
+      return (
+        <OperationalHome
+          failure={failure}
+          notice={notice}
+          onRevokeAllSessions={() => endSession(true)}
+          onSignOut={() => endSession(false)}
+          session={session}
+        />
+      );
+    }
     return (
       <AuthenticatedHome
         failure={failure}
@@ -68,7 +97,8 @@ export function App() {
   }
 
   function moveTo(nextPage: Page) {
-    if (nextPage !== 'verify' && nextPage !== 'reset' && (verificationToken !== '' || recoveryToken !== '')) {
+    if (nextPage !== 'verify' && nextPage !== 'reset' && nextPage !== 'activate-operational'
+      && (verificationToken !== '' || recoveryToken !== '' || operationalActivationToken !== '')) {
       window.history.replaceState({}, '', window.location.pathname);
       setToken('');
     }
@@ -194,6 +224,30 @@ export function App() {
     }
   }
 
+  async function submitOperationalActivation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const errors = validatePasswordReset(activation);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setSubmitting(true);
+    setFieldErrors({});
+    setFailure(null);
+    try {
+      await activateOperationalAccount({ token: operationalActivationToken.trim(), password: activation.password });
+      window.history.replaceState({}, '', window.location.pathname);
+      setNotice('Your operational account is active. Sign in with your new password.');
+      setSession(null);
+      setPage('sign-in');
+    } catch (error) {
+      applyApiError(error, setFieldErrors, setFailure);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function endSession(revokeAll: boolean) {
     setSubmitting(true);
     setFailure(null);
@@ -281,6 +335,35 @@ export function App() {
           <SubmitButton disabled={submitting}>{submitting ? 'Verifying…' : 'Verify email'}</SubmitButton>
           <p className="text-sm text-slate-300">
             Prefer to sign in?{' '}
+            <PageLink onClick={() => moveTo('sign-in')}>Sign in</PageLink>
+          </p>
+        </form>
+      )}
+
+      {page === 'activate-operational' && (
+        <form className="space-y-5" noValidate onSubmit={submitOperationalActivation}>
+          <FormHeading title="Activate your operational account" subtitle="Choose a password for your dedicated operations identity. This link expires after 24 hours and can be used only once." />
+          <TextField
+            autoComplete="new-password"
+            error={fieldErrors.password}
+            id="operational-password"
+            label="New password"
+            onChange={(password) => setActivation({ ...activation, password })}
+            type="password"
+            value={activation.password}
+          />
+          <TextField
+            autoComplete="new-password"
+            error={fieldErrors.confirmation}
+            id="operational-password-confirmation"
+            label="Confirm new password"
+            onChange={(confirmation) => setActivation({ ...activation, confirmation })}
+            type="password"
+            value={activation.confirmation}
+          />
+          <SubmitButton disabled={submitting}>{submitting ? 'Activating…' : 'Activate account'}</SubmitButton>
+          <p className="text-sm text-slate-300">
+            Already activated?{' '}
             <PageLink onClick={() => moveTo('sign-in')}>Sign in</PageLink>
           </p>
         </form>
@@ -422,28 +505,294 @@ function AuthenticatedHome({
 }
 
 function DraftWorkspace() {
-  const blank = (): DraftInput => ({ category: 'CARDS', title: '', description: '', condition: 'EXCELLENT', conditionNotes: '', ownershipDeclared: false });
-  const [drafts, setDrafts] = useState<Draft[]>([]); const [editing, setEditing] = useState(blank()); const [selected, setSelected] = useState<string | null>(null);
+  const blank = (): DraftInput => ({
+    category: 'CARDS',
+    title: '',
+    description: '',
+    condition: 'EXCELLENT',
+    conditionNotes: '',
+    ownershipDeclared: false,
+  });
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [editing, setEditing] = useState(blank());
+  const [selected, setSelected] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  useEffect(() => { listDrafts().then(setDrafts).catch(() => setMessage('Drafts could not be loaded.')); }, []);
+
+  useEffect(() => {
+    listDrafts().then(setDrafts).catch(() => setMessage('Drafts could not be loaded.'));
+  }, []);
+
   async function save(event: FormEvent) {
-    event.preventDefault(); setMessage(null);
+    event.preventDefault();
+    setMessage(null);
     try {
-      const draft = selected ? await updateDraft(selected, editing) : await createDraft(editing); setDrafts(selected ? drafts.map((item) => item.id === draft.id ? draft : item) : [draft, ...drafts]); setSelected(draft.id); setEditing({ ...draft, images: undefined } as Omit<Draft, 'id' | 'images'>); setMessage('Private draft saved.');
-    } catch (error) { setMessage(error instanceof ApiError ? error.message : 'Draft could not be saved.'); }
+      const draft = selected ? await updateDraft(selected, editing) : await createDraft(editing);
+      setDrafts(selected ? drafts.map((item) => item.id === draft.id ? draft : item) : [draft, ...drafts]);
+      setSelected(draft.id);
+      setEditing({ ...draft, images: undefined } as DraftInput);
+      setMessage('Private draft saved.');
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : 'Draft could not be saved.');
+    }
   }
-  async function choose(draft: Draft) { setSelected(draft.id); setEditing(draft); }
-  async function image(file?: File) { if (!file || !selected) return; try { const uploaded = await uploadDraftImage(selected, file); setDrafts(drafts.map((draft) => draft.id === selected ? { ...draft, images: [...draft.images, uploaded] } : draft)); } catch (error) { setMessage(error instanceof Error ? error.message : 'Image upload failed.'); } }
-  async function remove(id: string) { await deleteDraft(id); setDrafts(drafts.filter((draft) => draft.id !== id)); if (selected === id) { setSelected(null); setEditing(blank()); } }
-  async function move(imageId: string, direction: number) { if (!selected) return; const draft = drafts.find((item) => item.id === selected); if (!draft) return; const ids = draft.images.map((item) => item.id); const index = ids.indexOf(imageId); const target = index + direction; if (target < 0 || target >= ids.length) return; [ids[index], ids[target]] = [ids[target], ids[index]]; await reorderDraftImages(selected, ids); setDrafts(drafts.map((item) => item.id === selected ? { ...item, images: ids.map((id, sortOrder) => ({ ...item.images.find((image) => image.id === id)!, sortOrder })) } : item)); }
-  async function submit(id: string) { try { const draft = await submitDraft(id); setDrafts(drafts.map((item) => item.id === id ? draft : item)); setMessage('Submitted for moderation.'); } catch (error) { setMessage(error instanceof Error ? error.message : 'Submission failed.'); } }
-  return <section className="mt-8 rounded-xl border border-cyan-900/70 bg-slate-950/60 p-5"><h2 className="text-xl font-semibold text-white">Your private drafts</h2><p className="mt-2 text-sm leading-6 text-slate-300">One physical collectible per draft. Drafts remain private until you submit them for moderation.</p><form className="mt-5 grid gap-3" onSubmit={save}><input aria-label="Draft title" className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2" minLength={5} placeholder="Title" required value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })}/><select aria-label="Category" value={editing.category} onChange={(event) => setEditing({ ...editing, category: event.target.value as Draft['category'] })}>{['CARDS','COINS_AND_CURRENCY','STAMPS','COMICS_AND_BOOKS','TOYS_AND_FIGURES','MEMORABILIA','ART_AND_ANTIQUES','OTHER'].map((value) => <option key={value}>{value}</option>)}</select>{editing.category === 'OTHER' && <input aria-label="Other category" value={editing.otherCategoryLabel ?? ''} onChange={(event) => setEditing({ ...editing, otherCategoryLabel: event.target.value })}/>}<select aria-label="Condition" value={editing.condition} onChange={(event) => setEditing({ ...editing, condition: event.target.value as Draft['condition'] })}>{['NEW_SEALED','EXCELLENT','VERY_GOOD','GOOD','FAIR','POOR','NOT_APPLICABLE'].map((value) => <option key={value}>{value}</option>)}</select><textarea aria-label="Description" minLength={20} required value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })}/><textarea aria-label="Condition notes" minLength={10} required value={editing.conditionNotes} onChange={(event) => setEditing({ ...editing, conditionNotes: event.target.value })}/><label><input aria-label="Ownership declaration" type="checkbox" checked={editing.ownershipDeclared} onChange={(event) => setEditing({ ...editing, ownershipDeclared: event.target.checked })}/> I declare that I own this physical collectible and have the right to sell it.</label><button className="rounded-lg bg-cyan-300 px-4 py-2 font-semibold text-slate-950" type="submit">{selected ? 'Save draft' : 'Create draft'}</button></form>{selected && <div className="mt-4"><label>Images (JPEG, PNG, or WebP; max 5)<input aria-label="Draft image" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => image(event.target.files?.[0])}/></label><ul>{drafts.find((draft) => draft.id === selected)?.images.map((item) => <li key={item.id}><img alt="Draft thumbnail" className="inline h-12 w-12 object-cover" src={item.thumbnailUrl}/><button type="button" onClick={() => move(item.id, -1)}>Earlier</button><button type="button" onClick={() => move(item.id, 1)}>Later</button></li>)}</ul></div>}{message && <p className="mt-3 text-sm text-cyan-200" role="status">{message}</p>}<ul className="mt-5 space-y-2">{drafts.map((draft) => <li className="rounded-lg border border-slate-700 p-3" key={draft.id}><button type="button" onClick={() => choose(draft)}><span className="font-medium text-white">{draft.title}</span><span className="ml-2 text-sm text-slate-400">{draft.images.length}/5 images · {draft.status}</span></button>{draft.status === 'DRAFT' && <><button type="button" onClick={() => submit(draft.id)}>Submit for review</button><button type="button" onClick={() => remove(draft.id)}>Delete</button></>}</li>)}</ul></section>;
+
+  async function uploadImage(file?: File) {
+    if (!file || !selected) return;
+    try {
+      const uploaded = await uploadDraftImage(selected, file);
+      setDrafts(drafts.map((draft) => draft.id === selected ? { ...draft, images: [...draft.images, uploaded] } : draft));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Image upload failed.');
+    }
+  }
+
+  async function submit(id: string) {
+    try {
+      const draft = await submitDraft(id);
+      setDrafts(drafts.map((item) => item.id === id ? draft : item));
+      setMessage('Submitted for moderation.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Submission failed.');
+    }
+  }
+
+  return <section className="mt-8 rounded-xl border border-cyan-900/70 bg-slate-950/60 p-5"><h2 className="text-xl font-semibold text-white">Your private drafts</h2><p className="mt-2 text-sm leading-6 text-slate-300">One physical collectible per draft. Drafts remain private until you submit them for moderation.</p><form className="mt-5 grid gap-3" onSubmit={save}><input aria-label="Draft title" className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2" minLength={5} placeholder="Title" required value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })}/><select aria-label="Category" value={editing.category} onChange={(event) => setEditing({ ...editing, category: event.target.value as Draft['category'] })}>{['CARDS','COINS_AND_CURRENCY','STAMPS','COMICS_AND_BOOKS','TOYS_AND_FIGURES','MEMORABILIA','ART_AND_ANTIQUES','OTHER'].map((value) => <option key={value}>{value}</option>)}</select>{editing.category === 'OTHER' && <input aria-label="Other category" value={editing.otherCategoryLabel ?? ''} onChange={(event) => setEditing({ ...editing, otherCategoryLabel: event.target.value })}/>}<select aria-label="Condition" value={editing.condition} onChange={(event) => setEditing({ ...editing, condition: event.target.value as Draft['condition'] })}>{['NEW_SEALED','EXCELLENT','VERY_GOOD','GOOD','FAIR','POOR','NOT_APPLICABLE'].map((value) => <option key={value}>{value}</option>)}</select><textarea aria-label="Description" minLength={20} required value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })}/><textarea aria-label="Condition notes" minLength={10} required value={editing.conditionNotes} onChange={(event) => setEditing({ ...editing, conditionNotes: event.target.value })}/><label><input aria-label="Ownership declaration" type="checkbox" checked={editing.ownershipDeclared} onChange={(event) => setEditing({ ...editing, ownershipDeclared: event.target.checked })}/> I declare that I own this physical collectible and have the right to sell it.</label><button className="rounded-lg bg-cyan-300 px-4 py-2 font-semibold text-slate-950" type="submit">{selected ? 'Save draft' : 'Create draft'}</button></form>{selected && <div className="mt-4"><label>Images (JPEG, PNG, or WebP; max 5)<input aria-label="Draft image" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => uploadImage(event.target.files?.[0])}/></label></div>}{message && <p className="mt-3 text-sm text-cyan-200" role="status">{message}</p>}<ul className="mt-5 space-y-2">{drafts.map((draft) => <li className="rounded-lg border border-slate-700 p-3" key={draft.id}><button type="button" onClick={() => { setSelected(draft.id); setEditing(draft); }}><span className="font-medium text-white">{draft.title}</span><span className="ml-2 text-sm text-slate-400">{draft.images.length}/5 images · {draft.status}</span></button>{draft.status === 'DRAFT' && <><button type="button" onClick={() => submit(draft.id)}>Submit for review</button><button type="button" onClick={async () => { await deleteDraft(draft.id); setDrafts(drafts.filter((item) => item.id !== draft.id)); }}>Delete</button></>}</li>)}</ul></section>;
 }
 
-function PageFrame({ children }: { children: ReactNode }) {
+function OperationalModeratorHome({
+  onRevokeAllSessions,
+  onSignOut,
+  session,
+}: {
+  onRevokeAllSessions: () => void;
+  onSignOut: () => void;
+  session: AuthenticatedSession;
+}) {
+  return (
+    <PageFrame>
+      <p className="text-sm font-semibold tracking-[0.2em] text-cyan-300 uppercase">Operations workspace</p>
+      <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Moderator access is active.</h1>
+      <p className="mt-4 leading-7 text-slate-300">
+        This dedicated moderator identity can review platform activity when moderation tools are enabled. It cannot sell, bid, invite operational accounts, or view administrator audit records.
+      </p>
+      <p className="mt-4 text-sm text-slate-400">Signed in as {session.role === 'MODERATOR' ? 'Moderator' : 'Operational user'}.</p>
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <button
+          className="rounded-lg border border-slate-600 px-4 py-2.5 font-semibold text-slate-100 transition hover:border-cyan-300 hover:text-cyan-200"
+          onClick={onSignOut}
+          type="button"
+        >
+          Sign out
+        </button>
+        <button
+          className="rounded-lg border border-rose-700/70 px-4 py-2.5 font-semibold text-rose-200 transition hover:border-rose-300 hover:text-rose-100"
+          onClick={onRevokeAllSessions}
+          type="button"
+        >
+          Sign out all sessions
+        </button>
+      </div>
+    </PageFrame>
+  );
+}
+
+function OperationalHome({
+  failure,
+  notice,
+  onRevokeAllSessions,
+  onSignOut,
+  session,
+}: {
+  failure: string | null;
+  notice: string | null;
+  onRevokeAllSessions: () => void;
+  onSignOut: () => void;
+  session: AuthenticatedSession;
+}) {
+  const [accounts, setAccounts] = useState<OperationalAccountView[]>([]);
+  const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
+  const [invite, setInvite] = useState({
+    email: '',
+    role: 'MODERATOR',
+    reasonCategory: 'STAFFING',
+    publicReason: '',
+    internalNote: '',
+  });
+  const [deactivation, setDeactivation] = useState({
+    accountId: '',
+    reasonCategory: 'SECURITY',
+    publicReason: '',
+    internalNote: '',
+  });
+  const [formErrors, setFormErrors] = useState<FieldErrors>({});
+  const [failureMessage, setFailureMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function loadConsole() {
+    try {
+      const [loadedAccounts, loadedAuditRecords] = await Promise.all([
+        getOperationalAccounts(),
+        getAdministrativeAuditRecords(),
+      ]);
+      setAccounts(loadedAccounts);
+      setAuditRecords(loadedAuditRecords);
+      setFailureMessage(null);
+    } catch (error) {
+      setFailureMessage(error instanceof Error ? error.message : 'The operations console could not be loaded.');
+    }
+  }
+
+  useEffect(() => {
+    void loadConsole();
+  }, []);
+
+  async function submitInvite(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!validEmail(invite.email) || invite.publicReason.trim() === '') {
+      setFormErrors({
+        ...(validEmail(invite.email) ? {} : { email: 'Enter a valid email address.' }),
+        ...(invite.publicReason.trim() === '' ? { publicReason: 'Enter a public reason.' } : {}),
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    setFormErrors({});
+    setFailureMessage(null);
+    try {
+      await inviteOperationalAccount({
+        email: invite.email.trim(),
+        role: invite.role,
+        reasonCategory: invite.reasonCategory,
+        publicReason: invite.publicReason.trim(),
+        internalNote: invite.internalNote.trim() || undefined,
+      });
+      setInvite({ ...invite, email: '', publicReason: '', internalNote: '' });
+      await loadConsole();
+    } catch (error) {
+      applyApiError(error, setFormErrors, setFailureMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitDeactivation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (deactivation.accountId === '' || deactivation.publicReason.trim() === '') {
+      setFormErrors({
+        ...(deactivation.accountId === '' ? { accountId: 'Select an account.' } : {}),
+        ...(deactivation.publicReason.trim() === '' ? { deactivationPublicReason: 'Enter a public reason.' } : {}),
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    setFormErrors({});
+    setFailureMessage(null);
+    try {
+      await deactivateOperationalAccount(deactivation.accountId, {
+        reasonCategory: deactivation.reasonCategory,
+        publicReason: deactivation.publicReason.trim(),
+        internalNote: deactivation.internalNote.trim() || undefined,
+      });
+      setDeactivation({ ...deactivation, accountId: '', publicReason: '', internalNote: '' });
+      await loadConsole();
+    } catch (error) {
+      applyApiError(error, setFormErrors, setFailureMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const deactivatableAccounts = accounts.filter((account) => account.status !== 'DEACTIVATED');
+  const roleLabel = session.role === 'ADMINISTRATOR' ? 'Administrator' : 'Moderator';
+
+  return (
+    <PageFrame maxWidth="max-w-6xl">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+        <div>
+          <p className="text-sm font-semibold tracking-[0.2em] text-cyan-300 uppercase">Operations console</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Manage operational accounts</h1>
+          <p className="mt-3 max-w-2xl leading-7 text-slate-300">You are signed in as an {roleLabel}. Operational identities can moderate platform activity but never sell or bid.</p>
+        </div>
+        <div className="flex gap-3">
+          <button className="rounded-lg border border-slate-600 px-4 py-2.5 font-semibold text-slate-100 transition hover:border-cyan-300 hover:text-cyan-200" onClick={onSignOut} type="button">Sign out</button>
+          <button className="rounded-lg border border-rose-700/70 px-4 py-2.5 font-semibold text-rose-200 transition hover:border-rose-300 hover:text-rose-100" onClick={onRevokeAllSessions} type="button">Sign out all sessions</button>
+        </div>
+      </header>
+      {notice !== null && <Notice>{notice}</Notice>}
+      {failure !== null && <Failure>{failure}</Failure>}
+      {failureMessage !== null && <Failure>{failureMessage}</Failure>}
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        <form className="space-y-4 rounded-xl border border-slate-700 bg-slate-950/60 p-5" noValidate onSubmit={submitInvite}>
+          <FormHeading title="Invite an operational account" subtitle="The invitee receives a single-use activation link. Every invitation is recorded with its reason and optional internal note." />
+          <TextField error={formErrors.email} id="operational-invite-email" label="Email address" onChange={(email) => setInvite({ ...invite, email })} type="email" value={invite.email} />
+          <label className="block text-sm font-medium text-slate-100" htmlFor="operational-invite-role">Role</label>
+          <select className="-mt-2 block w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2.5 text-slate-100" id="operational-invite-role" onChange={(event) => setInvite({ ...invite, role: event.target.value })} value={invite.role}>
+            <option value="MODERATOR">Moderator</option>
+            <option value="ADMINISTRATOR">Administrator</option>
+          </select>
+          <label className="block text-sm font-medium text-slate-100" htmlFor="operational-invite-reason-category">Reason category</label>
+          <select className="-mt-2 block w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2.5 text-slate-100" id="operational-invite-reason-category" onChange={(event) => setInvite({ ...invite, reasonCategory: event.target.value })} value={invite.reasonCategory}>
+            <option value="STAFFING">Staffing</option>
+            <option value="SECURITY">Security</option>
+            <option value="ROLE_CHANGE">Role change</option>
+            <option value="OTHER">Other</option>
+          </select>
+          <TextField error={formErrors.publicReason} id="operational-invite-public-reason" label="Public reason" onChange={(publicReason) => setInvite({ ...invite, publicReason })} value={invite.publicReason} />
+          <TextField id="operational-invite-internal-note" label="Internal note (optional)" onChange={(internalNote) => setInvite({ ...invite, internalNote })} value={invite.internalNote} />
+          <SubmitButton disabled={submitting}>{submitting ? 'Sending invitation…' : 'Send invitation'}</SubmitButton>
+        </form>
+
+        <form className="space-y-4 rounded-xl border border-slate-700 bg-slate-950/60 p-5" noValidate onSubmit={submitDeactivation}>
+          <FormHeading title="Deactivate an account" subtitle="Deactivation is permanent, revokes all sessions, and preserves the account as the actor on historical records." />
+          <label className="block text-sm font-medium text-slate-100" htmlFor="operational-deactivation-account">Account</label>
+          <select aria-describedby={formErrors.accountId === undefined ? undefined : 'operational-deactivation-account-error'} className="-mt-2 block w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2.5 text-slate-100" id="operational-deactivation-account" onChange={(event) => setDeactivation({ ...deactivation, accountId: event.target.value })} value={deactivation.accountId}>
+            <option value="">Select an account</option>
+            {deactivatableAccounts.map((account) => <option key={account.id} value={account.id}>{account.email} · {account.role} · {account.status}</option>)}
+          </select>
+          {formErrors.accountId !== undefined && <p className="text-sm text-rose-300" id="operational-deactivation-account-error">{formErrors.accountId}</p>}
+          <label className="block text-sm font-medium text-slate-100" htmlFor="operational-deactivation-reason-category">Reason category</label>
+          <select className="-mt-2 block w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2.5 text-slate-100" id="operational-deactivation-reason-category" onChange={(event) => setDeactivation({ ...deactivation, reasonCategory: event.target.value })} value={deactivation.reasonCategory}>
+            <option value="SECURITY">Security</option>
+            <option value="STAFFING">Staffing</option>
+            <option value="ROLE_CHANGE">Role change</option>
+            <option value="OTHER">Other</option>
+          </select>
+          <TextField error={formErrors.deactivationPublicReason} id="operational-deactivation-public-reason" label="Public reason" onChange={(publicReason) => setDeactivation({ ...deactivation, publicReason })} value={deactivation.publicReason} />
+          <TextField id="operational-deactivation-internal-note" label="Internal note (optional)" onChange={(internalNote) => setDeactivation({ ...deactivation, internalNote })} value={deactivation.internalNote} />
+          <SubmitButton disabled={submitting}>{submitting ? 'Deactivating…' : 'Deactivate account'}</SubmitButton>
+        </form>
+      </div>
+
+      <section className="mt-8 overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60" aria-labelledby="operational-accounts-heading">
+        <div className="border-b border-slate-700 p-5"><h2 className="text-xl font-semibold text-white" id="operational-accounts-heading">Operational accounts</h2><p className="mt-1 text-sm text-slate-400">Role and activation status are shown for every dedicated identity.</p></div>
+        <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><thead className="bg-slate-900 text-slate-300"><tr><th className="px-5 py-3 font-medium">Email</th><th className="px-5 py-3 font-medium">Role</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3 font-medium">Invited</th></tr></thead><tbody className="divide-y divide-slate-800">{accounts.map((account) => <tr key={account.id}><td className="px-5 py-3 text-slate-100">{account.email}</td><td className="px-5 py-3 text-slate-300">{account.role}</td><td className="px-5 py-3 text-slate-300">{account.status}</td><td className="px-5 py-3 text-slate-400">{formatDate(account.invitedAt)}</td></tr>)}</tbody></table></div>
+      </section>
+
+      <section className="mt-8 rounded-xl border border-slate-700 bg-slate-950/60 p-5" aria-labelledby="audit-summary-heading">
+        <h2 className="text-xl font-semibold text-white" id="audit-summary-heading">Audit summary</h2>
+        <p className="mt-1 text-sm text-slate-400">Complete administrator-visible identity history, including categorized reasons and internal notes.</p>
+        <ul className="mt-4 space-y-3 text-sm">{auditRecords.length === 0 ? <li className="text-slate-400">No audit records yet.</li> : auditRecords.map((record) => <li className="rounded-lg border border-slate-800 p-3" key={record.id}><p className="font-medium text-slate-100">{record.action}</p><p className="mt-1 text-slate-400">{formatDate(record.occurredAt)} · {record.metadata}</p><p className="mt-1 text-xs text-slate-500">Actor: {record.actorType === 'SYSTEM' ? 'System' : `${record.actorType ?? 'Unknown'} ${record.actorId ?? 'unknown'}`} · Target: {record.targetType ?? 'Unknown'} {record.targetId ?? 'unknown'}</p></li>)}</ul>
+      </section>
+    </PageFrame>
+  );
+}
+
+function formatDate(value: string | undefined): string {
+  if (value === undefined) return '—';
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date(value));
+}
+
+function PageFrame({ children, maxWidth = 'max-w-xl' }: { children: ReactNode; maxWidth?: string }) {
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100 sm:px-10 sm:py-16">
-      <section className="mx-auto max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-7 shadow-2xl shadow-slate-950/50 sm:p-8">
+      <section className={`mx-auto ${maxWidth} rounded-2xl border border-slate-700 bg-slate-900 p-7 shadow-2xl shadow-slate-950/50 sm:p-8`}>
         {children}
       </section>
     </main>
