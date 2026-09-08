@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateCatalogDraftData, CreateCatalogDraftResponses, CsrfTokenData, CsrfTokenResponses, DeleteCatalogDraftData, DeleteCatalogDraftResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetCatalogDraftData, GetCatalogDraftImageData, GetCatalogDraftImageResponses, GetCatalogDraftImageThumbnailData, GetCatalogDraftImageThumbnailResponses, GetCatalogDraftResponses, GetPlatformStatusData, GetPlatformStatusResponses, ListCatalogDraftsData, ListCatalogDraftsResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, ReorderCatalogDraftImagesData, ReorderCatalogDraftImagesResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, UpdateCatalogDraftData, UpdateCatalogDraftResponses, UploadCatalogDraftImageData, UploadCatalogDraftImageResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
+import type { ActivateOperationalAccountData, ActivateOperationalAccountResponses, CreateCatalogDraftData, CreateCatalogDraftResponses, CsrfTokenData, CsrfTokenResponses, DeactivateOperationalAccountData, DeactivateOperationalAccountResponses, DeleteCatalogDraftData, DeleteCatalogDraftResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetCatalogDraftData, GetCatalogDraftImageData, GetCatalogDraftImageResponses, GetCatalogDraftImageThumbnailData, GetCatalogDraftImageThumbnailResponses, GetCatalogDraftResponses, GetPlatformStatusData, GetPlatformStatusResponses, InviteOperationalAccountData, InviteOperationalAccountResponses, ListAdministrativeAuditRecordsData, ListAdministrativeAuditRecordsResponses, ListCatalogDraftsData, ListCatalogDraftsResponses, ListOperationalAccountsData, ListOperationalAccountsResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, ReorderCatalogDraftImagesData, ReorderCatalogDraftImagesResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, UpdateCatalogDraftData, UpdateCatalogDraftResponses, UploadCatalogDraftImageData, UploadCatalogDraftImageResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -153,6 +153,47 @@ export const registerRegularAccount = <ThrowOnError extends boolean = false>(opt
 });
 
 /**
+ * Activate an invited operational account
+ */
+export const activateOperationalAccount = <ThrowOnError extends boolean = false>(options: Options<ActivateOperationalAccountData, ThrowOnError>): RequestResult<ActivateOperationalAccountResponses, unknown, ThrowOnError> => (options.client ?? client).post<ActivateOperationalAccountResponses, unknown, ThrowOnError>({
+    url: '/api/v1/auth/activate-operational-account',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List operational accounts for administrators
+ */
+export const listOperationalAccounts = <ThrowOnError extends boolean = false>(options?: Options<ListOperationalAccountsData, ThrowOnError>): RequestResult<ListOperationalAccountsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListOperationalAccountsResponses, unknown, ThrowOnError>({ url: '/api/v1/admin/operational-accounts', ...options });
+
+/**
+ * Invite a dedicated moderator or administrator
+ */
+export const inviteOperationalAccount = <ThrowOnError extends boolean = false>(options: Options<InviteOperationalAccountData, ThrowOnError>): RequestResult<InviteOperationalAccountResponses, unknown, ThrowOnError> => (options.client ?? client).post<InviteOperationalAccountResponses, unknown, ThrowOnError>({
+    url: '/api/v1/admin/operational-accounts',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Permanently deactivate an operational account
+ */
+export const deactivateOperationalAccount = <ThrowOnError extends boolean = false>(options: Options<DeactivateOperationalAccountData, ThrowOnError>): RequestResult<DeactivateOperationalAccountResponses, unknown, ThrowOnError> => (options.client ?? client).post<DeactivateOperationalAccountResponses, unknown, ThrowOnError>({
+    url: '/api/v1/admin/operational-accounts/{accountId}/deactivate',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Read the public platform status
  */
 export const getPlatformStatus = <ThrowOnError extends boolean = false>(options?: Options<GetPlatformStatusData, ThrowOnError>): RequestResult<GetPlatformStatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetPlatformStatusResponses, unknown, ThrowOnError>({ url: '/api/v1/status', ...options });
@@ -173,3 +214,8 @@ export const getCatalogDraftImageThumbnail = <ThrowOnError extends boolean = fal
  * Read the authenticated account state
  */
 export const getAuthenticatedSession = <ThrowOnError extends boolean = false>(options?: Options<GetAuthenticatedSessionData, ThrowOnError>): RequestResult<GetAuthenticatedSessionResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetAuthenticatedSessionResponses, unknown, ThrowOnError>({ url: '/api/v1/auth/session', ...options });
+
+/**
+ * List the administrator audit summary
+ */
+export const listAdministrativeAuditRecords = <ThrowOnError extends boolean = false>(options?: Options<ListAdministrativeAuditRecordsData, ThrowOnError>): RequestResult<ListAdministrativeAuditRecordsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListAdministrativeAuditRecordsResponses, unknown, ThrowOnError>({ url: '/api/v1/admin/audit-records', ...options });

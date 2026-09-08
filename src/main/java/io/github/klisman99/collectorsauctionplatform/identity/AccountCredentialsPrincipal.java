@@ -17,7 +17,10 @@ class AccountCredentialsPrincipal implements UserDetails, Serializable {
   private final String normalizedEmail;
   private final String publicHandle;
   private final String passwordHash;
+  private final AccountType accountType;
   private final AccountStatus status;
+  private final OperationalRole operationalRole;
+  private final OperationalStatus operationalStatus;
   private final boolean verified;
 
   AccountCredentialsPrincipal(RegularAccount account) {
@@ -25,12 +28,35 @@ class AccountCredentialsPrincipal implements UserDetails, Serializable {
     this.normalizedEmail = account.normalizedEmail();
     this.publicHandle = account.publicHandle();
     this.passwordHash = account.passwordHash();
+    this.accountType = AccountType.REGULAR;
     this.status = account.status();
+    this.operationalRole = null;
+    this.operationalStatus = null;
     this.verified = account.isVerified();
   }
 
+  AccountCredentialsPrincipal(OperationalAccount account) {
+    this.accountId = account.id();
+    this.normalizedEmail = account.normalizedEmail();
+    this.publicHandle = null;
+    this.passwordHash = account.passwordHash();
+    this.accountType = AccountType.OPERATIONAL;
+    this.status = null;
+    this.operationalRole = account.role();
+    this.operationalStatus = account.status();
+    this.verified = account.status() == OperationalStatus.ACTIVE;
+  }
+
   AccountSessionPrincipal sessionPrincipal() {
-    return new AccountSessionPrincipal(accountId, publicHandle, status, verified, authorities());
+    return new AccountSessionPrincipal(
+        accountId,
+        publicHandle,
+        accountType,
+        status,
+        operationalRole,
+        operationalStatus,
+        verified,
+        authorities());
   }
 
   @Override
@@ -48,14 +74,24 @@ class AccountCredentialsPrincipal implements UserDetails, Serializable {
     return normalizedEmail;
   }
 
+  @Override
+  public boolean isEnabled() {
+    return accountType == AccountType.REGULAR || operationalStatus == OperationalStatus.ACTIVE;
+  }
+
   private List<GrantedAuthority> authorities() {
     List<GrantedAuthority> authorities = new java.util.ArrayList<>();
-    authorities.add(new SimpleGrantedAuthority("ROLE_REGULAR_ACCOUNT"));
-    if (status == AccountStatus.SUSPENDED) {
-      authorities.add(new SimpleGrantedAuthority("ACCOUNT_SUSPENDED"));
-    }
-    if (verified && status == AccountStatus.ACTIVE) {
-      authorities.add(new SimpleGrantedAuthority("TRADING_ELIGIBLE"));
+    if (accountType == AccountType.REGULAR) {
+      authorities.add(new SimpleGrantedAuthority("ROLE_REGULAR_ACCOUNT"));
+      if (status == AccountStatus.SUSPENDED) {
+        authorities.add(new SimpleGrantedAuthority("ACCOUNT_SUSPENDED"));
+      }
+      if (verified && status == AccountStatus.ACTIVE) {
+        authorities.add(new SimpleGrantedAuthority("TRADING_ELIGIBLE"));
+      }
+    } else {
+      authorities.add(new SimpleGrantedAuthority("ROLE_OPERATIONAL_ACCOUNT"));
+      authorities.add(new SimpleGrantedAuthority("ROLE_" + operationalRole.name()));
     }
     return List.copyOf(authorities);
   }

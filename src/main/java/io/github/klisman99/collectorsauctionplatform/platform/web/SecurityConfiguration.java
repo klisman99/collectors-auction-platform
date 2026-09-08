@@ -49,6 +49,7 @@ class SecurityConfiguration {
                         "/api/v1/auth/sign-in",
                         "/api/v1/auth/request-password-recovery",
                         "/api/v1/auth/reset-password",
+                        "/api/v1/auth/activate-operational-account",
                         "/api/v1/test/**")
                     .permitAll()
                     .requestMatchers(
@@ -58,6 +59,10 @@ class SecurityConfiguration {
                     .authenticated()
                     .requestMatchers("/api/v1/catalog/drafts/**")
                     .hasAuthority("TRADING_ELIGIBLE")
+                    .requestMatchers("/api/v1/admin/**")
+                    .hasAuthority("ROLE_ADMINISTRATOR")
+                    .requestMatchers("/api/v1/moderation/**")
+                    .hasAnyAuthority("ROLE_MODERATOR", "ROLE_ADMINISTRATOR")
                     .requestMatchers(HttpMethod.GET, "/api/v1/**")
                     .permitAll()
                     .requestMatchers("/api/v1/**")

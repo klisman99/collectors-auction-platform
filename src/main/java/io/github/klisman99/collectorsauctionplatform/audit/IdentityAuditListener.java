@@ -1,5 +1,9 @@
 package io.github.klisman99.collectorsauctionplatform.audit;
 
+import io.github.klisman99.collectorsauctionplatform.identity.InitialAdministratorCreated;
+import io.github.klisman99.collectorsauctionplatform.identity.OperationalAccountActivated;
+import io.github.klisman99.collectorsauctionplatform.identity.OperationalAccountDeactivated;
+import io.github.klisman99.collectorsauctionplatform.identity.OperationalAccountInvited;
 import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountPasswordReset;
 import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountRegistered;
 import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountVerified;
@@ -43,5 +47,61 @@ class IdentityAuditListener {
             event.accountId(),
             event.occurredAt(),
             "password=reset"));
+  }
+
+  @ApplicationModuleListener
+  void auditInitialAdministrator(InitialAdministratorCreated event) {
+    auditRecords.save(
+        AuditRecord.systemOperationalAction(
+            AuditRecord.AuditAction.INITIAL_ADMINISTRATOR_CREATED,
+            event.accountId(),
+            event.occurredAt(),
+            "email=" + event.email()));
+  }
+
+  @ApplicationModuleListener
+  void auditOperationalInvitation(OperationalAccountInvited event) {
+    auditRecords.save(
+        AuditRecord.operationalAction(
+            AuditRecord.AuditAction.OPERATIONAL_ACCOUNT_INVITED,
+            event.actorId(),
+            event.accountId(),
+            event.occurredAt(),
+            administrativeMetadata(
+                "email=" + event.email(),
+                "role=" + event.role(),
+                "reasonCategory=" + event.reasonCategory(),
+                "publicReason=" + event.publicReason(),
+                "internalNote=" + event.internalNote())));
+  }
+
+  @ApplicationModuleListener
+  void auditOperationalActivation(OperationalAccountActivated event) {
+    auditRecords.save(
+        AuditRecord.operationalAction(
+            AuditRecord.AuditAction.OPERATIONAL_ACCOUNT_ACTIVATED,
+            event.accountId(),
+            event.accountId(),
+            event.occurredAt(),
+            "activation=completed"));
+  }
+
+  @ApplicationModuleListener
+  void auditOperationalDeactivation(OperationalAccountDeactivated event) {
+    auditRecords.save(
+        AuditRecord.operationalAction(
+            AuditRecord.AuditAction.OPERATIONAL_ACCOUNT_DEACTIVATED,
+            event.actorId(),
+            event.accountId(),
+            event.occurredAt(),
+            administrativeMetadata(
+                "role=" + event.role(),
+                "reasonCategory=" + event.reasonCategory(),
+                "publicReason=" + event.publicReason(),
+                "internalNote=" + event.internalNote())));
+  }
+
+  private String administrativeMetadata(String... fields) {
+    return String.join(";", fields);
   }
 }

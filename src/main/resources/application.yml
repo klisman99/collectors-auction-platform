@@ -80,6 +80,12 @@ logging:
       console: logstash
 
 platform:
+  identity:
+    initial-administrator:
+      # Configure both values through deployment secrets before the first
+      # start. Once an active administrator exists, blank values are allowed.
+      email: ${INITIAL_ADMINISTRATOR_EMAIL:}
+      password: ${INITIAL_ADMINISTRATOR_PASSWORD:}
   mail:
     from: ${MAIL_FROM:no-reply@collectors-auction.local}
     web-base-url: ${PUBLIC_WEB_BASE_URL:http://localhost:8080}

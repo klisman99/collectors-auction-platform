@@ -16,6 +16,8 @@ class RegistrationService {
   private static final Duration VERIFICATION_TOKEN_LIFETIME = Duration.ofHours(24);
 
   private final RegularAccountRepository accounts;
+  private final OperationalAccountRepository operationalAccounts;
+  private final IdentityMutationGuardRepository mutationGuards;
   private final EmailVerificationTokenRepository verificationTokens;
   private final PasswordEncoder passwordEncoder;
   private final PasswordPolicy passwordPolicy;
@@ -25,6 +27,8 @@ class RegistrationService {
 
   RegistrationService(
       RegularAccountRepository accounts,
+      OperationalAccountRepository operationalAccounts,
+      IdentityMutationGuardRepository mutationGuards,
       EmailVerificationTokenRepository verificationTokens,
       PasswordEncoder passwordEncoder,
       PasswordPolicy passwordPolicy,
@@ -32,6 +36,8 @@ class RegistrationService {
       ApplicationEventPublisher events,
       Clock clock) {
     this.accounts = accounts;
+    this.operationalAccounts = operationalAccounts;
+    this.mutationGuards = mutationGuards;
     this.verificationTokens = verificationTokens;
     this.passwordEncoder = passwordEncoder;
     this.passwordPolicy = passwordPolicy;
@@ -46,6 +52,10 @@ class RegistrationService {
 
     String normalizedEmail = IdentityNormalization.email(email);
     String publicHandle = IdentityNormalization.publicHandle(handle);
+    mutationGuards
+        .findForUpdate()
+        .orElseThrow(
+            () -> new IllegalStateException("The identity mutation guard row is missing."));
     assertIdentifiersAvailable(normalizedEmail, publicHandle);
 
     Instant now = Instant.now(clock);
@@ -101,7 +111,8 @@ class RegistrationService {
   }
 
   private void assertIdentifiersAvailable(String normalizedEmail, String publicHandle) {
-    if (accounts.existsByNormalizedEmail(normalizedEmail)) {
+    if (accounts.existsByNormalizedEmail(normalizedEmail)
+        || operationalAccounts.findByNormalizedEmailForUpdate(normalizedEmail).isPresent()) {
       throw IdentityApiException.emailAlreadyRegistered();
     }
     if (accounts.existsByPublicHandle(publicHandle)) {

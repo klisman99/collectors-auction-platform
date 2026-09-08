@@ -58,11 +58,14 @@ export type SignInRequest = {
 };
 
 /**
- * The current authenticated regular-account session state.
+ * The current authenticated account session state.
  */
 export type AuthenticatedSession = {
+    accountId?: string;
+    accountType?: string;
     publicHandle?: string;
     status?: string;
+    role?: string;
     verified?: boolean;
     canTrade?: boolean;
 };
@@ -104,6 +107,45 @@ export type Registration = {
     status?: string;
 };
 
+export type ActivateOperationalAccountRequest = {
+    token: string;
+    password: string;
+};
+
+/**
+ * The result of consuming an operational activation invitation.
+ */
+export type OperationalAccountActivation = {
+    id?: string;
+    email?: string;
+    role?: string;
+    status?: string;
+};
+
+export type InviteOperationalAccountRequest = {
+    email: string;
+    role: string;
+    reasonCategory: string;
+    publicReason: string;
+    internalNote?: string;
+};
+
+/**
+ * The non-trading operational account state.
+ */
+export type OperationalAccount = {
+    id?: string;
+    email?: string;
+    role?: string;
+    status?: string;
+};
+
+export type DeactivateOperationalAccountRequest = {
+    reasonCategory: string;
+    publicReason: string;
+    internalNote?: string;
+};
+
 /**
  * Current operational state of the application.
  */
@@ -117,6 +159,30 @@ export type CsrfToken = {
     parameterName?: string;
     token?: string;
     headerName?: string;
+};
+
+export type OperationalAccountView = {
+    id?: string;
+    email?: string;
+    role?: string;
+    status?: string;
+    invitedAt?: string;
+    activatedAt?: string;
+    deactivatedAt?: string;
+};
+
+/**
+ * An administrator-visible immutable audit record.
+ */
+export type AuditRecord = {
+    id?: string;
+    actorType?: string;
+    actorId?: string;
+    action?: string;
+    targetType?: string;
+    targetId?: string;
+    occurredAt?: string;
+    metadata?: string;
 };
 
 export type DeleteCatalogDraftData = {
@@ -355,6 +421,72 @@ export type RegisterRegularAccountResponses = {
 
 export type RegisterRegularAccountResponse = RegisterRegularAccountResponses[keyof RegisterRegularAccountResponses];
 
+export type ActivateOperationalAccountData = {
+    body: ActivateOperationalAccountRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/activate-operational-account';
+};
+
+export type ActivateOperationalAccountResponses = {
+    /**
+     * OK
+     */
+    200: OperationalAccountActivation;
+};
+
+export type ActivateOperationalAccountResponse = ActivateOperationalAccountResponses[keyof ActivateOperationalAccountResponses];
+
+export type ListOperationalAccountsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/operational-accounts';
+};
+
+export type ListOperationalAccountsResponses = {
+    /**
+     * OK
+     */
+    200: Array<OperationalAccountView>;
+};
+
+export type ListOperationalAccountsResponse = ListOperationalAccountsResponses[keyof ListOperationalAccountsResponses];
+
+export type InviteOperationalAccountData = {
+    body: InviteOperationalAccountRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/operational-accounts';
+};
+
+export type InviteOperationalAccountResponses = {
+    /**
+     * Created
+     */
+    201: OperationalAccount;
+};
+
+export type InviteOperationalAccountResponse = InviteOperationalAccountResponses[keyof InviteOperationalAccountResponses];
+
+export type DeactivateOperationalAccountData = {
+    body: DeactivateOperationalAccountRequest;
+    path: {
+        accountId: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/operational-accounts/{accountId}/deactivate';
+};
+
+export type DeactivateOperationalAccountResponses = {
+    /**
+     * No Content
+     */
+    204: void;
+};
+
+export type DeactivateOperationalAccountResponse = DeactivateOperationalAccountResponses[keyof DeactivateOperationalAccountResponses];
+
 export type GetPlatformStatusData = {
     body?: never;
     path?: never;
@@ -440,3 +572,19 @@ export type GetAuthenticatedSessionResponses = {
 };
 
 export type GetAuthenticatedSessionResponse = GetAuthenticatedSessionResponses[keyof GetAuthenticatedSessionResponses];
+
+export type ListAdministrativeAuditRecordsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/audit-records';
+};
+
+export type ListAdministrativeAuditRecordsResponses = {
+    /**
+     * OK
+     */
+    200: Array<AuditRecord>;
+};
+
+export type ListAdministrativeAuditRecordsResponse = ListAdministrativeAuditRecordsResponses[keyof ListAdministrativeAuditRecordsResponses];
