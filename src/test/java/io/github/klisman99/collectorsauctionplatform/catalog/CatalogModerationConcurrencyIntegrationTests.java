@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -47,6 +48,8 @@ class CatalogModerationConcurrencyIntegrationTests {
 
   @Autowired private CollectibleItemRepository items;
 
+  @Autowired private JdbcTemplate jdbcTemplate;
+
   @BeforeEach
   void clearItems() {
     items.deleteAll();
@@ -54,10 +57,25 @@ class CatalogModerationConcurrencyIntegrationTests {
 
   @Test
   void persistsExactlyOneDecisionWhenReviewersDecideConcurrently() throws Exception {
+    UUID ownerId = UUID.randomUUID();
+    Instant now = Instant.now();
+    jdbcTemplate.update(
+        """
+        INSERT INTO regular_accounts
+            (id, normalized_email, public_handle, password_hash, status, registered_at, verified_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        ownerId,
+        "moderation-owner@example.com",
+        "moderation_owner",
+        "unused-password-hash",
+        "ACTIVE",
+        now,
+        now);
     CollectibleItem item =
         items.saveAndFlush(
             CollectibleItem.create(
-                UUID.randomUUID(),
+                ownerId,
                 new DraftRequest(
                     CollectibleItem.Category.CARDS,
                     null,
@@ -66,8 +84,8 @@ class CatalogModerationConcurrencyIntegrationTests {
                     CollectibleItem.Condition.EXCELLENT,
                     "Condition notes are sufficiently detailed.",
                     true),
-                Instant.now()));
-    item.submit(Instant.now());
+                now));
+    item.submit(now);
     items.flush();
 
     CountDownLatch start = new CountDownLatch(1);
