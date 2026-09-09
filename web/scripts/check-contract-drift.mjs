@@ -20,20 +20,6 @@ async function files(root, current = root) {
   return paths.flat().sort();
 }
 
-function firstDifference(expected, actual) {
-  const expectedLines = expected.toString().split('\n');
-  const actualLines = actual.toString().split('\n');
-  const length = Math.max(expectedLines.length, actualLines.length);
-
-  for (let index = 0; index < length; index += 1) {
-    if (expectedLines[index] !== actualLines[index]) {
-      return `[DEBUG-142c] line ${index + 1}: expected ${JSON.stringify(expectedLines[index] ?? '<EOF>')}, received ${JSON.stringify(actualLines[index] ?? '<EOF>')}`;
-    }
-  }
-
-  return '[DEBUG-142c] files differ at byte level.';
-}
-
 try {
   const generation = spawnSync(process.execPath, [join(webRoot, 'codegen/generate.mjs')], {
     cwd: webRoot,
@@ -61,9 +47,7 @@ try {
     ]);
 
     if (!expected.equals(actual)) {
-      throw new Error(
-        `Generated OpenAPI file is stale: ${file}. ${firstDifference(expected, actual)}`,
-      );
+      throw new Error(`Generated OpenAPI file is stale: ${file}`);
     }
   }
 
