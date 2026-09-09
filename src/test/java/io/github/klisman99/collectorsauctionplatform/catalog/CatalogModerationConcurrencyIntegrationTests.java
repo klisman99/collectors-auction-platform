@@ -2,6 +2,7 @@ package io.github.klisman99.collectorsauctionplatform.catalog;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -70,8 +71,8 @@ class CatalogModerationConcurrencyIntegrationTests {
         "moderation_owner",
         "unused-password-hash",
         "ACTIVE",
-        now,
-        now);
+        Timestamp.from(now),
+        Timestamp.from(now));
     CollectibleItem item =
         items.saveAndFlush(
             CollectibleItem.create(
