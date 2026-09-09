@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { ActivateOperationalAccountData, ActivateOperationalAccountResponses, CreateCatalogDraftData, CreateCatalogDraftResponses, CsrfTokenData, CsrfTokenResponses, DeactivateOperationalAccountData, DeactivateOperationalAccountResponses, DeleteCatalogDraftData, DeleteCatalogDraftResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetCatalogDraftData, GetCatalogDraftImageData, GetCatalogDraftImageResponses, GetCatalogDraftImageThumbnailData, GetCatalogDraftImageThumbnailResponses, GetCatalogDraftResponses, GetPlatformStatusData, GetPlatformStatusResponses, InviteOperationalAccountData, InviteOperationalAccountResponses, ListAdministrativeAuditRecordsData, ListAdministrativeAuditRecordsResponses, ListCatalogDraftsData, ListCatalogDraftsResponses, ListOperationalAccountsData, ListOperationalAccountsResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, ReorderCatalogDraftImagesData, ReorderCatalogDraftImagesResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, UpdateCatalogDraftData, UpdateCatalogDraftResponses, UploadCatalogDraftImageData, UploadCatalogDraftImageResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
+import type { ActivateOperationalAccountData, ActivateOperationalAccountResponses, ApproveModerationSubmissionData, ApproveModerationSubmissionResponses, CreateCatalogDraftData, CreateCatalogDraftResponses, CsrfTokenData, CsrfTokenResponses, DeactivateOperationalAccountData, DeactivateOperationalAccountResponses, DeleteCatalogDraftData, DeleteCatalogDraftResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetCatalogDraftData, GetCatalogDraftImageData, GetCatalogDraftImageResponses, GetCatalogDraftImageThumbnailData, GetCatalogDraftImageThumbnailResponses, GetCatalogDraftResponses, GetModerationSubmissionImageData, GetModerationSubmissionImageResponses, GetPlatformStatusData, GetPlatformStatusResponses, InviteOperationalAccountData, InviteOperationalAccountResponses, ListAdministrativeAuditRecordsData, ListAdministrativeAuditRecordsResponses, ListCatalogDraftsData, ListCatalogDraftsResponses, ListModerationSubmissionsData, ListModerationSubmissionsResponses, ListOperationalAccountsData, ListOperationalAccountsResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, RejectModerationSubmissionData, RejectModerationSubmissionResponses, ReorderCatalogDraftImagesData, ReorderCatalogDraftImagesResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, SubmitCatalogDraftData, SubmitCatalogDraftResponses, UpdateCatalogDraftData, UpdateCatalogDraftResponses, UploadCatalogDraftImageData, UploadCatalogDraftImageResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -53,6 +53,23 @@ export const reorderCatalogDraftImages = <ThrowOnError extends boolean = false>(
 });
 
 /**
+ * Reject a collectible submission
+ */
+export const rejectModerationSubmission = <ThrowOnError extends boolean = false>(options: Options<RejectModerationSubmissionData, ThrowOnError>): RequestResult<RejectModerationSubmissionResponses, unknown, ThrowOnError> => (options.client ?? client).post<RejectModerationSubmissionResponses, unknown, ThrowOnError>({
+    url: '/api/v1/moderation/submissions/{id}/reject',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve a collectible submission
+ */
+export const approveModerationSubmission = <ThrowOnError extends boolean = false>(options: Options<ApproveModerationSubmissionData, ThrowOnError>): RequestResult<ApproveModerationSubmissionResponses, unknown, ThrowOnError> => (options.client ?? client).post<ApproveModerationSubmissionResponses, unknown, ThrowOnError>({ url: '/api/v1/moderation/submissions/{id}/approve', ...options });
+
+/**
  * List the authenticated seller's private drafts
  */
 export const listCatalogDrafts = <ThrowOnError extends boolean = false>(options?: Options<ListCatalogDraftsData, ThrowOnError>): RequestResult<ListCatalogDraftsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListCatalogDraftsResponses, unknown, ThrowOnError>({ url: '/api/v1/catalog/drafts', ...options });
@@ -68,6 +85,11 @@ export const createCatalogDraft = <ThrowOnError extends boolean = false>(options
         ...options.headers
     }
 });
+
+/**
+ * Submit a complete draft for moderation
+ */
+export const submitCatalogDraft = <ThrowOnError extends boolean = false>(options: Options<SubmitCatalogDraftData, ThrowOnError>): RequestResult<SubmitCatalogDraftResponses, unknown, ThrowOnError> => (options.client ?? client).post<SubmitCatalogDraftResponses, unknown, ThrowOnError>({ url: '/api/v1/catalog/drafts/{id}/submit', ...options });
 
 /**
  * Upload and normalize a draft image
@@ -197,6 +219,16 @@ export const deactivateOperationalAccount = <ThrowOnError extends boolean = fals
  * Read the public platform status
  */
 export const getPlatformStatus = <ThrowOnError extends boolean = false>(options?: Options<GetPlatformStatusData, ThrowOnError>): RequestResult<GetPlatformStatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetPlatformStatusResponses, unknown, ThrowOnError>({ url: '/api/v1/status', ...options });
+
+/**
+ * List collectible submissions awaiting review
+ */
+export const listModerationSubmissions = <ThrowOnError extends boolean = false>(options?: Options<ListModerationSubmissionsData, ThrowOnError>): RequestResult<ListModerationSubmissionsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListModerationSubmissionsResponses, unknown, ThrowOnError>({ url: '/api/v1/moderation/submissions', ...options });
+
+/**
+ * Read a private image while reviewing a collectible
+ */
+export const getModerationSubmissionImage = <ThrowOnError extends boolean = false>(options: Options<GetModerationSubmissionImageData, ThrowOnError>): RequestResult<GetModerationSubmissionImageResponses, unknown, ThrowOnError> => (options.client ?? client).get<GetModerationSubmissionImageResponses, unknown, ThrowOnError>({ url: '/api/v1/moderation/submissions/{id}/images/{mediaId}', ...options });
 
 export const csrfToken = <ThrowOnError extends boolean = false>(options?: Options<CsrfTokenData, ThrowOnError>): RequestResult<CsrfTokenResponses, unknown, ThrowOnError> => (options?.client ?? client).get<CsrfTokenResponses, unknown, ThrowOnError>({ url: '/api/v1/csrf', ...options });
 

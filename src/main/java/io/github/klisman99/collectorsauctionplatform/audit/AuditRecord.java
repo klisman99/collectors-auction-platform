@@ -77,6 +77,30 @@ class AuditRecord {
         metadata);
   }
 
+  static AuditRecord accountCollectibleAction(
+      AuditAction action, UUID accountId, UUID itemId, Instant occurredAt, String metadata) {
+    return new AuditRecord(
+        ActorType.REGULAR_ACCOUNT,
+        accountId,
+        action,
+        TargetType.COLLECTIBLE_ITEM,
+        itemId,
+        occurredAt,
+        metadata);
+  }
+
+  static AuditRecord operationalCollectibleAction(
+      AuditAction action, UUID actorId, UUID itemId, Instant occurredAt, String metadata) {
+    return new AuditRecord(
+        ActorType.OPERATIONAL_ACCOUNT,
+        actorId,
+        action,
+        TargetType.COLLECTIBLE_ITEM,
+        itemId,
+        occurredAt,
+        metadata);
+  }
+
   static AuditRecord operationalAction(
       AuditAction action, UUID actorId, UUID targetId, Instant occurredAt, String metadata) {
     return new AuditRecord(
@@ -146,11 +170,15 @@ class AuditRecord {
     INITIAL_ADMINISTRATOR_CREATED,
     OPERATIONAL_ACCOUNT_INVITED,
     OPERATIONAL_ACCOUNT_ACTIVATED,
-    OPERATIONAL_ACCOUNT_DEACTIVATED
+    OPERATIONAL_ACCOUNT_DEACTIVATED,
+    COLLECTIBLE_SUBMITTED,
+    COLLECTIBLE_APPROVED,
+    COLLECTIBLE_REJECTED
   }
 
   enum TargetType {
     REGULAR_ACCOUNT,
-    OPERATIONAL_ACCOUNT
+    OPERATIONAL_ACCOUNT,
+    COLLECTIBLE_ITEM
   }
 }

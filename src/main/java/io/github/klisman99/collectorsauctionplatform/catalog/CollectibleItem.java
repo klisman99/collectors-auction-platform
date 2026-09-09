@@ -35,7 +35,9 @@ class CollectibleItem {
   }
 
   enum Status {
-    DRAFT
+    DRAFT,
+    UNDER_REVIEW,
+    APPROVED
   }
 
   @Id private UUID id;
@@ -76,6 +78,12 @@ class CollectibleItem {
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
 
+  @Column(name = "submission_reason")
+  private String submissionReason;
+
+  @Column(name = "submitted_at")
+  private Instant submittedAt;
+
   protected CollectibleItem() {}
 
   static CollectibleItem create(UUID ownerId, DraftRequest request, Instant now) {
@@ -97,6 +105,9 @@ class CollectibleItem {
     this.conditionNotes = request.conditionNotes();
     this.ownershipDeclared = request.ownershipDeclared();
     this.updatedAt = now;
+    if (status == Status.APPROVED) {
+      status = Status.DRAFT;
+    }
   }
 
   UUID id() {
@@ -141,5 +152,45 @@ class CollectibleItem {
 
   Instant updatedAt() {
     return updatedAt;
+  }
+
+  Status status() {
+    return status;
+  }
+
+  String submissionReason() {
+    return submissionReason;
+  }
+
+  Instant submittedAt() {
+    return submittedAt;
+  }
+
+  void submit(Instant now) {
+    status = Status.UNDER_REVIEW;
+    submissionReason = null;
+    submittedAt = now;
+    updatedAt = now;
+  }
+
+  void approve(Instant now) {
+    status = Status.APPROVED;
+    submissionReason = null;
+    updatedAt = now;
+  }
+
+  void invalidateApproval(Instant now) {
+    if (status == Status.APPROVED) {
+      status = Status.DRAFT;
+      submissionReason = null;
+      submittedAt = null;
+      updatedAt = now;
+    }
+  }
+
+  void reject(String reason, Instant now) {
+    status = Status.DRAFT;
+    submissionReason = reason;
+    updatedAt = now;
   }
 }

@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -33,14 +34,17 @@ class CatalogService {
   private final CollectibleItemRepository items;
   private final CollectibleItemMediaRepository media;
   private final CatalogImageStorage storage;
+  private final ApplicationEventPublisher events;
 
   CatalogService(
       CollectibleItemRepository items,
       CollectibleItemMediaRepository media,
-      CatalogImageStorage storage) {
+      CatalogImageStorage storage,
+      ApplicationEventPublisher events) {
     this.items = items;
     this.media = media;
     this.storage = storage;
+    this.events = events;
   }
 
   @Transactional(readOnly = true)
@@ -62,6 +66,11 @@ class CatalogService {
   @Transactional
   CollectibleItem update(UUID ownerId, UUID itemId, DraftRequest request) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
+      throw CatalogApiException.cannotSubmit(
+          "A submitted item is read-only until moderation decides it.");
+    }
+    item.invalidateApproval(Instant.now());
     validate(request);
     item.apply(request, Instant.now());
     return items.save(item);
@@ -70,6 +79,10 @@ class CatalogService {
   @Transactional
   void delete(UUID ownerId, UUID itemId) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    if (item.status() == CollectibleItem.Status.UNDER_REVIEW
+        || item.status() == CollectibleItem.Status.APPROVED) {
+      throw CatalogApiException.cannotSubmit("A submitted item cannot be deleted.");
+    }
     List<CollectibleItemMedia> images = media.findAllByItemIdOrderBySortOrder(itemId);
 
     items.delete(item);
@@ -79,6 +92,11 @@ class CatalogService {
   @Transactional
   CollectibleItemMedia addImage(UUID ownerId, UUID itemId, MultipartFile file) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
+      throw CatalogApiException.cannotSubmit(
+          "A submitted item is read-only until moderation decides it.");
+    }
+    item.invalidateApproval(Instant.now());
     validateImageSize(file);
 
     List<CollectibleItemMedia> existingImages = media.findAllByItemIdOrderBySortOrder(itemId);
@@ -128,7 +146,12 @@ class CatalogService {
 
   @Transactional
   void reorder(UUID ownerId, UUID itemId, List<UUID> mediaIdsInOrder) {
-    ownedForUpdate(ownerId, itemId);
+    CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
+      throw CatalogApiException.cannotSubmit(
+          "A submitted item is read-only until moderation decides it.");
+    }
+    item.invalidateApproval(Instant.now());
     List<CollectibleItemMedia> images = media.findAllByItemIdOrderBySortOrder(itemId);
     assertCompleteImageOrder(mediaIdsInOrder, images);
 
@@ -158,6 +181,21 @@ class CatalogService {
 
   List<CollectibleItemMedia> images(UUID itemId) {
     return media.findAllByItemIdOrderBySortOrder(itemId);
+  }
+
+  @Transactional
+  CollectibleItem submit(UUID ownerId, UUID itemId) {
+    CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    if (item.status() != CollectibleItem.Status.DRAFT) {
+      throw CatalogApiException.cannotSubmit("Only a draft can be submitted for moderation.");
+    }
+    if (media.countByItemId(itemId) < 1) {
+      throw CatalogApiException.cannotSubmit("Submission requires at least one processed image.");
+    }
+    item.submit(Instant.now());
+    events.publishEvent(
+        new CollectibleSubmitted(item.id(), ownerId, item.title(), item.submittedAt()));
+    return item;
   }
 
   private void validateImageSize(MultipartFile file) {

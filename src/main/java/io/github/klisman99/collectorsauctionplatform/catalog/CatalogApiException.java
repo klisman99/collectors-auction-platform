@@ -55,6 +55,27 @@ class CatalogApiException extends ErrorResponseException {
         HttpStatus.BAD_REQUEST, "IMAGE_ORDER_INVALID", "BR-ITEM-006", detail);
   }
 
+  static CatalogApiException cannotSubmit(String detail) {
+    return new CatalogApiException(
+        HttpStatus.CONFLICT, "ITEM_SUBMISSION_INVALID", "BR-ITEM-010", detail);
+  }
+
+  static CatalogApiException reviewConflict() {
+    return new CatalogApiException(
+        HttpStatus.CONFLICT,
+        "ITEM_REVIEW_CONFLICT",
+        "BR-MOD-004",
+        "The moderation decision was already persisted by another reviewer.");
+  }
+
+  static CatalogApiException reviewReasonRequired() {
+    return new CatalogApiException(
+        HttpStatus.BAD_REQUEST,
+        "ITEM_REJECTION_REASON_REQUIRED",
+        "BR-ITEM-011",
+        "Rejection requires a public reason.");
+  }
+
   private static ProblemDetail problem(
       HttpStatus status, String code, String ruleId, String detail) {
     ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);

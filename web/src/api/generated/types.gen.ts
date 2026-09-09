@@ -23,6 +23,8 @@ export type DraftResponse = {
     condition?: 'NEW_SEALED' | 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'FAIR' | 'POOR' | 'NOT_APPLICABLE';
     conditionNotes?: string;
     ownershipDeclared?: boolean;
+    status?: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED';
+    submissionReason?: string;
     images?: Array<ImageResponse>;
     createdAt?: string;
     updatedAt?: string;
@@ -38,6 +40,31 @@ export type ImageResponse = {
 
 export type ImageOrder = {
     mediaIds?: Array<string>;
+};
+
+export type ReviewDecisionRequest = {
+    publicReason: string;
+    internalNote?: string;
+};
+
+export type ModerationImageResponse = {
+    id?: string;
+    url?: string;
+    contentType?: string;
+    sortOrder?: number;
+};
+
+export type ModerationSubmissionResponse = {
+    id?: string;
+    category?: string;
+    otherCategoryLabel?: string;
+    title?: string;
+    description?: string;
+    condition?: string;
+    conditionNotes?: string;
+    ownershipDeclared?: boolean;
+    submittedAt?: string;
+    images?: Array<ModerationImageResponse>;
 };
 
 export type VerifyEmailRequest = {
@@ -257,6 +284,42 @@ export type ReorderCatalogDraftImagesResponses = {
 
 export type ReorderCatalogDraftImagesResponse = ReorderCatalogDraftImagesResponses[keyof ReorderCatalogDraftImagesResponses];
 
+export type RejectModerationSubmissionData = {
+    body: ReviewDecisionRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/moderation/submissions/{id}/reject';
+};
+
+export type RejectModerationSubmissionResponses = {
+    /**
+     * OK
+     */
+    200: ModerationSubmissionResponse;
+};
+
+export type RejectModerationSubmissionResponse = RejectModerationSubmissionResponses[keyof RejectModerationSubmissionResponses];
+
+export type ApproveModerationSubmissionData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/moderation/submissions/{id}/approve';
+};
+
+export type ApproveModerationSubmissionResponses = {
+    /**
+     * OK
+     */
+    200: ModerationSubmissionResponse;
+};
+
+export type ApproveModerationSubmissionResponse = ApproveModerationSubmissionResponses[keyof ApproveModerationSubmissionResponses];
+
 export type ListCatalogDraftsData = {
     body?: never;
     path?: never;
@@ -288,6 +351,24 @@ export type CreateCatalogDraftResponses = {
 };
 
 export type CreateCatalogDraftResponse = CreateCatalogDraftResponses[keyof CreateCatalogDraftResponses];
+
+export type SubmitCatalogDraftData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/catalog/drafts/{id}/submit';
+};
+
+export type SubmitCatalogDraftResponses = {
+    /**
+     * OK
+     */
+    200: DraftResponse;
+};
+
+export type SubmitCatalogDraftResponse = SubmitCatalogDraftResponses[keyof SubmitCatalogDraftResponses];
 
 export type UploadCatalogDraftImageData = {
     body?: {
@@ -502,6 +583,41 @@ export type GetPlatformStatusResponses = {
 };
 
 export type GetPlatformStatusResponse = GetPlatformStatusResponses[keyof GetPlatformStatusResponses];
+
+export type ListModerationSubmissionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/moderation/submissions';
+};
+
+export type ListModerationSubmissionsResponses = {
+    /**
+     * OK
+     */
+    200: Array<ModerationSubmissionResponse>;
+};
+
+export type ListModerationSubmissionsResponse = ListModerationSubmissionsResponses[keyof ListModerationSubmissionsResponses];
+
+export type GetModerationSubmissionImageData = {
+    body?: never;
+    path: {
+        id: string;
+        mediaId: string;
+    };
+    query?: never;
+    url: '/api/v1/moderation/submissions/{id}/images/{mediaId}';
+};
+
+export type GetModerationSubmissionImageResponses = {
+    /**
+     * OK
+     */
+    200: string;
+};
+
+export type GetModerationSubmissionImageResponse = GetModerationSubmissionImageResponses[keyof GetModerationSubmissionImageResponses];
 
 export type CsrfTokenData = {
     body?: never;
