@@ -87,7 +87,7 @@ class CatalogModerationConcurrencyIntegrationTests {
                     true),
                 now));
     item.submit(now);
-    items.flush();
+    items.saveAndFlush(item);
 
     CountDownLatch start = new CountDownLatch(1);
     try (var executor = Executors.newFixedThreadPool(2)) {
