@@ -84,6 +84,9 @@ class CollectibleItem {
   @Column(name = "submitted_at")
   private Instant submittedAt;
 
+  @Column(name = "auction_locked_at")
+  private Instant auctionLockedAt;
+
   protected CollectibleItem() {}
 
   static CollectibleItem create(UUID ownerId, DraftRequest request, Instant now) {
@@ -164,6 +167,14 @@ class CollectibleItem {
 
   Instant submittedAt() {
     return submittedAt;
+  }
+
+  boolean isAuctionLocked() {
+    return auctionLockedAt != null;
+  }
+
+  void lockForAuction(Instant now) {
+    auctionLockedAt = now;
   }
 
   void submit(Instant now) {

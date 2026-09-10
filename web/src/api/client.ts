@@ -60,6 +60,15 @@ export type Condition = 'NEW_SEALED' | 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'FAI
 export type DraftInput = { category: Category; otherCategoryLabel?: string; title: string; description: string; condition: Condition; conditionNotes: string; ownershipDeclared: boolean };
 export type Draft = DraftInput & { id: string; status: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED'; submissionReason?: string; images: Array<{ id: string; url: string; thumbnailUrl: string; contentType: string; sortOrder: number }> };
 export type ModerationSubmission = { id: string; category: string; otherCategoryLabel?: string; title: string; description: string; condition: string; conditionNotes: string; ownershipDeclared: boolean; submittedAt: string; images: Array<{ id: string; url: string; contentType: string; sortOrder: number }> };
+export type AuctionInput = { itemId: string; openingAmountCents: number; minimumIncrementCents: number; reserveAmountCents?: number; startsAt: string; endsAt: string };
+export type EditableAuctionTerms = { reserveAmountCents?: number; startsAt: string; endsAt: string };
+export type Auction = {
+  id: string; itemId: string; sellerHandle: string; state: 'SCHEDULED'; openingAmountCents: number;
+  minimumIncrementCents: number; reserveAmountCents?: number; reserveMet: boolean; startsAt: string;
+  endsAt: string; scheduledAt: string;
+  item: { category: string; otherCategoryLabel?: string; title: string; description: string; condition: string; conditionNotes: string; ownershipDeclared: boolean; media: Array<{ id: string; url: string; contentType: string; sortOrder: number }> };
+  policy: { auctionType: 'ENGLISH_ASCENDING'; currency: 'BRL'; minimumAmountCents: number; maximumAmountCents: number; minimumLeadSeconds: number; minimumDurationSeconds: number; maximumDurationSeconds: number; protectionWindowSeconds: number };
+};
 
 client.setConfig({ baseUrl: '/', credentials: 'same-origin' });
 
@@ -179,6 +188,14 @@ export async function submitDraft(id: string): Promise<Draft> {
   return draftRequest(`/api/v1/catalog/drafts/${id}/submit`, 'POST');
 }
 
+export async function scheduleAuction(input: AuctionInput): Promise<Auction> {
+  return auctionRequest('/api/v1/auctions', 'POST', input);
+}
+
+export async function updateAuctionTerms(id: string, input: EditableAuctionTerms): Promise<Auction> {
+  return auctionRequest(`/api/v1/auctions/${id}/terms`, 'PUT', input);
+}
+
 export async function listModerationSubmissions(): Promise<ModerationSubmission[]> {
   const response = await fetch('/api/v1/moderation/submissions', { credentials: 'same-origin' });
   if (!response.ok) throw await apiError(response, 'Moderation submissions could not be loaded.');
@@ -214,6 +231,18 @@ async function moderationRequest(url: string, method: string, body?: unknown): P
   const response = await fetch(url, { method, credentials: 'same-origin', headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...csrf.headers }, body: body ? JSON.stringify(body) : undefined });
   if (!response.ok) throw await apiError(response, 'The moderation decision could not be saved.');
   return response.json() as Promise<ModerationSubmission>;
+}
+
+async function auctionRequest(url: string, method: string, body: unknown): Promise<Auction> {
+  const csrf = await csrfHeaders();
+  const response = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', ...csrf.headers },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw await apiError(response, 'The auction could not be published.');
+  return response.json() as Promise<Auction>;
 }
 
 async function apiError(response: Response, fallback: string): Promise<ApiError> {

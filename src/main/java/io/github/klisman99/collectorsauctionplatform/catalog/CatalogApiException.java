@@ -60,6 +60,14 @@ class CatalogApiException extends ErrorResponseException {
         HttpStatus.CONFLICT, "ITEM_SUBMISSION_INVALID", "BR-ITEM-010", detail);
   }
 
+  static CatalogApiException auctionLocked() {
+    return new CatalogApiException(
+        HttpStatus.CONFLICT,
+        "ITEM_LOCKED_BY_AUCTION",
+        "BR-ITEM-013",
+        "An item attached to a non-terminal auction cannot be changed.");
+  }
+
   static CatalogApiException reviewConflict() {
     return new CatalogApiException(
         HttpStatus.CONFLICT,

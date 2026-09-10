@@ -88,7 +88,11 @@ class SecurityConfiguration {
                                 "Authentication is required to access this resource."))
                     .accessDeniedHandler(
                         (request, response, exception) -> {
-                          if (!request.getRequestURI().startsWith("/api/v1/catalog/drafts")) {
+                          boolean catalogMutation =
+                              request.getRequestURI().startsWith("/api/v1/catalog/drafts");
+                          boolean auctionMutation =
+                              request.getRequestURI().startsWith("/api/v1/auctions");
+                          if (!catalogMutation && !auctionMutation) {
                             problemWriter.write(
                                 request,
                                 response,
@@ -114,8 +118,8 @@ class SecurityConfiguration {
                               suspended ? "ACCOUNT_SUSPENDED" : "ACCOUNT_NOT_VERIFIED",
                               suspended ? "BR-AUTH-009" : "BR-AUTH-004",
                               suspended
-                                  ? "A suspended account cannot change collectible drafts."
-                                  : "Email verification is required to change collectible drafts.");
+                                  ? "A suspended account cannot perform marketplace commands."
+                                  : "Email verification is required for marketplace commands.");
                         }))
         .sessionManagement(
             session ->
