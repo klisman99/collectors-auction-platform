@@ -17,7 +17,7 @@ test('recovers a password and rejects every existing session on its next request
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { name: 'Verify your email' })).toBeVisible();
 
-  const tokenLink = await mailpitLink(request, 'verificationToken');
+  const tokenLink = await mailpitLink(request, 'verificationToken', email);
 
   await page.goto(tokenLink);
   await expect(page.getByRole('heading', { name: 'Verify your email' })).toBeVisible();
@@ -47,7 +47,7 @@ test('recovers a password and rejects every existing session on its next request
     await recoveryPage.getByRole('button', { name: 'Send recovery link' }).click();
     await expect(recoveryPage.getByRole('status')).toContainText('If an account exists');
 
-    await recoveryPage.goto(await mailpitLink(request, 'recoveryToken'));
+    await recoveryPage.goto(await mailpitLink(request, 'recoveryToken', email));
     const newPassword = 'a replacement passphrase';
     await recoveryPage.getByLabel('New password', { exact: true }).fill(newPassword);
     await recoveryPage.getByLabel('Confirm new password').fill(newPassword);
@@ -73,15 +73,22 @@ test('recovers a password and rejects every existing session on its next request
   }
 });
 
-async function mailpitLink(request: APIRequestContext, queryParameter: string): Promise<string> {
+async function mailpitLink(
+  request: APIRequestContext,
+  queryParameter: string,
+  recipient: string,
+): Promise<string> {
   let link = '';
   await expect
     .poll(
       async () => {
         const response = await request.get(`${mailpitUrl}/api/v1/messages`);
         if (!response.ok()) return '';
-        const body = (await response.json()) as { messages?: Array<{ ID: string }> };
+        const body = (await response.json()) as {
+          messages?: Array<{ ID: string; To?: Array<{ Address: string }> }>;
+        };
         for (const message of body.messages ?? []) {
+          if (!message.To?.some(({ Address }) => Address === recipient)) continue;
           const detail = await request.get(`${mailpitUrl}/api/v1/message/${message.ID}`);
           if (!detail.ok()) continue;
           const content = (await detail.json()) as { HTML?: string; Text?: string };

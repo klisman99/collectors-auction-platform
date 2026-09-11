@@ -22,7 +22,9 @@ test('seller publishes, cancels, and exposes an ended auction to anonymous disco
   await page.getByLabel('Password').fill(password);
   const messagesBeforeRegistration = await mailpitMessageIds(request);
   await page.getByRole('button', { name: 'Create account' }).click();
-  await page.goto(await mailpitLink(request, 'verificationToken', messagesBeforeRegistration));
+  await page.goto(
+    await mailpitLink(request, 'verificationToken', email, messagesBeforeRegistration),
+  );
   await page.getByRole('button', { name: 'Verify email' }).click();
   await page.getByLabel('Email address').fill(email);
   await page.getByLabel('Password').fill(password);
@@ -138,6 +140,7 @@ async function mailpitMessageIds(request: APIRequestContext): Promise<Set<string
 async function mailpitLink(
   request: APIRequestContext,
   queryParameter: string,
+  recipient: string,
   ignoredMessageIds: Set<string>,
 ): Promise<string> {
   let link = '';
@@ -146,9 +149,12 @@ async function mailpitLink(
       async () => {
         const response = await request.get(`${mailpitUrl}/api/v1/messages`);
         if (!response.ok()) return '';
-        const body = (await response.json()) as { messages?: Array<{ ID: string }> };
+        const body = (await response.json()) as {
+          messages?: Array<{ ID: string; To?: Array<{ Address: string }> }>;
+        };
         for (const message of body.messages ?? []) {
           if (ignoredMessageIds.has(message.ID)) continue;
+          if (!message.To?.some(({ Address }) => Address === recipient)) continue;
           const detail = await request.get(`${mailpitUrl}/api/v1/message/${message.ID}`);
           if (!detail.ok()) continue;
           const content = (await detail.json()) as { HTML?: string; Text?: string };
