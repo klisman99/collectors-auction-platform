@@ -12,6 +12,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OrderBy;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -58,6 +59,12 @@ class Auction {
   @Column(name = "scheduled_at", nullable = false, updatable = false)
   private Instant scheduledAt;
 
+  @Column(name = "ended_at")
+  private Instant endedAt;
+
+  @Column(name = "cancellation_reason")
+  private String cancellationReason;
+
   @Embedded private AuctionItemSnapshot itemSnapshot;
 
   @Embedded private AuctionPolicySnapshot policySnapshot;
@@ -68,6 +75,11 @@ class Auction {
       joinColumns = @JoinColumn(name = "auction_id"))
   @OrderBy("sortOrder")
   private List<AuctionItemSnapshotMedia> snapshotMedia = new ArrayList<>();
+
+  @ElementCollection(fetch = FetchType.EAGER)
+  @CollectionTable(name = "auction_timeline_events", joinColumns = @JoinColumn(name = "auction_id"))
+  @OrderColumn(name = "sequence_number")
+  private List<AuctionTimelineEntry> timeline = new ArrayList<>();
 
   protected Auction() {}
 
@@ -94,6 +106,7 @@ class Auction {
     auction.itemSnapshot = AuctionItemSnapshot.from(source);
     auction.policySnapshot = policy;
     auction.snapshotMedia = source.media().stream().map(AuctionItemSnapshotMedia::from).toList();
+    auction.timeline.add(AuctionTimelineEntry.scheduled(now));
     return auction;
   }
 
@@ -110,6 +123,42 @@ class Auction {
     this.reserveAmountCents = reserveAmountCents;
     this.startsAt = startsAt;
     this.endsAt = endsAt;
+    this.timeline.add(AuctionTimelineEntry.rescheduled(now));
+  }
+
+  void cancel(String publicReason, Instant now) {
+    if (state != State.SCHEDULED || !now.isBefore(startsAt)) {
+      throw AuctionApiException.notCancellable();
+    }
+    if (publicReason == null || publicReason.isBlank() || publicReason.length() > 500) {
+      throw AuctionApiException.invalidCancellationReason();
+    }
+    state = State.CANCELLED;
+    activeItemId = null;
+    endedAt = now;
+    cancellationReason = publicReason.trim();
+    timeline.add(AuctionTimelineEntry.cancelled(now, cancellationReason));
+  }
+
+  void start(Instant now) {
+    if (state == State.SCHEDULED && !now.isBefore(startsAt) && now.isBefore(endsAt)) {
+      state = State.LIVE;
+      timeline.add(AuctionTimelineEntry.started(now));
+    }
+  }
+
+  boolean isDueToEnd(Instant now) {
+    return (state == State.SCHEDULED || state == State.LIVE) && !now.isBefore(endsAt);
+  }
+
+  void endWithoutBids() {
+    if (state != State.SCHEDULED && state != State.LIVE) {
+      return;
+    }
+    state = State.UNSOLD;
+    activeItemId = null;
+    endedAt = endsAt;
+    timeline.add(AuctionTimelineEntry.ended(endsAt));
   }
 
   UUID id() {
@@ -140,6 +189,18 @@ class Auction {
     return minimumIncrementCents;
   }
 
+  long currentAmountCents() {
+    return openingAmountCents;
+  }
+
+  boolean reserveMet() {
+    return false;
+  }
+
+  Instant effectiveEndAt() {
+    return endsAt;
+  }
+
   Long reserveAmountCents() {
     return reserveAmountCents;
   }
@@ -154,6 +215,18 @@ class Auction {
 
   Instant scheduledAt() {
     return scheduledAt;
+  }
+
+  Instant endedAt() {
+    return endedAt;
+  }
+
+  String cancellationReason() {
+    return cancellationReason;
+  }
+
+  List<AuctionTimelineEntry> timeline() {
+    return List.copyOf(timeline);
   }
 
   AuctionItemSnapshot itemSnapshot() {

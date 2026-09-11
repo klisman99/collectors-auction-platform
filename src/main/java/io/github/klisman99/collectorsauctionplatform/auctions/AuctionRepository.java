@@ -1,11 +1,16 @@
 package io.github.klisman99.collectorsauctionplatform.auctions;
 
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 interface AuctionRepository extends JpaRepository<Auction, UUID> {
 
@@ -13,4 +18,20 @@ interface AuctionRepository extends JpaRepository<Auction, UUID> {
   Optional<Auction> findByIdAndSellerId(UUID id, UUID sellerId);
 
   List<Auction> findAllByStateOrderByStartsAtAsc(Auction.State state);
+
+  Page<Auction> findAllByState(Auction.State state, Pageable pageable);
+
+  Page<Auction> findAllByStateIn(List<Auction.State> states, Pageable pageable);
+
+  List<Auction> findAllBySellerIdAndStateOrderByStartsAtAsc(UUID sellerId, Auction.State state);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query(
+      "select auction from Auction auction where auction.state = 'SCHEDULED' and auction.startsAt <= :now order by auction.startsAt")
+  List<Auction> findDueScheduledForUpdate(@Param("now") Instant now);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query(
+      "select auction from Auction auction where auction.state = 'LIVE' and auction.endsAt <= :now order by auction.endsAt")
+  List<Auction> findDueLiveForUpdate(@Param("now") Instant now);
 }

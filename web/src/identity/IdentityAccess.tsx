@@ -9,6 +9,7 @@ import {
   signIn,
   verifyEmail,
 } from '../api/client';
+import { PublicAuctionBrowser } from '../auctions/PublicAuctionBrowser';
 import { applyApiError, type FieldErrors, validEmail } from '../shared/forms';
 import {
   Failure,
@@ -440,6 +441,7 @@ export function IdentityAccess({
           </p>
         </form>
       )}
+      <PublicAuctionBrowser />
     </PageFrame>
   );
 }

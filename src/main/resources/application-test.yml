@@ -14,6 +14,8 @@ spring:
       initialize-schema: never
 
 platform:
+  auctions:
+    reconciliation-delay-ms: 60000
   identity:
     initial-administrator:
       email: bootstrap-test@example.com

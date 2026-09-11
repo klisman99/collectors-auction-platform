@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -50,26 +51,37 @@ class AuctionController {
   @GetMapping("/{id}")
   @Operation(operationId = "getAuction", summary = "Read a published auction snapshot")
   AuctionResponse get(@PathVariable UUID id, Authentication authentication) {
-    Auction auction = auctions.get(id);
-    return response(
-        auction,
-        auctions.maySeeExactReserve(
-            auction, authenticatedAccountId(authentication), isAdministrator(authentication)));
+    AuctionAccess access =
+        auctions.getVisible(
+            id, authenticatedAccountId(authentication), isAdministrator(authentication));
+    return response(access.auction(), access.exactReserveVisible());
   }
 
   @GetMapping
-  @Operation(operationId = "listScheduledAuctions", summary = "List published scheduled auctions")
-  List<AuctionResponse> scheduled(Authentication authentication) {
-    return auctions.scheduled().stream()
-        .map(
-            auction ->
-                response(
-                    auction,
-                    auctions.maySeeExactReserve(
-                        auction,
-                        authenticatedAccountId(authentication),
-                        isAdministrator(authentication))))
-        .toList();
+  @Operation(operationId = "listAuctions", summary = "Browse public auction lifecycle views")
+  AuctionPageResponse discover(
+      @RequestParam(defaultValue = "SCHEDULED") String state,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "20") int size,
+      Authentication authentication) {
+    if (page < 0 || size < 1 || size > 50) {
+      throw AuctionApiException.invalidDiscoveryView();
+    }
+    UUID viewerId = authenticatedAccountId(authentication);
+    boolean administrator = isAdministrator(authentication);
+    var result =
+        auctions.discover(
+            AuctionDiscoveryView.fromHttp(state), page, size, viewerId, administrator);
+    List<AuctionResponse> content =
+        result.stream()
+            .map(access -> response(access.auction(), access.exactReserveVisible()))
+            .toList();
+    return new AuctionPageResponse(
+        content,
+        result.getNumber(),
+        result.getSize(),
+        result.getTotalElements(),
+        result.getTotalPages());
   }
 
   @GetMapping("/{id}/images/{mediaId}")
@@ -81,6 +93,16 @@ class AuctionController {
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType(image.contentType()))
         .body(image.content());
+  }
+
+  @GetMapping("/mine")
+  @Operation(
+      operationId = "listMyScheduledAuctions",
+      summary = "List the seller's editable auctions")
+  List<AuctionResponse> mine(Principal principal) {
+    return auctions.scheduledForSeller(UUID.fromString(principal.getName())).stream()
+        .map(auction -> response(auction, true))
+        .toList();
   }
 
   @PutMapping(path = "/{id}/terms", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -101,6 +123,14 @@ class AuctionController {
     return response(auction, true);
   }
 
+  @PostMapping(path = "/{id}/cancellation", consumes = MediaType.APPLICATION_JSON_VALUE)
+  @Operation(operationId = "cancelAuction", summary = "Cancel a scheduled auction as its seller")
+  AuctionResponse cancel(
+      Principal principal, @PathVariable UUID id, @Valid @RequestBody CancellationRequest request) {
+    return response(
+        auctions.cancel(UUID.fromString(principal.getName()), id, request.publicReason()), true);
+  }
+
   private AuctionResponse response(Auction auction, boolean includeReserve) {
     AuctionItemSnapshot item = auction.itemSnapshot();
     return new AuctionResponse(
@@ -109,12 +139,15 @@ class AuctionController {
         auction.sellerHandle(),
         auction.state().name(),
         auction.openingAmountCents(),
+        auction.currentAmountCents(),
         auction.minimumIncrementCents(),
         includeReserve ? auction.reserveAmountCents() : null,
-        false,
+        auction.reserveMet(),
         auction.startsAt(),
         auction.endsAt(),
+        auction.effectiveEndAt(),
         auction.scheduledAt(),
+        auction.endedAt(),
         new ItemResponse(
             item.category(),
             item.otherCategoryLabel(),
@@ -140,7 +173,10 @@ class AuctionController {
             auction.policySnapshot().minimumLeadSeconds(),
             auction.policySnapshot().minimumDurationSeconds(),
             auction.policySnapshot().maximumDurationSeconds(),
-            auction.policySnapshot().protectionWindowSeconds()));
+            auction.policySnapshot().protectionWindowSeconds()),
+        auction.timeline().stream().map(TimelineResponse::from).toList(),
+        List.of(),
+        List.of());
   }
 
   private UUID authenticatedAccountId(Authentication authentication) {
@@ -171,20 +207,31 @@ class AuctionController {
   record EditableTermsRequest(
       Long reserveAmountCents, @NotNull Instant startsAt, @NotNull Instant endsAt) {}
 
+  record CancellationRequest(@NotNull String publicReason) {}
+
   record AuctionResponse(
       UUID id,
       UUID itemId,
       String sellerHandle,
       String state,
       long openingAmountCents,
+      long currentAmountCents,
       long minimumIncrementCents,
       Long reserveAmountCents,
       boolean reserveMet,
       Instant startsAt,
       Instant endsAt,
+      Instant effectiveEndAt,
       Instant scheduledAt,
+      Instant endedAt,
       ItemResponse item,
-      PolicyResponse policy) {}
+      PolicyResponse policy,
+      List<TimelineResponse> timeline,
+      List<Object> eligibleBidHistory,
+      List<Object> disqualifications) {}
+
+  record AuctionPageResponse(
+      List<AuctionResponse> content, int page, int size, long totalElements, int totalPages) {}
 
   record ItemResponse(
       String category,
@@ -207,4 +254,10 @@ class AuctionController {
       long minimumDurationSeconds,
       long maximumDurationSeconds,
       long protectionWindowSeconds) {}
+
+  record TimelineResponse(String type, Instant occurredAt, String publicReason) {
+    static TimelineResponse from(AuctionTimelineEntry entry) {
+      return new TimelineResponse(entry.type().name(), entry.occurredAt(), entry.publicReason());
+    }
+  }
 }

@@ -56,6 +56,12 @@ public class CatalogAuctioning {
         snapshotMedia);
   }
 
+  @Transactional
+  public void releaseUnchangedItem(UUID itemId, Instant now) {
+    CollectibleItem item = items.findById(itemId).orElseThrow(ItemNotAuctionable::notFound);
+    item.releaseAfterTerminalAuction(now);
+  }
+
   public record ItemSnapshot(
       UUID itemId,
       String category,

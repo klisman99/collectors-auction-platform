@@ -20,6 +20,10 @@ vi.mock('./api/client', () => ({
   signIn: vi.fn(),
   verifyEmail: vi.fn(),
   listDrafts: vi.fn(),
+  listAuctions: vi.fn(),
+  listMyScheduledAuctions: vi.fn(),
+  getAuction: vi.fn(),
+  cancelAuction: vi.fn(),
   createDraft: vi.fn(),
   updateDraft: vi.fn(),
   deleteDraft: vi.fn(),
@@ -34,12 +38,16 @@ import { App } from './App';
 import {
   ApiError,
   activateOperationalAccount,
+  cancelAuction,
   deactivateOperationalAccount,
   getAdministrativeAuditRecords,
+  getAuction,
   getAuthenticatedSession,
   getOperationalAccounts,
   inviteOperationalAccount,
+  listAuctions,
   listDrafts,
+  listMyScheduledAuctions,
   registerAccount,
   requestPasswordRecovery,
   resetPassword,
@@ -56,6 +64,7 @@ describe('App', () => {
   beforeEach(() => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue(null);
     vi.mocked(activateOperationalAccount).mockReset();
+    vi.mocked(cancelAuction).mockReset();
     vi.mocked(deactivateOperationalAccount).mockReset();
     vi.mocked(getAdministrativeAuditRecords).mockReset();
     vi.mocked(getOperationalAccounts).mockReset();
@@ -68,6 +77,15 @@ describe('App', () => {
     vi.mocked(signIn).mockReset();
     vi.mocked(verifyEmail).mockReset();
     vi.mocked(listDrafts).mockResolvedValue([]);
+    vi.mocked(listAuctions).mockResolvedValue({
+      content: [],
+      page: 0,
+      size: 20,
+      totalElements: 0,
+      totalPages: 0,
+    });
+    vi.mocked(listMyScheduledAuctions).mockResolvedValue([]);
+    vi.mocked(getAuction).mockReset();
     vi.mocked(scheduleAuction).mockReset();
     window.history.replaceState({}, '', '/');
   });
@@ -158,11 +176,13 @@ describe('App', () => {
       sellerHandle: 'collector_32',
       state: 'SCHEDULED',
       openingAmountCents: 10_000,
+      currentAmountCents: 10_000,
       minimumIncrementCents: 1_000,
       reserveAmountCents: 15_000,
       reserveMet: false,
       startsAt: '2026-09-10T13:00:00Z',
       endsAt: '2026-09-10T15:00:00Z',
+      effectiveEndAt: '2026-09-10T15:00:00Z',
       scheduledAt: '2026-09-09T12:00:00Z',
       item: {
         category: 'CARDS',
@@ -183,7 +203,23 @@ describe('App', () => {
         maximumDurationSeconds: 604_800,
         protectionWindowSeconds: 120,
       },
+      timeline: [{ type: 'SCHEDULED', occurredAt: '2026-09-09T12:00:00Z' }],
+      eligibleBidHistory: [],
+      disqualifications: [],
     });
+    vi.mocked(cancelAuction).mockImplementation(async () => ({
+      ...(await vi.mocked(scheduleAuction).mock.results[0].value),
+      state: 'CANCELLED',
+      endedAt: '2026-09-09T12:10:00Z',
+      timeline: [
+        { type: 'SCHEDULED', occurredAt: '2026-09-09T12:00:00Z' },
+        {
+          type: 'CANCELLED',
+          occurredAt: '2026-09-09T12:10:00Z',
+          publicReason: 'The collectible is no longer available.',
+        },
+      ],
+    }));
     render(<App />);
 
     fireEvent.click(
@@ -219,6 +255,81 @@ describe('App', () => {
     expect(screen.getByText('Ownership declared: Yes')).toBeInTheDocument();
     expect(screen.getByText(/ENGLISH ASCENDING · BRL/)).toBeInTheDocument();
     expect(screen.getByText(/R\$\s*100,00/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Public cancellation reason'), {
+      target: { value: 'The collectible is no longer available.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel auction' }));
+    await waitFor(() =>
+      expect(cancelAuction).toHaveBeenCalledWith(
+        'auction-32',
+        'The collectible is no longer available.',
+      ),
+    );
+    expect(await screen.findByRole('status')).toHaveTextContent('Auction cancelled.');
+  });
+
+  test('anonymous visitor browses localized auction details and safe timeline', async () => {
+    const auction = {
+      id: 'auction-33',
+      itemId: 'item-33',
+      sellerHandle: 'clock_collector',
+      state: 'SCHEDULED' as const,
+      openingAmountCents: 10_000,
+      currentAmountCents: 10_000,
+      minimumIncrementCents: 1_000,
+      reserveMet: false,
+      startsAt: '2026-09-11T13:00:00Z',
+      endsAt: '2026-09-11T15:00:00Z',
+      effectiveEndAt: '2026-09-11T15:00:00Z',
+      scheduledAt: '2026-09-10T12:00:00Z',
+      item: {
+        category: 'CARDS',
+        title: 'Mechanical countdown card',
+        description: 'A public immutable snapshot of the collectible.',
+        condition: 'EXCELLENT',
+        conditionNotes: 'Light archival wear only.',
+        ownershipDeclared: true,
+        media: [],
+      },
+      policy: {
+        auctionType: 'ENGLISH_ASCENDING' as const,
+        currency: 'BRL' as const,
+        minimumAmountCents: 1_000,
+        maximumAmountCents: 100_000_000,
+        minimumLeadSeconds: 300,
+        minimumDurationSeconds: 600,
+        maximumDurationSeconds: 604_800,
+        protectionWindowSeconds: 120,
+      },
+      timeline: [{ type: 'SCHEDULED' as const, occurredAt: '2026-09-10T12:00:00Z' }],
+      eligibleBidHistory: [],
+      disqualifications: [],
+    };
+    vi.mocked(listAuctions).mockResolvedValue({
+      content: [auction],
+      page: 0,
+      size: 20,
+      totalElements: 1,
+      totalPages: 1,
+    });
+    vi.mocked(getAuction).mockResolvedValue(auction);
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Auction floor' })).toBeInTheDocument();
+    expect(await screen.findByText('Mechanical countdown card')).toBeInTheDocument();
+    expect(screen.getByText(/R\$\s*100,00/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View Mechanical countdown card' }));
+    expect(
+      await screen.findByText('A public immutable snapshot of the collectible.'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Scheduled')).not.toHaveLength(0);
+    expect(screen.getAllByText(/São Paulo/)).not.toHaveLength(0);
+    expect(screen.getByText(/Reserve not met/)).toBeInTheDocument();
+    expect(screen.getByText('Light archival wear only.')).toBeInTheDocument();
+    expect(screen.getByText('No eligible bids.')).toBeInTheDocument();
+    expect(screen.getByText('No public disqualifications.')).toBeInTheDocument();
   });
 
   test('prioritizes verification link over a pending authenticated session', async () => {

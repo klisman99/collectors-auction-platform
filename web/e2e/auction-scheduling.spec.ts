@@ -5,7 +5,7 @@ const administratorEmail = process.env.INITIAL_ADMINISTRATOR_EMAIL ?? 'admin-e2e
 const administratorPassword =
   process.env.INITIAL_ADMINISTRATOR_PASSWORD ?? 'e2e administrator password';
 
-test('seller publishes an approved collectible with an immutable preview', async ({
+test('seller publishes, cancels, and exposes an ended auction to anonymous discovery', async ({
   browser,
   page,
   request,
@@ -79,6 +79,30 @@ test('seller publishes an approved collectible with an immutable preview', async
   await expect(page.getByText('Locked after publication')).toBeVisible();
   await expect(page.getByText('Editable before start')).toBeVisible();
   await expect(page.getByText(/R\$\s*100,00/)).toBeVisible();
+
+  await page
+    .getByLabel('Public cancellation reason')
+    .fill('The collectible is no longer available for sale.');
+  const messagesBeforeCancellation = await mailpitMessageIds(request);
+  await page.getByRole('button', { name: 'Cancel auction' }).click();
+  await expect(page.getByRole('status')).toContainText('Auction cancelled.');
+  await expect
+    .poll(async () => (await mailpitMessageIds(request)).size, { timeout: 30_000 })
+    .toBeGreaterThan(messagesBeforeCancellation.size);
+
+  const visitorContext = await browser.newContext();
+  try {
+    const visitorPage = await visitorContext.newPage();
+    await visitorPage.goto('/');
+    await visitorPage.getByRole('tab', { name: 'Ended auctions' }).click();
+    await expect(visitorPage.getByText(title)).toBeVisible();
+    await visitorPage.getByRole('button', { name: `View ${title}` }).click();
+    await expect(
+      visitorPage.getByText('The collectible is no longer available for sale.'),
+    ).toBeVisible();
+  } finally {
+    await visitorContext.close();
+  }
 });
 
 async function signInAsAdministrator(page: Page): Promise<void> {

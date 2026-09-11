@@ -70,6 +70,30 @@ class AuctionApiException extends ErrorResponseException {
         "Reserve may be reduced or removed before start, but never increased.");
   }
 
+  static AuctionApiException notCancellable() {
+    return new AuctionApiException(
+        HttpStatus.CONFLICT,
+        "AUCTION_NOT_CANCELLABLE",
+        "BR-AUC-010",
+        "Only a scheduled auction may be cancelled by its seller before start.");
+  }
+
+  static AuctionApiException invalidCancellationReason() {
+    return new AuctionApiException(
+        HttpStatus.BAD_REQUEST,
+        "AUCTION_CANCELLATION_REASON_INVALID",
+        "BR-AUC-010",
+        "A public cancellation reason between 1 and 500 characters is required.");
+  }
+
+  static AuctionApiException invalidDiscoveryView() {
+    return new AuctionApiException(
+        HttpStatus.BAD_REQUEST,
+        "AUCTION_DISCOVERY_VIEW_INVALID",
+        "BR-AUC-012",
+        "State must be SCHEDULED, LIVE, or ENDED and pagination must be within range.");
+  }
+
   private static ProblemDetail problem(
       HttpStatus status, String code, String ruleId, String detail) {
     ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
