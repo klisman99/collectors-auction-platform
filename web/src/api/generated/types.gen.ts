@@ -54,14 +54,20 @@ export type AuctionResponse = {
     sellerHandle?: string;
     state?: string;
     openingAmountCents?: number;
+    currentAmountCents?: number;
     minimumIncrementCents?: number;
     reserveAmountCents?: number;
     reserveMet?: boolean;
     startsAt?: string;
     endsAt?: string;
+    effectiveEndAt?: string;
     scheduledAt?: string;
+    endedAt?: string;
     item?: ItemResponse;
     policy?: PolicyResponse;
+    timeline?: Array<TimelineResponse>;
+    eligibleBidHistory?: Array<unknown>;
+    disqualifications?: Array<unknown>;
 };
 
 export type ItemResponse = {
@@ -91,6 +97,12 @@ export type PolicyResponse = {
     minimumDurationSeconds?: number;
     maximumDurationSeconds?: number;
     protectionWindowSeconds?: number;
+};
+
+export type TimelineResponse = {
+    type?: string;
+    occurredAt?: string;
+    publicReason?: string;
 };
 
 export type ReviewDecisionRequest = {
@@ -209,6 +221,10 @@ export type ScheduleRequest = {
     endsAt: string;
 };
 
+export type CancellationRequest = {
+    publicReason: string;
+};
+
 export type InviteOperationalAccountRequest = {
     email: string;
     role: string;
@@ -246,6 +262,14 @@ export type CsrfToken = {
     parameterName?: string;
     token?: string;
     headerName?: string;
+};
+
+export type AuctionPageResponse = {
+    content?: Array<AuctionResponse>;
+    page?: number;
+    size?: number;
+    totalElements?: number;
+    totalPages?: number;
 };
 
 export type OperationalAccountView = {
@@ -596,21 +620,25 @@ export type ActivateOperationalAccountResponses = {
 
 export type ActivateOperationalAccountResponse = ActivateOperationalAccountResponses[keyof ActivateOperationalAccountResponses];
 
-export type ListScheduledAuctionsData = {
+export type ListAuctionsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        state?: string;
+        page?: number;
+        size?: number;
+    };
     url: '/api/v1/auctions';
 };
 
-export type ListScheduledAuctionsResponses = {
+export type ListAuctionsResponses = {
     /**
      * OK
      */
-    200: Array<AuctionResponse>;
+    200: AuctionPageResponse;
 };
 
-export type ListScheduledAuctionsResponse = ListScheduledAuctionsResponses[keyof ListScheduledAuctionsResponses];
+export type ListAuctionsResponse = ListAuctionsResponses[keyof ListAuctionsResponses];
 
 export type ScheduleAuctionData = {
     body: ScheduleRequest;
@@ -627,6 +655,24 @@ export type ScheduleAuctionResponses = {
 };
 
 export type ScheduleAuctionResponse = ScheduleAuctionResponses[keyof ScheduleAuctionResponses];
+
+export type CancelAuctionData = {
+    body: CancellationRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/auctions/{id}/cancellation';
+};
+
+export type CancelAuctionResponses = {
+    /**
+     * OK
+     */
+    200: AuctionResponse;
+};
+
+export type CancelAuctionResponse = CancelAuctionResponses[keyof CancelAuctionResponses];
 
 export type ListOperationalAccountsData = {
     body?: never;
@@ -835,6 +881,22 @@ export type GetAuctionImageResponses = {
 };
 
 export type GetAuctionImageResponse = GetAuctionImageResponses[keyof GetAuctionImageResponses];
+
+export type ListMyScheduledAuctionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auctions/mine';
+};
+
+export type ListMyScheduledAuctionsResponses = {
+    /**
+     * OK
+     */
+    200: Array<AuctionResponse>;
+};
+
+export type ListMyScheduledAuctionsResponse = ListMyScheduledAuctionsResponses[keyof ListMyScheduledAuctionsResponses];
 
 export type ListAdministrativeAuditRecordsData = {
     body?: never;

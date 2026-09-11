@@ -177,6 +177,11 @@ class CollectibleItem {
     auctionLockedAt = now;
   }
 
+  void releaseAfterTerminalAuction(Instant now) {
+    auctionLockedAt = null;
+    updatedAt = now;
+  }
+
   void submit(Instant now) {
     status = Status.UNDER_REVIEW;
     submissionReason = null;

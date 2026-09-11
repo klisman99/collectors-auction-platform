@@ -6,6 +6,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,16 +19,19 @@ class AuctionService {
   private final CatalogAuctioning catalog;
   private final AccountDirectory accounts;
   private final Clock clock;
+  private final AuctionLifecycleEventPublisher lifecycleEvents;
 
   AuctionService(
       AuctionRepository auctions,
       CatalogAuctioning catalog,
       AccountDirectory accounts,
-      Clock clock) {
+      Clock clock,
+      AuctionLifecycleEventPublisher lifecycleEvents) {
     this.auctions = auctions;
     this.catalog = catalog;
     this.accounts = accounts;
     this.clock = clock;
+    this.lifecycleEvents = lifecycleEvents;
   }
 
   @Transactional
@@ -48,8 +54,11 @@ class AuctionService {
     try {
       CatalogAuctioning.ItemSnapshot item =
           catalog.lockApprovedItem(sellerId, command.itemId(), now);
-      return auctions.save(
-          Auction.schedule(sellerId, seller.publicHandle(), item, command, policy, now));
+      Auction auction =
+          auctions.save(
+              Auction.schedule(sellerId, seller.publicHandle(), item, command, policy, now));
+      lifecycleEvents.publish(auction, AuctionLifecycleEvent.Type.SCHEDULED, null, now, null);
+      return auction;
     } catch (CatalogAuctioning.ItemNotAuctionable exception) {
       throw switch (exception.reason()) {
         case NOT_FOUND -> AuctionApiException.itemNotFound();
@@ -65,8 +74,28 @@ class AuctionService {
   }
 
   @Transactional(readOnly = true)
-  List<Auction> scheduled() {
-    return auctions.findAllByStateOrderByStartsAtAsc(Auction.State.SCHEDULED);
+  AuctionAccess getVisible(UUID auctionId, UUID viewerId, boolean administrator) {
+    return withAccess(get(auctionId), viewerId, administrator);
+  }
+
+  @Transactional(readOnly = true)
+  Page<AuctionAccess> discover(
+      AuctionDiscoveryView view, int page, int size, UUID viewerId, boolean administrator) {
+    Page<Auction> result =
+        switch (view) {
+          case SCHEDULED ->
+              auctions.findAllByState(
+                  Auction.State.SCHEDULED,
+                  PageRequest.of(page, size, Sort.by("startsAt").ascending()));
+          case LIVE ->
+              auctions.findAllByState(
+                  Auction.State.LIVE, PageRequest.of(page, size, Sort.by("endsAt").ascending()));
+          case ENDED ->
+              auctions.findAllByStateIn(
+                  List.of(Auction.State.SOLD, Auction.State.UNSOLD, Auction.State.CANCELLED),
+                  PageRequest.of(page, size, Sort.by("endedAt").descending()));
+        };
+    return result.map(auction -> withAccess(auction, viewerId, administrator));
   }
 
   @Transactional(readOnly = true)
@@ -76,6 +105,11 @@ class AuctionService {
         .filter(media -> media.mediaId().equals(mediaId))
         .findFirst()
         .orElseThrow(AuctionApiException::notFound);
+  }
+
+  @Transactional(readOnly = true)
+  List<Auction> scheduledForSeller(UUID sellerId) {
+    return auctions.findAllBySellerIdAndStateOrderByStartsAtAsc(sellerId, Auction.State.SCHEDULED);
   }
 
   @Transactional
@@ -89,11 +123,36 @@ class AuctionService {
         auctions
             .findByIdAndSellerId(auctionId, sellerId)
             .orElseThrow(AuctionApiException::notFound);
-    auction.updateEditableTerms(reserveAmountCents, startsAt, endsAt, Instant.now(clock));
+    AuctionLifecycleEvent.PublishedTerms previousTerms =
+        new AuctionLifecycleEvent.PublishedTerms(
+            auction.reserveAmountCents(), auction.startsAt(), auction.endsAt());
+    Instant now = Instant.now(clock);
+    auction.updateEditableTerms(reserveAmountCents, startsAt, endsAt, now);
+    lifecycleEvents.publish(
+        auction, AuctionLifecycleEvent.Type.RESCHEDULED, null, now, previousTerms);
     return auction;
   }
 
-  boolean maySeeExactReserve(Auction auction, UUID viewerId, boolean administrator) {
-    return administrator || (viewerId != null && auction.sellerId().equals(viewerId));
+  @Transactional
+  Auction cancel(UUID sellerId, UUID auctionId, String publicReason) {
+    AccountDirectory.TradingAccount seller = accounts.tradingAccount(sellerId);
+    if (!seller.eligible()) {
+      throw AuctionApiException.accountIneligible();
+    }
+    Auction auction =
+        auctions
+            .findByIdAndSellerId(auctionId, sellerId)
+            .orElseThrow(AuctionApiException::notFound);
+    Instant now = Instant.now(clock);
+    auction.cancel(publicReason, now);
+    catalog.releaseUnchangedItem(auction.itemId(), now);
+    lifecycleEvents.publish(
+        auction, AuctionLifecycleEvent.Type.CANCELLED, auction.cancellationReason(), now, null);
+    return auction;
+  }
+
+  private AuctionAccess withAccess(Auction auction, UUID viewerId, boolean administrator) {
+    return new AuctionAccess(
+        auction, administrator || (viewerId != null && auction.sellerId().equals(viewerId)));
   }
 }

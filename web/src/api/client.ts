@@ -122,14 +122,25 @@ export type Auction = {
   id: string;
   itemId: string;
   sellerHandle: string;
-  state: 'SCHEDULED';
+  state:
+    | 'SCHEDULED'
+    | 'LIVE'
+    | 'SUSPENDED'
+    | 'CLOSING'
+    | 'AWAITING_SELLER_DECISION'
+    | 'SOLD'
+    | 'UNSOLD'
+    | 'CANCELLED';
   openingAmountCents: number;
+  currentAmountCents: number;
   minimumIncrementCents: number;
   reserveAmountCents?: number;
   reserveMet: boolean;
   startsAt: string;
   endsAt: string;
+  effectiveEndAt: string;
   scheduledAt: string;
+  endedAt?: string;
   item: {
     category: string;
     otherCategoryLabel?: string;
@@ -150,6 +161,21 @@ export type Auction = {
     maximumDurationSeconds: number;
     protectionWindowSeconds: number;
   };
+  timeline: Array<{
+    type: 'SCHEDULED' | 'RESCHEDULED' | 'STARTED' | 'CANCELLED' | 'ENDED';
+    occurredAt: string;
+    publicReason?: string;
+  }>;
+  eligibleBidHistory: Array<unknown>;
+  disqualifications: Array<unknown>;
+};
+export type AuctionView = 'SCHEDULED' | 'LIVE' | 'ENDED';
+export type AuctionPage = {
+  content: Auction[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
 };
 
 client.setConfig({ baseUrl: '/', credentials: 'same-origin' });
@@ -300,6 +326,29 @@ export async function updateAuctionTerms(
   input: EditableAuctionTerms,
 ): Promise<Auction> {
   return auctionRequest(`/api/v1/auctions/${id}/terms`, 'PUT', input);
+}
+
+export async function cancelAuction(id: string, publicReason: string): Promise<Auction> {
+  return auctionRequest(`/api/v1/auctions/${id}/cancellation`, 'POST', { publicReason });
+}
+
+export async function listAuctions(state: AuctionView, page = 0, size = 20): Promise<AuctionPage> {
+  const parameters = new URLSearchParams({ state, page: String(page), size: String(size) });
+  const response = await fetch(`/api/v1/auctions?${parameters}`, { credentials: 'same-origin' });
+  if (!response.ok) throw await apiError(response, 'Auctions could not be loaded.');
+  return response.json() as Promise<AuctionPage>;
+}
+
+export async function getAuction(id: string): Promise<Auction> {
+  const response = await fetch(`/api/v1/auctions/${id}`, { credentials: 'same-origin' });
+  if (!response.ok) throw await apiError(response, 'Auction details could not be loaded.');
+  return response.json() as Promise<Auction>;
+}
+
+export async function listMyScheduledAuctions(): Promise<Auction[]> {
+  const response = await fetch('/api/v1/auctions/mine', { credentials: 'same-origin' });
+  if (!response.ok) throw await apiError(response, 'Your scheduled auctions could not be loaded.');
+  return response.json() as Promise<Auction[]>;
 }
 
 export async function listModerationSubmissions(): Promise<ModerationSubmission[]> {

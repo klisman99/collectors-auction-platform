@@ -5,7 +5,7 @@ const administratorEmail = process.env.INITIAL_ADMINISTRATOR_EMAIL ?? 'admin-e2e
 const administratorPassword =
   process.env.INITIAL_ADMINISTRATOR_PASSWORD ?? 'e2e administrator password';
 
-test('seller publishes an approved collectible with an immutable preview', async ({
+test('seller publishes, cancels, and exposes an ended auction to anonymous discovery', async ({
   browser,
   page,
   request,
@@ -22,7 +22,9 @@ test('seller publishes an approved collectible with an immutable preview', async
   await page.getByLabel('Password').fill(password);
   const messagesBeforeRegistration = await mailpitMessageIds(request);
   await page.getByRole('button', { name: 'Create account' }).click();
-  await page.goto(await mailpitLink(request, 'verificationToken', messagesBeforeRegistration));
+  await page.goto(
+    await mailpitLink(request, 'verificationToken', email, messagesBeforeRegistration),
+  );
   await page.getByRole('button', { name: 'Verify email' }).click();
   await page.getByLabel('Email address').fill(email);
   await page.getByLabel('Password').fill(password);
@@ -79,6 +81,30 @@ test('seller publishes an approved collectible with an immutable preview', async
   await expect(page.getByText('Locked after publication')).toBeVisible();
   await expect(page.getByText('Editable before start')).toBeVisible();
   await expect(page.getByText(/R\$\s*100,00/)).toBeVisible();
+
+  await page
+    .getByLabel('Public cancellation reason')
+    .fill('The collectible is no longer available for sale.');
+  const messagesBeforeCancellation = await mailpitMessageIds(request);
+  await page.getByRole('button', { name: 'Cancel auction' }).click();
+  await expect(page.getByRole('status')).toContainText('Auction cancelled.');
+  await expect
+    .poll(async () => (await mailpitMessageIds(request)).size, { timeout: 30_000 })
+    .toBeGreaterThan(messagesBeforeCancellation.size);
+
+  const visitorContext = await browser.newContext();
+  try {
+    const visitorPage = await visitorContext.newPage();
+    await visitorPage.goto('/');
+    await visitorPage.getByRole('tab', { name: 'Ended auctions' }).click();
+    await expect(visitorPage.getByText(title)).toBeVisible();
+    await visitorPage.getByRole('button', { name: `View ${title}` }).click();
+    await expect(
+      visitorPage.getByText('The collectible is no longer available for sale.'),
+    ).toBeVisible();
+  } finally {
+    await visitorContext.close();
+  }
 });
 
 async function signInAsAdministrator(page: Page): Promise<void> {
@@ -114,6 +140,7 @@ async function mailpitMessageIds(request: APIRequestContext): Promise<Set<string
 async function mailpitLink(
   request: APIRequestContext,
   queryParameter: string,
+  recipient: string,
   ignoredMessageIds: Set<string>,
 ): Promise<string> {
   let link = '';
@@ -122,9 +149,12 @@ async function mailpitLink(
       async () => {
         const response = await request.get(`${mailpitUrl}/api/v1/messages`);
         if (!response.ok()) return '';
-        const body = (await response.json()) as { messages?: Array<{ ID: string }> };
+        const body = (await response.json()) as {
+          messages?: Array<{ ID: string; To?: Array<{ Address: string }> }>;
+        };
         for (const message of body.messages ?? []) {
           if (ignoredMessageIds.has(message.ID)) continue;
+          if (!message.To?.some(({ Address }) => Address === recipient)) continue;
           const detail = await request.get(`${mailpitUrl}/api/v1/message/${message.ID}`);
           if (!detail.ok()) continue;
           const content = (await detail.json()) as { HTML?: string; Text?: string };

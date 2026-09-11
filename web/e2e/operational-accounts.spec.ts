@@ -24,6 +24,7 @@ test('administrator can invite, activate, and deactivate a non-trading moderator
   const activationLink = await mailpitLink(
     request,
     'operationalActivationToken',
+    email,
     messageIdsBeforeInvitation,
   );
   await page.goto(activationLink);
@@ -81,6 +82,7 @@ async function mailpitMessageIds(request: APIRequestContext): Promise<Set<string
 async function mailpitLink(
   request: APIRequestContext,
   queryParameter: string,
+  recipient: string,
   ignoredMessageIds: Set<string>,
 ): Promise<string> {
   let link = '';
@@ -89,9 +91,12 @@ async function mailpitLink(
       async () => {
         const response = await request.get(`${mailpitUrl}/api/v1/messages`);
         if (!response.ok()) return '';
-        const body = (await response.json()) as { messages?: Array<{ ID: string }> };
+        const body = (await response.json()) as {
+          messages?: Array<{ ID: string; To?: Array<{ Address: string }> }>;
+        };
         for (const message of body.messages ?? []) {
           if (ignoredMessageIds.has(message.ID)) continue;
+          if (!message.To?.some(({ Address }) => Address === recipient)) continue;
           const detail = await request.get(`${mailpitUrl}/api/v1/message/${message.ID}`);
           if (!detail.ok()) continue;
           const content = (await detail.json()) as { HTML?: string; Text?: string };

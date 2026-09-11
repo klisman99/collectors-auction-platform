@@ -8,17 +8,25 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,6 +36,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(AuctionHttpIntegrationTests.TestMailConfiguration.class)
 class AuctionHttpIntegrationTests {
 
   @Autowired private MockMvc mockMvc;
@@ -36,8 +45,11 @@ class AuctionHttpIntegrationTests {
 
   @Autowired private ObjectMapper objectMapper;
 
+  @Autowired private RecordingMailSender mailSender;
+
   @BeforeEach
   void clearAuctionFixtures() {
+    mailSender.clear();
     jdbcTemplate.update("DELETE FROM auction_item_snapshot_media");
     jdbcTemplate.update("DELETE FROM auctions");
     jdbcTemplate.update("DELETE FROM collectible_item_media");
@@ -56,6 +68,7 @@ class AuctionHttpIntegrationTests {
         schedule(ownerId, itemId, 10_000, 1_000, 15_000L, initialStart, initialEnd);
     String auctionId =
         objectMapper.readTree(scheduled.getResponse().getContentAsString()).get("id").asText();
+
     Instant changedStart = initialStart.plus(30, ChronoUnit.MINUTES);
     Instant changedEnd = changedStart.plus(3, ChronoUnit.HOURS);
 
@@ -75,6 +88,15 @@ class AuctionHttpIntegrationTests {
         .andExpect(jsonPath("$.openingAmountCents").value(10_000))
         .andExpect(jsonPath("$.minimumIncrementCents").value(1_000))
         .andExpect(jsonPath("$.item.title").value("A rare approved card"));
+    awaitAudit("AUCTION_RESCHEDULED", UUID.fromString(auctionId));
+    String rescheduleMetadata =
+        jdbcTemplate.queryForObject(
+            "SELECT metadata FROM audit_records WHERE action = 'AUCTION_RESCHEDULED' AND target_id = ?",
+            String.class,
+            UUID.fromString(auctionId));
+    org.assertj.core.api.Assertions.assertThat(rescheduleMetadata)
+        .contains("previousReserveAmountCents=15000", "currentReserveAmountCents=12000")
+        .contains(changedStart.toString(), changedEnd.toString());
 
     mockMvc
         .perform(
@@ -87,6 +109,77 @@ class AuctionHttpIntegrationTests {
                         new EditableTermsRequest(13_000L, changedStart, changedEnd))))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.ruleId").value("BR-AUC-009"));
+  }
+
+  @Test
+  void sellerCancelsScheduledAuctionWithPublicReasonAndReleasesUnchangedItem() throws Exception {
+    UUID ownerId = UUID.randomUUID();
+    UUID itemId = approvedItem(ownerId);
+    Instant startsAt = Instant.now().plus(30, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
+    MvcResult scheduled =
+        schedule(
+            ownerId, itemId, 10_000, 1_000, 15_000L, startsAt, startsAt.plus(2, ChronoUnit.HOURS));
+    String auctionId =
+        objectMapper.readTree(scheduled.getResponse().getContentAsString()).get("id").asText();
+
+    UUID otherAccountId = activeAccount();
+    mockMvc
+        .perform(
+            post("/api/v1/auctions/{id}/cancellation", auctionId)
+                .with(user(otherAccountId.toString()).authorities(tradingEligible()))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"publicReason\":\"Not my auction.\"}"))
+        .andExpect(status().isNotFound());
+    mockMvc
+        .perform(
+            post("/api/v1/auctions/{id}/cancellation", auctionId)
+                .with(user(ownerId.toString()).authorities(tradingEligible()))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"publicReason\":\"   \"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.ruleId").value("BR-AUC-010"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/auctions/{id}/cancellation", auctionId)
+                .with(user(ownerId.toString()).authorities(tradingEligible()))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"publicReason\":\"The collectible is no longer available.\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("CANCELLED"))
+        .andExpect(jsonPath("$.reserveAmountCents").value(15_000))
+        .andExpect(jsonPath("$.timeline[1].type").value("CANCELLED"))
+        .andExpect(
+            jsonPath("$.timeline[1].publicReason")
+                .value("The collectible is no longer available."));
+
+    Integer activeAuctions =
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM auctions WHERE active_item_id = ?", Integer.class, itemId);
+    Instant itemLock =
+        jdbcTemplate.queryForObject(
+            "SELECT auction_locked_at FROM collectible_items WHERE id = ?", Instant.class, itemId);
+    org.assertj.core.api.Assertions.assertThat(activeAuctions).isZero();
+    org.assertj.core.api.Assertions.assertThat(itemLock).isNull();
+    MimeMessage cancellationEmail = mailSender.awaitMessage();
+    org.assertj.core.api.Assertions.assertThat(cancellationEmail.getSubject())
+        .isEqualTo("Your auction was cancelled");
+    org.assertj.core.api.Assertions.assertThat(cancellationEmail.getContent().toString())
+        .contains("The collectible is no longer available.");
+    awaitAudit("AUCTION_CANCELLED", UUID.fromString(auctionId));
+
+    mockMvc
+        .perform(
+            post("/api/v1/auctions/{id}/cancellation", auctionId)
+                .with(user(ownerId.toString()).authorities(tradingEligible()))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"publicReason\":\"Cancel again.\"}"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.ruleId").value("BR-AUC-010"));
   }
 
   @Test
@@ -246,6 +339,14 @@ class AuctionHttpIntegrationTests {
         .andExpect(jsonPath("$.reserveAmountCents").value(15_000));
 
     mockMvc
+        .perform(get("/api/v1/auctions/mine").with(user(ownerId.toString())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(auctionId))
+        .andExpect(jsonPath("$[0].reserveAmountCents").value(15_000));
+
+    mockMvc.perform(get("/api/v1/auctions/mine")).andExpect(status().isUnauthorized());
+
+    mockMvc
         .perform(
             get("/api/v1/auctions/{id}", auctionId)
                 .with(user("administrator").roles("ADMINISTRATOR")))
@@ -261,8 +362,84 @@ class AuctionHttpIntegrationTests {
     mockMvc
         .perform(get("/api/v1/auctions"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].id").value(auctionId))
-        .andExpect(jsonPath("$[0].reserveAmountCents").doesNotExist());
+        .andExpect(jsonPath("$.content[0].id").value(auctionId))
+        .andExpect(jsonPath("$.content[0].reserveAmountCents").doesNotExist());
+  }
+
+  @Test
+  void anonymousDiscoveryPaginatesEachLifecycleViewAndDetailsRemainPrivacySafe() throws Exception {
+    UUID ownerId = UUID.randomUUID();
+    activeAccount(ownerId, Instant.now());
+    Instant firstStart = Instant.now().plus(20, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
+    MvcResult laterScheduled =
+        schedule(
+            ownerId,
+            approvedItemForExistingAccount(ownerId),
+            10_000,
+            1_000,
+            15_000L,
+            firstStart.plusSeconds(600),
+            firstStart.plusSeconds(4200));
+    MvcResult earlierScheduled =
+        schedule(
+            ownerId,
+            approvedItemForExistingAccount(ownerId),
+            10_000,
+            1_000,
+            null,
+            firstStart,
+            firstStart.plusSeconds(3600));
+    String earlierId =
+        objectMapper
+            .readTree(earlierScheduled.getResponse().getContentAsString())
+            .get("id")
+            .asText();
+
+    mockMvc
+        .perform(
+            get("/api/v1/auctions")
+                .param("state", "SCHEDULED")
+                .param("page", "0")
+                .param("size", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].id").value(earlierId))
+        .andExpect(jsonPath("$.content[0].reserveAmountCents").doesNotExist())
+        .andExpect(jsonPath("$.page").value(0))
+        .andExpect(jsonPath("$.size").value(1))
+        .andExpect(jsonPath("$.totalElements").value(2))
+        .andExpect(jsonPath("$.totalPages").value(2));
+
+    mockMvc
+        .perform(get("/api/v1/auctions/{id}", earlierId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.currentAmountCents").value(10_000))
+        .andExpect(jsonPath("$.effectiveEndAt").value(firstStart.plusSeconds(3600).toString()))
+        .andExpect(jsonPath("$.eligibleBidHistory").isArray())
+        .andExpect(jsonPath("$.disqualifications").isArray())
+        .andExpect(jsonPath("$.timeline[0].type").value("SCHEDULED"));
+
+    String laterId =
+        objectMapper.readTree(laterScheduled.getResponse().getContentAsString()).get("id").asText();
+    org.assertj.core.api.Assertions.assertThat(laterId).isNotEqualTo(earlierId);
+
+    jdbcTemplate.update(
+        "UPDATE auctions SET state = 'LIVE' WHERE id IN (?, ?)", earlierId, laterId);
+    mockMvc
+        .perform(get("/api/v1/auctions").param("state", "LIVE"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].id").value(earlierId))
+        .andExpect(jsonPath("$.content[1].id").value(laterId));
+    jdbcTemplate.update(
+        "UPDATE auctions SET state = 'SCHEDULED' WHERE id IN (?, ?)", earlierId, laterId);
+
+    cancel(ownerId, earlierId, "The earlier auction ended first.");
+    Thread.sleep(2);
+    cancel(ownerId, laterId, "The later auction ended most recently.");
+    mockMvc
+        .perform(get("/api/v1/auctions").param("state", "ENDED"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].id").value(laterId))
+        .andExpect(jsonPath("$.content[1].id").value(earlierId));
   }
 
   private UUID approvedItem(UUID ownerId) {
@@ -359,8 +536,37 @@ class AuctionHttpIntegrationTests {
         .andReturn();
   }
 
+  private void cancel(UUID ownerId, String auctionId, String reason) throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auctions/{id}/cancellation", auctionId)
+                .with(user(ownerId.toString()).authorities(tradingEligible()))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(java.util.Map.of("publicReason", reason))))
+        .andExpect(status().isOk());
+  }
+
   private SimpleGrantedAuthority tradingEligible() {
     return new SimpleGrantedAuthority("TRADING_ELIGIBLE");
+  }
+
+  private void awaitAudit(String action, UUID targetId) throws InterruptedException {
+    long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+    Integer count = 0;
+    while (System.nanoTime() < deadline) {
+      count =
+          jdbcTemplate.queryForObject(
+              "SELECT COUNT(*) FROM audit_records WHERE action = ? AND target_id = ?",
+              Integer.class,
+              action,
+              targetId);
+      if (count != null && count > 0) {
+        return;
+      }
+      Thread.sleep(25);
+    }
+    org.assertj.core.api.Assertions.assertThat(count).isGreaterThan(0);
   }
 
   private record ScheduleRequest(
@@ -372,4 +578,36 @@ class AuctionHttpIntegrationTests {
       Instant endsAt) {}
 
   private record EditableTermsRequest(Long reserveAmountCents, Instant startsAt, Instant endsAt) {}
+
+  @TestConfiguration
+  static class TestMailConfiguration {
+
+    @Bean
+    @Primary
+    RecordingMailSender recordingMailSender() {
+      return new RecordingMailSender();
+    }
+  }
+
+  static class RecordingMailSender extends JavaMailSenderImpl {
+    private final CopyOnWriteArrayList<MimeMessage> messages = new CopyOnWriteArrayList<>();
+
+    @Override
+    public void send(MimeMessage message) {
+      messages.add(message);
+    }
+
+    void clear() {
+      messages.clear();
+    }
+
+    MimeMessage awaitMessage() throws InterruptedException, MessagingException {
+      long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+      while (messages.isEmpty() && System.nanoTime() < deadline) {
+        Thread.sleep(25);
+      }
+      org.assertj.core.api.Assertions.assertThat(messages).isNotEmpty();
+      return messages.getLast();
+    }
+  }
 }
