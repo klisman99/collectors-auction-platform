@@ -25,6 +25,9 @@ vi.mock('./api/client', () => ({
   deleteDraft: vi.fn(),
   uploadDraftImage: vi.fn(),
   reorderDraftImages: vi.fn(),
+  scheduleAuction: vi.fn(),
+  submitDraft: vi.fn(),
+  updateAuctionTerms: vi.fn(),
 }));
 
 import { App } from './App';
@@ -44,6 +47,7 @@ import {
   signOut,
   verifyEmail,
   listDrafts,
+  scheduleAuction,
 } from './api/client';
 
 describe('App', () => {
@@ -64,6 +68,7 @@ describe('App', () => {
     vi.mocked(signIn).mockReset();
     vi.mocked(verifyEmail).mockReset();
     vi.mocked(listDrafts).mockResolvedValue([]);
+    vi.mocked(scheduleAuction).mockReset();
     window.history.replaceState({}, '', '/');
   });
 
@@ -109,6 +114,59 @@ describe('App', () => {
 
     expect(await screen.findByText('Welcome back, collector_27.')).toBeInTheDocument();
     expect(screen.getByText('Trading access is active.')).toBeInTheDocument();
+  });
+
+  test('publishes an approved item and previews immutable and editable auction terms', async () => {
+    vi.mocked(getAuthenticatedSession).mockResolvedValue({
+      accountId: 'seller-32', publicHandle: 'collector_32', status: 'ACTIVE', verified: true,
+      canTrade: true,
+    });
+    vi.mocked(listDrafts).mockResolvedValue([{
+      id: 'item-32', category: 'CARDS', title: 'A rare approved card',
+      description: 'A complete description for the approved collectible card.',
+      condition: 'EXCELLENT', conditionNotes: 'Excellent and carefully stored.',
+      ownershipDeclared: true, status: 'APPROVED', images: [],
+    }]);
+    vi.mocked(scheduleAuction).mockResolvedValue({
+      id: 'auction-32', itemId: 'item-32', sellerHandle: 'collector_32', state: 'SCHEDULED',
+      openingAmountCents: 10_000, minimumIncrementCents: 1_000, reserveAmountCents: 15_000,
+      reserveMet: false, startsAt: '2026-09-10T13:00:00Z', endsAt: '2026-09-10T15:00:00Z',
+      scheduledAt: '2026-09-09T12:00:00Z',
+      item: {
+        category: 'CARDS', title: 'A rare approved card',
+        description: 'A complete description for the approved collectible card.',
+        condition: 'EXCELLENT', conditionNotes: 'Excellent and carefully stored.',
+        ownershipDeclared: true, media: [],
+      },
+      policy: {
+        auctionType: 'ENGLISH_ASCENDING', currency: 'BRL', minimumAmountCents: 1_000,
+        maximumAmountCents: 100_000_000, minimumLeadSeconds: 300,
+        minimumDurationSeconds: 600, maximumDurationSeconds: 604_800,
+        protectionWindowSeconds: 120,
+      },
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Schedule auction for A rare approved card' }));
+    fireEvent.change(screen.getByLabelText('Opening amount'), { target: { value: '100.00' } });
+    fireEvent.change(screen.getByLabelText('Minimum increment'), { target: { value: '10.00' } });
+    fireEvent.change(screen.getByLabelText('Optional reserve'), { target: { value: '150.00' } });
+    fireEvent.change(screen.getByLabelText('Start in São Paulo'), { target: { value: '2026-09-10T10:00' } });
+    fireEvent.change(screen.getByLabelText('End in São Paulo'), { target: { value: '2026-09-10T12:00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Publish auction' }));
+
+    await waitFor(() => expect(scheduleAuction).toHaveBeenCalledWith({
+      itemId: 'item-32', openingAmountCents: 10_000, minimumIncrementCents: 1_000,
+      reserveAmountCents: 15_000, startsAt: '2026-09-10T13:00:00.000Z',
+      endsAt: '2026-09-10T15:00:00.000Z',
+    }));
+    expect(await screen.findByRole('heading', { name: 'Published snapshot' })).toBeInTheDocument();
+    expect(screen.getByText('Locked after publication')).toBeInTheDocument();
+    expect(screen.getByText('Editable before start')).toBeInTheDocument();
+    expect(screen.getByText('Condition notes: Excellent and carefully stored.')).toBeInTheDocument();
+    expect(screen.getByText('Ownership declared: Yes')).toBeInTheDocument();
+    expect(screen.getByText(/ENGLISH ASCENDING · BRL/)).toBeInTheDocument();
+    expect(screen.getByText(/R\$\s*100,00/)).toBeInTheDocument();
   });
 
   test('prioritizes verification link over a pending authenticated session', async () => {

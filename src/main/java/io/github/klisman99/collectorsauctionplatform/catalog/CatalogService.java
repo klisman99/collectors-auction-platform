@@ -66,6 +66,7 @@ class CatalogService {
   @Transactional
   CollectibleItem update(UUID ownerId, UUID itemId, DraftRequest request) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    assertNotAuctionLocked(item);
     if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
       throw CatalogApiException.cannotSubmit(
           "A submitted item is read-only until moderation decides it.");
@@ -79,6 +80,7 @@ class CatalogService {
   @Transactional
   void delete(UUID ownerId, UUID itemId) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    assertNotAuctionLocked(item);
     if (item.status() == CollectibleItem.Status.UNDER_REVIEW
         || item.status() == CollectibleItem.Status.APPROVED) {
       throw CatalogApiException.cannotSubmit("A submitted item cannot be deleted.");
@@ -92,6 +94,7 @@ class CatalogService {
   @Transactional
   CollectibleItemMedia addImage(UUID ownerId, UUID itemId, MultipartFile file) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    assertNotAuctionLocked(item);
     if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
       throw CatalogApiException.cannotSubmit(
           "A submitted item is read-only until moderation decides it.");
@@ -147,6 +150,7 @@ class CatalogService {
   @Transactional
   void reorder(UUID ownerId, UUID itemId, List<UUID> mediaIdsInOrder) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
+    assertNotAuctionLocked(item);
     if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
       throw CatalogApiException.cannotSubmit(
           "A submitted item is read-only until moderation decides it.");
@@ -202,6 +206,12 @@ class CatalogService {
     if (file.isEmpty() || file.getSize() > MAX_IMAGE_BYTES) {
       throw CatalogApiException.invalidImageCount(
           "Images must be non-empty and no larger than 5 MB.");
+    }
+  }
+
+  private void assertNotAuctionLocked(CollectibleItem item) {
+    if (item.isAuctionLocked()) {
+      throw CatalogApiException.auctionLocked();
     }
   }
 

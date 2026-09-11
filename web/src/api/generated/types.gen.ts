@@ -42,6 +42,57 @@ export type ImageOrder = {
     mediaIds?: Array<string>;
 };
 
+export type EditableTermsRequest = {
+    reserveAmountCents?: number;
+    startsAt: string;
+    endsAt: string;
+};
+
+export type AuctionResponse = {
+    id?: string;
+    itemId?: string;
+    sellerHandle?: string;
+    state?: string;
+    openingAmountCents?: number;
+    minimumIncrementCents?: number;
+    reserveAmountCents?: number;
+    reserveMet?: boolean;
+    startsAt?: string;
+    endsAt?: string;
+    scheduledAt?: string;
+    item?: ItemResponse;
+    policy?: PolicyResponse;
+};
+
+export type ItemResponse = {
+    category?: string;
+    otherCategoryLabel?: string;
+    title?: string;
+    description?: string;
+    condition?: string;
+    conditionNotes?: string;
+    ownershipDeclared?: boolean;
+    media?: Array<MediaResponse>;
+};
+
+export type MediaResponse = {
+    id?: string;
+    url?: string;
+    contentType?: string;
+    sortOrder?: number;
+};
+
+export type PolicyResponse = {
+    auctionType?: string;
+    currency?: string;
+    minimumAmountCents?: number;
+    maximumAmountCents?: number;
+    minimumLeadSeconds?: number;
+    minimumDurationSeconds?: number;
+    maximumDurationSeconds?: number;
+    protectionWindowSeconds?: number;
+};
+
 export type ReviewDecisionRequest = {
     publicReason: string;
     internalNote?: string;
@@ -147,6 +198,15 @@ export type OperationalAccountActivation = {
     email?: string;
     role?: string;
     status?: string;
+};
+
+export type ScheduleRequest = {
+    itemId: string;
+    openingAmountCents?: number;
+    minimumIncrementCents?: number;
+    reserveAmountCents?: number;
+    startsAt: string;
+    endsAt: string;
 };
 
 export type InviteOperationalAccountRequest = {
@@ -283,6 +343,24 @@ export type ReorderCatalogDraftImagesResponses = {
 };
 
 export type ReorderCatalogDraftImagesResponse = ReorderCatalogDraftImagesResponses[keyof ReorderCatalogDraftImagesResponses];
+
+export type UpdateAuctionTermsData = {
+    body: EditableTermsRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/auctions/{id}/terms';
+};
+
+export type UpdateAuctionTermsResponses = {
+    /**
+     * OK
+     */
+    200: AuctionResponse;
+};
+
+export type UpdateAuctionTermsResponse = UpdateAuctionTermsResponses[keyof UpdateAuctionTermsResponses];
 
 export type RejectModerationSubmissionData = {
     body: ReviewDecisionRequest;
@@ -518,6 +596,38 @@ export type ActivateOperationalAccountResponses = {
 
 export type ActivateOperationalAccountResponse = ActivateOperationalAccountResponses[keyof ActivateOperationalAccountResponses];
 
+export type ListScheduledAuctionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auctions';
+};
+
+export type ListScheduledAuctionsResponses = {
+    /**
+     * OK
+     */
+    200: Array<AuctionResponse>;
+};
+
+export type ListScheduledAuctionsResponse = ListScheduledAuctionsResponses[keyof ListScheduledAuctionsResponses];
+
+export type ScheduleAuctionData = {
+    body: ScheduleRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auctions';
+};
+
+export type ScheduleAuctionResponses = {
+    /**
+     * Created
+     */
+    201: AuctionResponse;
+};
+
+export type ScheduleAuctionResponse = ScheduleAuctionResponses[keyof ScheduleAuctionResponses];
+
 export type ListOperationalAccountsData = {
     body?: never;
     path?: never;
@@ -688,6 +798,43 @@ export type GetAuthenticatedSessionResponses = {
 };
 
 export type GetAuthenticatedSessionResponse = GetAuthenticatedSessionResponses[keyof GetAuthenticatedSessionResponses];
+
+export type GetAuctionData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/auctions/{id}';
+};
+
+export type GetAuctionResponses = {
+    /**
+     * OK
+     */
+    200: AuctionResponse;
+};
+
+export type GetAuctionResponse = GetAuctionResponses[keyof GetAuctionResponses];
+
+export type GetAuctionImageData = {
+    body?: never;
+    path: {
+        id: string;
+        mediaId: string;
+    };
+    query?: never;
+    url: '/api/v1/auctions/{id}/images/{mediaId}';
+};
+
+export type GetAuctionImageResponses = {
+    /**
+     * OK
+     */
+    200: string;
+};
+
+export type GetAuctionImageResponse = GetAuctionImageResponses[keyof GetAuctionImageResponses];
 
 export type ListAdministrativeAuditRecordsData = {
     body?: never;

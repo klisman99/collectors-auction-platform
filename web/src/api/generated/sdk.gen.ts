@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { ActivateOperationalAccountData, ActivateOperationalAccountResponses, ApproveModerationSubmissionData, ApproveModerationSubmissionResponses, CreateCatalogDraftData, CreateCatalogDraftResponses, CsrfTokenData, CsrfTokenResponses, DeactivateOperationalAccountData, DeactivateOperationalAccountResponses, DeleteCatalogDraftData, DeleteCatalogDraftResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetCatalogDraftData, GetCatalogDraftImageData, GetCatalogDraftImageResponses, GetCatalogDraftImageThumbnailData, GetCatalogDraftImageThumbnailResponses, GetCatalogDraftResponses, GetModerationSubmissionImageData, GetModerationSubmissionImageResponses, GetPlatformStatusData, GetPlatformStatusResponses, InviteOperationalAccountData, InviteOperationalAccountResponses, ListAdministrativeAuditRecordsData, ListAdministrativeAuditRecordsResponses, ListCatalogDraftsData, ListCatalogDraftsResponses, ListModerationSubmissionsData, ListModerationSubmissionsResponses, ListOperationalAccountsData, ListOperationalAccountsResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, RejectModerationSubmissionData, RejectModerationSubmissionResponses, ReorderCatalogDraftImagesData, ReorderCatalogDraftImagesResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, SubmitCatalogDraftData, SubmitCatalogDraftResponses, UpdateCatalogDraftData, UpdateCatalogDraftResponses, UploadCatalogDraftImageData, UploadCatalogDraftImageResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
+import type { ActivateOperationalAccountData, ActivateOperationalAccountResponses, ApproveModerationSubmissionData, ApproveModerationSubmissionResponses, CreateCatalogDraftData, CreateCatalogDraftResponses, CsrfTokenData, CsrfTokenResponses, DeactivateOperationalAccountData, DeactivateOperationalAccountResponses, DeleteCatalogDraftData, DeleteCatalogDraftResponses, GetAuctionData, GetAuctionImageData, GetAuctionImageResponses, GetAuctionResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetCatalogDraftData, GetCatalogDraftImageData, GetCatalogDraftImageResponses, GetCatalogDraftImageThumbnailData, GetCatalogDraftImageThumbnailResponses, GetCatalogDraftResponses, GetModerationSubmissionImageData, GetModerationSubmissionImageResponses, GetPlatformStatusData, GetPlatformStatusResponses, InviteOperationalAccountData, InviteOperationalAccountResponses, ListAdministrativeAuditRecordsData, ListAdministrativeAuditRecordsResponses, ListCatalogDraftsData, ListCatalogDraftsResponses, ListModerationSubmissionsData, ListModerationSubmissionsResponses, ListOperationalAccountsData, ListOperationalAccountsResponses, ListScheduledAuctionsData, ListScheduledAuctionsResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, RejectModerationSubmissionData, RejectModerationSubmissionResponses, ReorderCatalogDraftImagesData, ReorderCatalogDraftImagesResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, ScheduleAuctionData, ScheduleAuctionResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, SubmitCatalogDraftData, SubmitCatalogDraftResponses, UpdateAuctionTermsData, UpdateAuctionTermsResponses, UpdateCatalogDraftData, UpdateCatalogDraftResponses, UploadCatalogDraftImageData, UploadCatalogDraftImageResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -45,6 +45,18 @@ export const updateCatalogDraft = <ThrowOnError extends boolean = false>(options
  */
 export const reorderCatalogDraftImages = <ThrowOnError extends boolean = false>(options: Options<ReorderCatalogDraftImagesData, ThrowOnError>): RequestResult<ReorderCatalogDraftImagesResponses, unknown, ThrowOnError> => (options.client ?? client).put<ReorderCatalogDraftImagesResponses, unknown, ThrowOnError>({
     url: '/api/v1/catalog/drafts/{id}/images/order',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Reschedule or lower the reserve before auction start
+ */
+export const updateAuctionTerms = <ThrowOnError extends boolean = false>(options: Options<UpdateAuctionTermsData, ThrowOnError>): RequestResult<UpdateAuctionTermsResponses, unknown, ThrowOnError> => (options.client ?? client).put<UpdateAuctionTermsResponses, unknown, ThrowOnError>({
+    url: '/api/v1/auctions/{id}/terms',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -187,6 +199,23 @@ export const activateOperationalAccount = <ThrowOnError extends boolean = false>
 });
 
 /**
+ * List published scheduled auctions
+ */
+export const listScheduledAuctions = <ThrowOnError extends boolean = false>(options?: Options<ListScheduledAuctionsData, ThrowOnError>): RequestResult<ListScheduledAuctionsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListScheduledAuctionsResponses, unknown, ThrowOnError>({ url: '/api/v1/auctions', ...options });
+
+/**
+ * Publish an approved collectible auction
+ */
+export const scheduleAuction = <ThrowOnError extends boolean = false>(options: Options<ScheduleAuctionData, ThrowOnError>): RequestResult<ScheduleAuctionResponses, unknown, ThrowOnError> => (options.client ?? client).post<ScheduleAuctionResponses, unknown, ThrowOnError>({
+    url: '/api/v1/auctions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * List operational accounts for administrators
  */
 export const listOperationalAccounts = <ThrowOnError extends boolean = false>(options?: Options<ListOperationalAccountsData, ThrowOnError>): RequestResult<ListOperationalAccountsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListOperationalAccountsResponses, unknown, ThrowOnError>({ url: '/api/v1/admin/operational-accounts', ...options });
@@ -246,6 +275,16 @@ export const getCatalogDraftImageThumbnail = <ThrowOnError extends boolean = fal
  * Read the authenticated account state
  */
 export const getAuthenticatedSession = <ThrowOnError extends boolean = false>(options?: Options<GetAuthenticatedSessionData, ThrowOnError>): RequestResult<GetAuthenticatedSessionResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetAuthenticatedSessionResponses, unknown, ThrowOnError>({ url: '/api/v1/auth/session', ...options });
+
+/**
+ * Read a published auction snapshot
+ */
+export const getAuction = <ThrowOnError extends boolean = false>(options: Options<GetAuctionData, ThrowOnError>): RequestResult<GetAuctionResponses, unknown, ThrowOnError> => (options.client ?? client).get<GetAuctionResponses, unknown, ThrowOnError>({ url: '/api/v1/auctions/{id}', ...options });
+
+/**
+ * Read an image from the published item snapshot
+ */
+export const getAuctionImage = <ThrowOnError extends boolean = false>(options: Options<GetAuctionImageData, ThrowOnError>): RequestResult<GetAuctionImageResponses, unknown, ThrowOnError> => (options.client ?? client).get<GetAuctionImageResponses, unknown, ThrowOnError>({ url: '/api/v1/auctions/{id}/images/{mediaId}', ...options });
 
 /**
  * List the administrator audit summary

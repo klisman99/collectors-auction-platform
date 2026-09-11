@@ -20,5 +20,16 @@ public class AccountDirectory {
     return new AccountContact(account.id(), account.normalizedEmail(), account.publicHandle());
   }
 
+  @Transactional(readOnly = true)
+  public TradingAccount tradingAccount(UUID accountId) {
+    RegularAccount account = accounts.findById(accountId).orElseThrow();
+    return new TradingAccount(
+        account.id(),
+        account.publicHandle(),
+        account.status() == AccountStatus.ACTIVE && account.isVerified());
+  }
+
   public record AccountContact(UUID accountId, String email, String publicHandle) {}
+
+  public record TradingAccount(UUID accountId, String publicHandle, boolean eligible) {}
 }
