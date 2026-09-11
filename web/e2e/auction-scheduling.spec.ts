@@ -1,10 +1,15 @@
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { type APIRequestContext, expect, type Page, test } from '@playwright/test';
 
 const mailpitUrl = process.env.MAILPIT_URL ?? 'http://127.0.0.1:8025';
 const administratorEmail = process.env.INITIAL_ADMINISTRATOR_EMAIL ?? 'admin-e2e@example.com';
-const administratorPassword = process.env.INITIAL_ADMINISTRATOR_PASSWORD ?? 'e2e administrator password';
+const administratorPassword =
+  process.env.INITIAL_ADMINISTRATOR_PASSWORD ?? 'e2e administrator password';
 
-test('seller publishes an approved collectible with an immutable preview', async ({ browser, page, request }) => {
+test('seller publishes an approved collectible with an immutable preview', async ({
+  browser,
+  page,
+  request,
+}) => {
   test.setTimeout(90_000);
   const unique = Date.now();
   const email = `auction-seller-${unique}@example.com`;
@@ -24,14 +29,21 @@ test('seller publishes an approved collectible with an immutable preview', async
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   await page.getByLabel('Draft title').fill(title);
-  await page.getByLabel('Description').fill('A complete description of this rare physical collector card.');
-  await page.getByLabel('Condition notes').fill('Excellent condition with careful archival storage.');
+  await page
+    .getByLabel('Description')
+    .fill('A complete description of this rare physical collector card.');
+  await page
+    .getByLabel('Condition notes')
+    .fill('Excellent condition with careful archival storage.');
   await page.getByLabel('Ownership declaration').check();
   await page.getByRole('button', { name: 'Create draft' }).click();
   await page.getByLabel('Draft image').setInputFiles({
     name: 'collector-card.png',
     mimeType: 'image/png',
-    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFElEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64'),
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFElEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==',
+      'base64',
+    ),
   });
   await expect(page.getByText('1/5 images')).toBeVisible();
   await page.getByRole('button', { name: 'Submit for review' }).click();
@@ -87,13 +99,15 @@ function saoPauloInput(value: Date): string {
     minute: '2-digit',
     hour12: false,
     timeZone: 'America/Sao_Paulo',
-  }).format(value).replace(' ', 'T');
+  })
+    .format(value)
+    .replace(' ', 'T');
 }
 
 async function mailpitMessageIds(request: APIRequestContext): Promise<Set<string>> {
   const response = await request.get(`${mailpitUrl}/api/v1/messages`);
   if (!response.ok()) return new Set();
-  const body = await response.json() as { messages?: Array<{ ID: string }> };
+  const body = (await response.json()) as { messages?: Array<{ ID: string }> };
   return new Set((body.messages ?? []).map((message) => message.ID));
 }
 
@@ -103,21 +117,27 @@ async function mailpitLink(
   ignoredMessageIds: Set<string>,
 ): Promise<string> {
   let link = '';
-  await expect.poll(async () => {
-    const response = await request.get(`${mailpitUrl}/api/v1/messages`);
-    if (!response.ok()) return '';
-    const body = await response.json() as { messages?: Array<{ ID: string }> };
-    for (const message of body.messages ?? []) {
-      if (ignoredMessageIds.has(message.ID)) continue;
-      const detail = await request.get(`${mailpitUrl}/api/v1/message/${message.ID}`);
-      if (!detail.ok()) continue;
-      const content = await detail.json() as { HTML?: string; Text?: string };
-      link = `${content.HTML ?? ''}\n${content.Text ?? ''}`.match(
-        new RegExp(`https?:\\/\\/[^\\s"<>]+${queryParameter}=[^\\s"<>]+`),
-      )?.[0] ?? '';
-      if (link !== '') return link;
-    }
-    return '';
-  }, { timeout: 30_000 }).not.toBe('');
+  await expect
+    .poll(
+      async () => {
+        const response = await request.get(`${mailpitUrl}/api/v1/messages`);
+        if (!response.ok()) return '';
+        const body = (await response.json()) as { messages?: Array<{ ID: string }> };
+        for (const message of body.messages ?? []) {
+          if (ignoredMessageIds.has(message.ID)) continue;
+          const detail = await request.get(`${mailpitUrl}/api/v1/message/${message.ID}`);
+          if (!detail.ok()) continue;
+          const content = (await detail.json()) as { HTML?: string; Text?: string };
+          link =
+            `${content.HTML ?? ''}\n${content.Text ?? ''}`.match(
+              new RegExp(`https?:\\/\\/[^\\s"<>]+${queryParameter}=[^\\s"<>]+`),
+            )?.[0] ?? '';
+          if (link !== '') return link;
+        }
+        return '';
+      },
+      { timeout: 30_000 },
+    )
+    .not.toBe('');
   return link;
 }
