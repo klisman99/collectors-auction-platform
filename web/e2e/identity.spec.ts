@@ -1,8 +1,12 @@
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { type APIRequestContext, expect, test } from '@playwright/test';
 
 const mailpitUrl = process.env.MAILPIT_URL ?? 'http://127.0.0.1:8025';
 
-test('recovers a password and rejects every existing session on its next request', async ({ browser, page, request }) => {
+test('recovers a password and rejects every existing session on its next request', async ({
+  browser,
+  page,
+  request,
+}) => {
   const email = `collector-${Date.now()}@example.com`;
   const password = 'a secure passphrase';
 
@@ -51,9 +55,13 @@ test('recovers a password and rejects every existing session on its next request
     await expect(recoveryPage.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Start collecting with confidence.' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Start collecting with confidence.' }),
+    ).toBeVisible();
     await existingSessionPage.reload();
-    await expect(existingSessionPage.getByRole('heading', { name: 'Start collecting with confidence.' })).toBeVisible();
+    await expect(
+      existingSessionPage.getByRole('heading', { name: 'Start collecting with confidence.' }),
+    ).toBeVisible();
 
     await recoveryPage.getByLabel('Email address').fill(email);
     await recoveryPage.getByLabel('Password').fill(newPassword);
@@ -67,20 +75,26 @@ test('recovers a password and rejects every existing session on its next request
 
 async function mailpitLink(request: APIRequestContext, queryParameter: string): Promise<string> {
   let link = '';
-  await expect.poll(async () => {
-    const response = await request.get(`${mailpitUrl}/api/v1/messages`);
-    if (!response.ok()) return '';
-    const body = await response.json() as { messages?: Array<{ ID: string }> };
-    for (const message of body.messages ?? []) {
-      const detail = await request.get(`${mailpitUrl}/api/v1/message/${message.ID}`);
-      if (!detail.ok()) continue;
-      const content = await detail.json() as { HTML?: string; Text?: string };
-      link = `${content.HTML ?? ''}\n${content.Text ?? ''}`.match(
-        new RegExp(`https?:\\/\\/[^\\s"<>]+${queryParameter}=[^\\s"<>]+`),
-      )?.[0] ?? '';
-      if (link !== '') return link;
-    }
-    return '';
-  }, { timeout: 30_000 }).not.toBe('');
+  await expect
+    .poll(
+      async () => {
+        const response = await request.get(`${mailpitUrl}/api/v1/messages`);
+        if (!response.ok()) return '';
+        const body = (await response.json()) as { messages?: Array<{ ID: string }> };
+        for (const message of body.messages ?? []) {
+          const detail = await request.get(`${mailpitUrl}/api/v1/message/${message.ID}`);
+          if (!detail.ok()) continue;
+          const content = (await detail.json()) as { HTML?: string; Text?: string };
+          link =
+            `${content.HTML ?? ''}\n${content.Text ?? ''}`.match(
+              new RegExp(`https?:\\/\\/[^\\s"<>]+${queryParameter}=[^\\s"<>]+`),
+            )?.[0] ?? '';
+          if (link !== '') return link;
+        }
+        return '';
+      },
+      { timeout: 30_000 },
+    )
+    .not.toBe('');
   return link;
 }

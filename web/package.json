@@ -12,12 +12,16 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
-    "format:check": "node scripts/check-format.mjs",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "check": "biome check --write .",
+    "check:ci": "biome ci .",
     "openapi:generate": "node codegen/generate.mjs",
     "contract:check": "node scripts/check-contract-drift.mjs",
     "test": "vitest run",
     "e2e": "playwright test",
-    "ci": "npm run format:check && npm run typecheck && npm run test && npm run build"
+    "ci": "npm run check:ci && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
     "@headlessui/react": "2.2.10",
@@ -25,6 +29,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.13",
     "@playwright/test": "1.62.1",
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/jest-dom": "7.0.1",

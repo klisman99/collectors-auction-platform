@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 const webRoot = resolve(import.meta.dirname, '..');
 const expectedRoot = join(webRoot, 'src/api/generated');

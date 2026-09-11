@@ -1,19 +1,19 @@
 import { client } from './generated/client.gen';
 import {
   activateOperationalAccount as activateOperationalAccountCommand,
-  csrfToken as requestCsrfToken,
   deactivateOperationalAccount as deactivateOperationalAccountCommand,
-  getAuthenticatedSession as requestAuthenticatedSession,
-  getPlatformStatus as requestPlatformStatus,
   inviteOperationalAccount as inviteOperationalAccountCommand,
-  listAdministrativeAuditRecords as requestAdministrativeAuditRecords,
-  listOperationalAccounts as requestOperationalAccounts,
   registerRegularAccount,
+  listAdministrativeAuditRecords as requestAdministrativeAuditRecords,
+  getAuthenticatedSession as requestAuthenticatedSession,
+  csrfToken as requestCsrfToken,
+  listOperationalAccounts as requestOperationalAccounts,
   requestPasswordRecovery as requestPasswordRecoveryCommand,
+  getPlatformStatus as requestPlatformStatus,
   resetPassword as resetPasswordCommand,
   revokeAllSessions as revokeAllSessionsCommand,
-  signOut as signOutCommand,
   signInRegularAccount,
+  signOut as signOutCommand,
   verifyRegularAccountEmail,
 } from './generated/sdk.gen';
 import type {
@@ -26,13 +26,13 @@ import type {
   OperationalAccount,
   OperationalAccountActivation,
   OperationalAccountView,
+  PasswordRecoveryRequest,
+  PasswordRecoveryRequestAccepted,
+  PasswordReset,
+  PasswordResetRequest,
   PlatformStatus,
   Registration,
   RegistrationRequest,
-  PasswordRecoveryRequest,
-  PasswordRecoveryRequestAccepted,
-  PasswordResetRequest,
-  PasswordReset,
   SignInRequest,
 } from './generated/types.gen';
 
@@ -55,19 +55,101 @@ export type {
   SignInRequest,
 } from './generated/types.gen';
 
-export type Category = 'CARDS' | 'COINS_AND_CURRENCY' | 'STAMPS' | 'COMICS_AND_BOOKS' | 'TOYS_AND_FIGURES' | 'MEMORABILIA' | 'ART_AND_ANTIQUES' | 'OTHER';
-export type Condition = 'NEW_SEALED' | 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'FAIR' | 'POOR' | 'NOT_APPLICABLE';
-export type DraftInput = { category: Category; otherCategoryLabel?: string; title: string; description: string; condition: Condition; conditionNotes: string; ownershipDeclared: boolean };
-export type Draft = DraftInput & { id: string; status: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED'; submissionReason?: string; images: Array<{ id: string; url: string; thumbnailUrl: string; contentType: string; sortOrder: number }> };
-export type ModerationSubmission = { id: string; category: string; otherCategoryLabel?: string; title: string; description: string; condition: string; conditionNotes: string; ownershipDeclared: boolean; submittedAt: string; images: Array<{ id: string; url: string; contentType: string; sortOrder: number }> };
-export type AuctionInput = { itemId: string; openingAmountCents: number; minimumIncrementCents: number; reserveAmountCents?: number; startsAt: string; endsAt: string };
-export type EditableAuctionTerms = { reserveAmountCents?: number; startsAt: string; endsAt: string };
+export type Category =
+  | 'CARDS'
+  | 'COINS_AND_CURRENCY'
+  | 'STAMPS'
+  | 'COMICS_AND_BOOKS'
+  | 'TOYS_AND_FIGURES'
+  | 'MEMORABILIA'
+  | 'ART_AND_ANTIQUES'
+  | 'OTHER';
+export type Condition =
+  | 'NEW_SEALED'
+  | 'EXCELLENT'
+  | 'VERY_GOOD'
+  | 'GOOD'
+  | 'FAIR'
+  | 'POOR'
+  | 'NOT_APPLICABLE';
+export type DraftInput = {
+  category: Category;
+  otherCategoryLabel?: string;
+  title: string;
+  description: string;
+  condition: Condition;
+  conditionNotes: string;
+  ownershipDeclared: boolean;
+};
+export type Draft = DraftInput & {
+  id: string;
+  status: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED';
+  submissionReason?: string;
+  images: Array<{
+    id: string;
+    url: string;
+    thumbnailUrl: string;
+    contentType: string;
+    sortOrder: number;
+  }>;
+};
+export type ModerationSubmission = {
+  id: string;
+  category: string;
+  otherCategoryLabel?: string;
+  title: string;
+  description: string;
+  condition: string;
+  conditionNotes: string;
+  ownershipDeclared: boolean;
+  submittedAt: string;
+  images: Array<{ id: string; url: string; contentType: string; sortOrder: number }>;
+};
+export type AuctionInput = {
+  itemId: string;
+  openingAmountCents: number;
+  minimumIncrementCents: number;
+  reserveAmountCents?: number;
+  startsAt: string;
+  endsAt: string;
+};
+export type EditableAuctionTerms = {
+  reserveAmountCents?: number;
+  startsAt: string;
+  endsAt: string;
+};
 export type Auction = {
-  id: string; itemId: string; sellerHandle: string; state: 'SCHEDULED'; openingAmountCents: number;
-  minimumIncrementCents: number; reserveAmountCents?: number; reserveMet: boolean; startsAt: string;
-  endsAt: string; scheduledAt: string;
-  item: { category: string; otherCategoryLabel?: string; title: string; description: string; condition: string; conditionNotes: string; ownershipDeclared: boolean; media: Array<{ id: string; url: string; contentType: string; sortOrder: number }> };
-  policy: { auctionType: 'ENGLISH_ASCENDING'; currency: 'BRL'; minimumAmountCents: number; maximumAmountCents: number; minimumLeadSeconds: number; minimumDurationSeconds: number; maximumDurationSeconds: number; protectionWindowSeconds: number };
+  id: string;
+  itemId: string;
+  sellerHandle: string;
+  state: 'SCHEDULED';
+  openingAmountCents: number;
+  minimumIncrementCents: number;
+  reserveAmountCents?: number;
+  reserveMet: boolean;
+  startsAt: string;
+  endsAt: string;
+  scheduledAt: string;
+  item: {
+    category: string;
+    otherCategoryLabel?: string;
+    title: string;
+    description: string;
+    condition: string;
+    conditionNotes: string;
+    ownershipDeclared: boolean;
+    media: Array<{ id: string; url: string; contentType: string; sortOrder: number }>;
+  };
+  policy: {
+    auctionType: 'ENGLISH_ASCENDING';
+    currency: 'BRL';
+    minimumAmountCents: number;
+    maximumAmountCents: number;
+    minimumLeadSeconds: number;
+    minimumDurationSeconds: number;
+    maximumDurationSeconds: number;
+    protectionWindowSeconds: number;
+  };
 };
 
 client.setConfig({ baseUrl: '/', credentials: 'same-origin' });
@@ -107,7 +189,10 @@ export async function registerAccount(input: RegistrationRequest): Promise<Regis
 }
 
 export async function verifyEmail(token: string): Promise<EmailVerification> {
-  const { data, error } = await verifyRegularAccountEmail({ body: { token }, ...(await csrfHeaders()) });
+  const { data, error } = await verifyRegularAccountEmail({
+    body: { token },
+    ...(await csrfHeaders()),
+  });
   return required(data, error, 'Email verification could not be completed.');
 }
 
@@ -116,8 +201,13 @@ export async function signIn(input: SignInRequest): Promise<AuthenticatedSession
   return required(data, error, 'Sign-in could not be completed.');
 }
 
-export async function requestPasswordRecovery(input: PasswordRecoveryRequest): Promise<PasswordRecoveryRequestAccepted> {
-  const { data, error } = await requestPasswordRecoveryCommand({ body: input, ...(await csrfHeaders()) });
+export async function requestPasswordRecovery(
+  input: PasswordRecoveryRequest,
+): Promise<PasswordRecoveryRequestAccepted> {
+  const { data, error } = await requestPasswordRecoveryCommand({
+    body: input,
+    ...(await csrfHeaders()),
+  });
   return required(data, error, 'Password recovery could not be requested.');
 }
 
@@ -126,13 +216,23 @@ export async function resetPassword(input: PasswordResetRequest): Promise<Passwo
   return required(data, error, 'Password could not be reset.');
 }
 
-export async function activateOperationalAccount(input: ActivateOperationalAccountRequest): Promise<OperationalAccountActivation> {
-  const { data, error } = await activateOperationalAccountCommand({ body: input, ...(await csrfHeaders()) });
+export async function activateOperationalAccount(
+  input: ActivateOperationalAccountRequest,
+): Promise<OperationalAccountActivation> {
+  const { data, error } = await activateOperationalAccountCommand({
+    body: input,
+    ...(await csrfHeaders()),
+  });
   return required(data, error, 'Operational account activation could not be completed.');
 }
 
-export async function inviteOperationalAccount(input: InviteOperationalAccountRequest): Promise<OperationalAccount> {
-  const { data, error } = await inviteOperationalAccountCommand({ body: input, ...(await csrfHeaders()) });
+export async function inviteOperationalAccount(
+  input: InviteOperationalAccountRequest,
+): Promise<OperationalAccount> {
+  const { data, error } = await inviteOperationalAccountCommand({
+    body: input,
+    ...(await csrfHeaders()),
+  });
   return required(data, error, 'Operational account invitation could not be sent.');
 }
 
@@ -141,7 +241,10 @@ export async function getOperationalAccounts(): Promise<OperationalAccountView[]
   return required(data, error, 'Operational accounts could not be loaded.');
 }
 
-export async function deactivateOperationalAccount(accountId: string, input: DeactivateOperationalAccountRequest): Promise<void> {
+export async function deactivateOperationalAccount(
+  accountId: string,
+  input: DeactivateOperationalAccountRequest,
+): Promise<void> {
   const { error } = await deactivateOperationalAccountCommand({
     body: input,
     path: { accountId },
@@ -192,7 +295,10 @@ export async function scheduleAuction(input: AuctionInput): Promise<Auction> {
   return auctionRequest('/api/v1/auctions', 'POST', input);
 }
 
-export async function updateAuctionTerms(id: string, input: EditableAuctionTerms): Promise<Auction> {
+export async function updateAuctionTerms(
+  id: string,
+  input: EditableAuctionTerms,
+): Promise<Auction> {
   return auctionRequest(`/api/v1/auctions/${id}/terms`, 'PUT', input);
 }
 
@@ -206,29 +312,67 @@ export async function approveModerationSubmission(id: string): Promise<Moderatio
   return moderationRequest(`/api/v1/moderation/submissions/${id}/approve`, 'POST');
 }
 
-export async function rejectModerationSubmission(id: string, publicReason: string): Promise<ModerationSubmission> {
+export async function rejectModerationSubmission(
+  id: string,
+  publicReason: string,
+): Promise<ModerationSubmission> {
   return moderationRequest(`/api/v1/moderation/submissions/${id}/reject`, 'POST', { publicReason });
 }
 
-export async function deleteDraft(id: string): Promise<void> { await emptyDraftRequest(`/api/v1/catalog/drafts/${id}`, 'DELETE'); }
-export async function uploadDraftImage(id: string, file: File): Promise<Draft['images'][number]> {
-  const csrf = await csrfHeaders(); const form = new FormData(); form.append('file', file);
-  const response = await fetch(`/api/v1/catalog/drafts/${id}/images`, { method: 'POST', credentials: 'same-origin', headers: csrf.headers, body: form });
-  if (!response.ok) throw await apiError(response, 'The image could not be uploaded.'); return response.json() as Promise<Draft['images'][number]>;
+export async function deleteDraft(id: string): Promise<void> {
+  await emptyDraftRequest(`/api/v1/catalog/drafts/${id}`, 'DELETE');
 }
-export async function reorderDraftImages(id: string, mediaIds: string[]): Promise<void> { await emptyDraftRequest(`/api/v1/catalog/drafts/${id}/images/order`, 'PUT', { mediaIds }); }
-async function emptyDraftRequest(url: string, method: string, body?: unknown): Promise<void> { const csrf = await csrfHeaders(); const response = await fetch(url, { method, credentials: 'same-origin', headers: { ...csrf.headers, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }); if (!response.ok) throw await apiError(response, 'The draft could not be changed.'); }
+export async function uploadDraftImage(id: string, file: File): Promise<Draft['images'][number]> {
+  const csrf = await csrfHeaders();
+  const form = new FormData();
+  form.append('file', file);
+  const response = await fetch(`/api/v1/catalog/drafts/${id}/images`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: csrf.headers,
+    body: form,
+  });
+  if (!response.ok) throw await apiError(response, 'The image could not be uploaded.');
+  return response.json() as Promise<Draft['images'][number]>;
+}
+export async function reorderDraftImages(id: string, mediaIds: string[]): Promise<void> {
+  await emptyDraftRequest(`/api/v1/catalog/drafts/${id}/images/order`, 'PUT', { mediaIds });
+}
+async function emptyDraftRequest(url: string, method: string, body?: unknown): Promise<void> {
+  const csrf = await csrfHeaders();
+  const response = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: { ...csrf.headers, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) throw await apiError(response, 'The draft could not be changed.');
+}
 
 async function draftRequest(url: string, method: string, body?: unknown): Promise<Draft> {
   const csrf = await csrfHeaders();
-  const response = await fetch(url, { method, credentials: 'same-origin', headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...csrf.headers }, body: body ? JSON.stringify(body) : undefined });
+  const response = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...csrf.headers },
+    body: body ? JSON.stringify(body) : undefined,
+  });
   if (!response.ok) throw await apiError(response, 'Draft could not be saved.');
   return response.json() as Promise<Draft>;
 }
 
-async function moderationRequest(url: string, method: string, body?: unknown): Promise<ModerationSubmission> {
+async function moderationRequest(
+  url: string,
+  method: string,
+  body?: unknown,
+): Promise<ModerationSubmission> {
   const csrf = await csrfHeaders();
-  const response = await fetch(url, { method, credentials: 'same-origin', headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...csrf.headers }, body: body ? JSON.stringify(body) : undefined });
+  const response = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...csrf.headers },
+    body: body ? JSON.stringify(body) : undefined,
+  });
   if (!response.ok) throw await apiError(response, 'The moderation decision could not be saved.');
   return response.json() as Promise<ModerationSubmission>;
 }

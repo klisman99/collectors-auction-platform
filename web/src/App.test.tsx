@@ -32,22 +32,22 @@ vi.mock('./api/client', () => ({
 
 import { App } from './App';
 import {
-  activateOperationalAccount,
   ApiError,
+  activateOperationalAccount,
   deactivateOperationalAccount,
   getAdministrativeAuditRecords,
   getAuthenticatedSession,
   getOperationalAccounts,
   inviteOperationalAccount,
+  listDrafts,
   registerAccount,
   requestPasswordRecovery,
   resetPassword,
   revokeAllSessions,
+  scheduleAuction,
   signIn,
   signOut,
   verifyEmail,
-  listDrafts,
-  scheduleAuction,
 } from './api/client';
 
 describe('App', () => {
@@ -80,27 +80,42 @@ describe('App', () => {
 
     expect(await screen.findByText('Enter a valid email address.')).toBeInTheDocument();
     expect(screen.getByText('Use 3–30 letters, numbers, or underscores.')).toBeInTheDocument();
-    expect(screen.getByText('Password must contain between 12 and 128 characters.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Password must contain between 12 and 128 characters.'),
+    ).toBeInTheDocument();
     expect(registerAccount).not.toHaveBeenCalled();
   });
 
   test('moves from successful registration to verification', async () => {
-    vi.mocked(registerAccount).mockResolvedValue({ publicHandle: 'collector_27', status: 'PENDING_VERIFICATION' });
+    vi.mocked(registerAccount).mockResolvedValue({
+      publicHandle: 'collector_27',
+      status: 'PENDING_VERIFICATION',
+    });
     render(<App />);
 
     await screen.findByRole('heading', { name: 'Start collecting with confidence.' });
-    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'collector@example.com' } });
+    fireEvent.change(screen.getByLabelText('Email address'), {
+      target: { value: 'collector@example.com' },
+    });
     fireEvent.change(screen.getByLabelText('Public handle'), { target: { value: 'collector_27' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a secure passphrase' } });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'a secure passphrase' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
-    await waitFor(() => expect(registerAccount).toHaveBeenCalledWith({
-      email: 'collector@example.com',
-      publicHandle: 'collector_27',
-      password: 'a secure passphrase',
-    }));
+    await waitFor(() =>
+      expect(registerAccount).toHaveBeenCalledWith({
+        email: 'collector@example.com',
+        publicHandle: 'collector_27',
+        password: 'a secure passphrase',
+      }),
+    );
     expect(await screen.findByRole('heading', { name: 'Verify your email' })).toBeInTheDocument();
-    expect(screen.getByText('Registration received. Check Mailpit for your single-use verification link.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Registration received. Check Mailpit for your single-use verification link.',
+      ),
+    ).toBeInTheDocument();
   });
 
   test('shows verified authenticated home state', async () => {
@@ -118,52 +133,89 @@ describe('App', () => {
 
   test('publishes an approved item and previews immutable and editable auction terms', async () => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue({
-      accountId: 'seller-32', publicHandle: 'collector_32', status: 'ACTIVE', verified: true,
+      accountId: 'seller-32',
+      publicHandle: 'collector_32',
+      status: 'ACTIVE',
+      verified: true,
       canTrade: true,
     });
-    vi.mocked(listDrafts).mockResolvedValue([{
-      id: 'item-32', category: 'CARDS', title: 'A rare approved card',
-      description: 'A complete description for the approved collectible card.',
-      condition: 'EXCELLENT', conditionNotes: 'Excellent and carefully stored.',
-      ownershipDeclared: true, status: 'APPROVED', images: [],
-    }]);
+    vi.mocked(listDrafts).mockResolvedValue([
+      {
+        id: 'item-32',
+        category: 'CARDS',
+        title: 'A rare approved card',
+        description: 'A complete description for the approved collectible card.',
+        condition: 'EXCELLENT',
+        conditionNotes: 'Excellent and carefully stored.',
+        ownershipDeclared: true,
+        status: 'APPROVED',
+        images: [],
+      },
+    ]);
     vi.mocked(scheduleAuction).mockResolvedValue({
-      id: 'auction-32', itemId: 'item-32', sellerHandle: 'collector_32', state: 'SCHEDULED',
-      openingAmountCents: 10_000, minimumIncrementCents: 1_000, reserveAmountCents: 15_000,
-      reserveMet: false, startsAt: '2026-09-10T13:00:00Z', endsAt: '2026-09-10T15:00:00Z',
+      id: 'auction-32',
+      itemId: 'item-32',
+      sellerHandle: 'collector_32',
+      state: 'SCHEDULED',
+      openingAmountCents: 10_000,
+      minimumIncrementCents: 1_000,
+      reserveAmountCents: 15_000,
+      reserveMet: false,
+      startsAt: '2026-09-10T13:00:00Z',
+      endsAt: '2026-09-10T15:00:00Z',
       scheduledAt: '2026-09-09T12:00:00Z',
       item: {
-        category: 'CARDS', title: 'A rare approved card',
+        category: 'CARDS',
+        title: 'A rare approved card',
         description: 'A complete description for the approved collectible card.',
-        condition: 'EXCELLENT', conditionNotes: 'Excellent and carefully stored.',
-        ownershipDeclared: true, media: [],
+        condition: 'EXCELLENT',
+        conditionNotes: 'Excellent and carefully stored.',
+        ownershipDeclared: true,
+        media: [],
       },
       policy: {
-        auctionType: 'ENGLISH_ASCENDING', currency: 'BRL', minimumAmountCents: 1_000,
-        maximumAmountCents: 100_000_000, minimumLeadSeconds: 300,
-        minimumDurationSeconds: 600, maximumDurationSeconds: 604_800,
+        auctionType: 'ENGLISH_ASCENDING',
+        currency: 'BRL',
+        minimumAmountCents: 1_000,
+        maximumAmountCents: 100_000_000,
+        minimumLeadSeconds: 300,
+        minimumDurationSeconds: 600,
+        maximumDurationSeconds: 604_800,
         protectionWindowSeconds: 120,
       },
     });
     render(<App />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Schedule auction for A rare approved card' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Schedule auction for A rare approved card' }),
+    );
     fireEvent.change(screen.getByLabelText('Opening amount'), { target: { value: '100.00' } });
     fireEvent.change(screen.getByLabelText('Minimum increment'), { target: { value: '10.00' } });
     fireEvent.change(screen.getByLabelText('Optional reserve'), { target: { value: '150.00' } });
-    fireEvent.change(screen.getByLabelText('Start in São Paulo'), { target: { value: '2026-09-10T10:00' } });
-    fireEvent.change(screen.getByLabelText('End in São Paulo'), { target: { value: '2026-09-10T12:00' } });
+    fireEvent.change(screen.getByLabelText('Start in São Paulo'), {
+      target: { value: '2026-09-10T10:00' },
+    });
+    fireEvent.change(screen.getByLabelText('End in São Paulo'), {
+      target: { value: '2026-09-10T12:00' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Publish auction' }));
 
-    await waitFor(() => expect(scheduleAuction).toHaveBeenCalledWith({
-      itemId: 'item-32', openingAmountCents: 10_000, minimumIncrementCents: 1_000,
-      reserveAmountCents: 15_000, startsAt: '2026-09-10T13:00:00.000Z',
-      endsAt: '2026-09-10T15:00:00.000Z',
-    }));
+    await waitFor(() =>
+      expect(scheduleAuction).toHaveBeenCalledWith({
+        itemId: 'item-32',
+        openingAmountCents: 10_000,
+        minimumIncrementCents: 1_000,
+        reserveAmountCents: 15_000,
+        startsAt: '2026-09-10T13:00:00.000Z',
+        endsAt: '2026-09-10T15:00:00.000Z',
+      }),
+    );
     expect(await screen.findByRole('heading', { name: 'Published snapshot' })).toBeInTheDocument();
     expect(screen.getByText('Locked after publication')).toBeInTheDocument();
     expect(screen.getByText('Editable before start')).toBeInTheDocument();
-    expect(screen.getByText('Condition notes: Excellent and carefully stored.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Condition notes: Excellent and carefully stored.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Ownership declared: Yes')).toBeInTheDocument();
     expect(screen.getByText(/ENGLISH ASCENDING · BRL/)).toBeInTheDocument();
     expect(screen.getByText(/R\$\s*100,00/)).toBeInTheDocument();
@@ -171,11 +223,17 @@ describe('App', () => {
 
   test('prioritizes verification link over a pending authenticated session', async () => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue({
-      publicHandle: 'collector_27', status: 'PENDING_VERIFICATION', verified: false, canTrade: false,
+      publicHandle: 'collector_27',
+      status: 'PENDING_VERIFICATION',
+      verified: false,
+      canTrade: false,
     });
     vi.mocked(verifyEmail).mockResolvedValue({ publicHandle: 'collector_27', status: 'ACTIVE' });
     vi.mocked(signIn).mockResolvedValue({
-      publicHandle: 'collector_27', status: 'ACTIVE', verified: true, canTrade: true,
+      publicHandle: 'collector_27',
+      status: 'ACTIVE',
+      verified: true,
+      canTrade: true,
     });
     window.history.replaceState({}, '', '/?verificationToken=token-27');
     render(<App />);
@@ -185,8 +243,12 @@ describe('App', () => {
     await waitFor(() => expect(verifyEmail).toHaveBeenCalledWith('token-27'));
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'collector@example.com' } });
-    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a secure passphrase' } });
+    fireEvent.change(screen.getByLabelText('Email address'), {
+      target: { value: 'collector@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'a secure passphrase' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     expect(await screen.findByText('Trading access is active.')).toBeInTheDocument();
   });
@@ -200,7 +262,9 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Verify email' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('invalid, expired, or has already been used');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'invalid, expired, or has already been used',
+    );
   });
 
   test('requests password recovery without revealing whether the email exists', async () => {
@@ -210,11 +274,17 @@ describe('App', () => {
     await screen.findByRole('heading', { name: 'Start collecting with confidence.' });
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
     fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }));
-    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'collector@example.com' } });
+    fireEvent.change(screen.getByLabelText('Email address'), {
+      target: { value: 'collector@example.com' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Send recovery link' }));
 
-    await waitFor(() => expect(requestPasswordRecovery).toHaveBeenCalledWith({ email: 'collector@example.com' }));
-    expect(await screen.findByRole('status')).toHaveTextContent('If an account exists for that email, a recovery link is on its way.');
+    await waitFor(() =>
+      expect(requestPasswordRecovery).toHaveBeenCalledWith({ email: 'collector@example.com' }),
+    );
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'If an account exists for that email, a recovery link is on its way.',
+    );
   });
 
   test('consumes a recovery link and returns to sign in after resetting the password', async () => {
@@ -223,88 +293,156 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Reset your password' })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a replacement password' } });
-    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'a replacement password' } });
+    fireEvent.change(screen.getByLabelText('New password'), {
+      target: { value: 'a replacement password' },
+    });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), {
+      target: { value: 'a replacement password' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Reset password' }));
 
-    await waitFor(() => expect(resetPassword).toHaveBeenCalledWith({
-      token: 'recovery-token-28',
-      password: 'a replacement password',
-    }));
+    await waitFor(() =>
+      expect(resetPassword).toHaveBeenCalledWith({
+        token: 'recovery-token-28',
+        password: 'a replacement password',
+      }),
+    );
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Your password has been reset. Sign in with your new password.');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Your password has been reset. Sign in with your new password.',
+    );
   });
 
   test('activates an operational account from its single-use link', async () => {
     vi.mocked(activateOperationalAccount).mockResolvedValue({
-      email: 'moderator@example.com', role: 'MODERATOR', status: 'ACTIVE',
+      email: 'moderator@example.com',
+      role: 'MODERATOR',
+      status: 'ACTIVE',
     });
     window.history.replaceState({}, '', '/?operationalActivationToken=activation-token-29');
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Activate your operational account' })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'a moderator password' } });
-    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'a moderator password' } });
+    expect(
+      await screen.findByRole('heading', { name: 'Activate your operational account' }),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('New password'), {
+      target: { value: 'a moderator password' },
+    });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), {
+      target: { value: 'a moderator password' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Activate account' }));
 
-    await waitFor(() => expect(activateOperationalAccount).toHaveBeenCalledWith({
-      token: 'activation-token-29', password: 'a moderator password',
-    }));
+    await waitFor(() =>
+      expect(activateOperationalAccount).toHaveBeenCalledWith({
+        token: 'activation-token-29',
+        password: 'a moderator password',
+      }),
+    );
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
   });
 
   test('renders the administrator console and submits invite and deactivation reasons', async () => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue({
-      accountId: 'admin-29', accountType: 'OPERATIONAL', role: 'ADMINISTRATOR', status: 'ACTIVE',
-      verified: true, canTrade: false,
+      accountId: 'admin-29',
+      accountType: 'OPERATIONAL',
+      role: 'ADMINISTRATOR',
+      status: 'ACTIVE',
+      verified: true,
+      canTrade: false,
     });
-    vi.mocked(getOperationalAccounts).mockResolvedValue([{
-      id: 'moderator-29', email: 'moderator@example.com', role: 'MODERATOR', status: 'ACTIVE',
-      invitedAt: '2026-09-04T12:00:00Z',
-    }]);
-    vi.mocked(getAdministrativeAuditRecords).mockResolvedValue([{
-      id: 'audit-29', action: 'OPERATIONAL_ACCOUNT_INVITED', metadata: 'reasonCategory=STAFFING',
-      occurredAt: '2026-09-04T12:00:00Z',
-    }]);
-    vi.mocked(inviteOperationalAccount).mockResolvedValue({ email: 'new-moderator@example.com', role: 'MODERATOR', status: 'INVITED' });
+    vi.mocked(getOperationalAccounts).mockResolvedValue([
+      {
+        id: 'moderator-29',
+        email: 'moderator@example.com',
+        role: 'MODERATOR',
+        status: 'ACTIVE',
+        invitedAt: '2026-09-04T12:00:00Z',
+      },
+    ]);
+    vi.mocked(getAdministrativeAuditRecords).mockResolvedValue([
+      {
+        id: 'audit-29',
+        action: 'OPERATIONAL_ACCOUNT_INVITED',
+        metadata: 'reasonCategory=STAFFING',
+        occurredAt: '2026-09-04T12:00:00Z',
+      },
+    ]);
+    vi.mocked(inviteOperationalAccount).mockResolvedValue({
+      email: 'new-moderator@example.com',
+      role: 'MODERATOR',
+      status: 'INVITED',
+    });
     vi.mocked(deactivateOperationalAccount).mockResolvedValue(undefined);
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Manage operational accounts' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Manage operational accounts' }),
+    ).toBeInTheDocument();
     expect(await screen.findByText('OPERATIONAL_ACCOUNT_INVITED')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'new-moderator@example.com' } });
-    fireEvent.change(screen.getByLabelText('Public reason', { selector: '#operational-invite-public-reason' }), { target: { value: 'Add evening coverage' } });
+    fireEvent.change(screen.getByLabelText('Email address'), {
+      target: { value: 'new-moderator@example.com' },
+    });
+    fireEvent.change(
+      screen.getByLabelText('Public reason', { selector: '#operational-invite-public-reason' }),
+      { target: { value: 'Add evening coverage' } },
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
-    await waitFor(() => expect(inviteOperationalAccount).toHaveBeenCalledWith({
-      email: 'new-moderator@example.com', role: 'MODERATOR', reasonCategory: 'STAFFING',
-      publicReason: 'Add evening coverage', internalNote: undefined,
-    }));
+    await waitFor(() =>
+      expect(inviteOperationalAccount).toHaveBeenCalledWith({
+        email: 'new-moderator@example.com',
+        role: 'MODERATOR',
+        reasonCategory: 'STAFFING',
+        publicReason: 'Add evening coverage',
+        internalNote: undefined,
+      }),
+    );
 
     fireEvent.change(screen.getByLabelText('Account'), { target: { value: 'moderator-29' } });
-    fireEvent.change(screen.getByLabelText('Public reason', { selector: '#operational-deactivation-public-reason' }), { target: { value: 'Access is no longer required' } });
+    fireEvent.change(
+      screen.getByLabelText('Public reason', {
+        selector: '#operational-deactivation-public-reason',
+      }),
+      { target: { value: 'Access is no longer required' } },
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Deactivate account' }));
-    await waitFor(() => expect(deactivateOperationalAccount).toHaveBeenCalledWith('moderator-29', {
-      reasonCategory: 'SECURITY', publicReason: 'Access is no longer required', internalNote: undefined,
-    }));
+    await waitFor(() =>
+      expect(deactivateOperationalAccount).toHaveBeenCalledWith('moderator-29', {
+        reasonCategory: 'SECURITY',
+        publicReason: 'Access is no longer required',
+        internalNote: undefined,
+      }),
+    );
   });
 
   test('keeps the administrator console hidden from moderators', async () => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue({
-      accountId: 'moderator-29', accountType: 'OPERATIONAL', role: 'MODERATOR', status: 'ACTIVE',
-      verified: true, canTrade: false,
+      accountId: 'moderator-29',
+      accountType: 'OPERATIONAL',
+      role: 'MODERATOR',
+      status: 'ACTIVE',
+      verified: true,
+      canTrade: false,
     });
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Moderator access is active.' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Manage operational accounts' })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Moderator access is active.' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Manage operational accounts' }),
+    ).not.toBeInTheDocument();
     expect(getOperationalAccounts).not.toHaveBeenCalled();
     expect(getAdministrativeAuditRecords).not.toHaveBeenCalled();
   });
 
   test('can sign out or revoke every session from the authenticated home', async () => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue({
-      publicHandle: 'collector_28', status: 'ACTIVE', verified: true, canTrade: true,
+      publicHandle: 'collector_28',
+      status: 'ACTIVE',
+      verified: true,
+      canTrade: true,
     });
     vi.mocked(signOut).mockResolvedValue(undefined);
     render(<App />);
@@ -315,7 +453,10 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
 
     vi.mocked(getAuthenticatedSession).mockResolvedValue({
-      publicHandle: 'collector_28', status: 'ACTIVE', verified: true, canTrade: true,
+      publicHandle: 'collector_28',
+      status: 'ACTIVE',
+      verified: true,
+      canTrade: true,
     });
     cleanup();
     render(<App />);
@@ -327,7 +468,10 @@ describe('App', () => {
 
   test('shows a failure when session management cannot complete', async () => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue({
-      publicHandle: 'collector_28', status: 'ACTIVE', verified: true, canTrade: true,
+      publicHandle: 'collector_28',
+      status: 'ACTIVE',
+      verified: true,
+      canTrade: true,
     });
     vi.mocked(signOut).mockRejectedValue(new Error('network unavailable'));
     render(<App />);
@@ -335,7 +479,9 @@ describe('App', () => {
     await screen.findByText('Welcome back, collector_28.');
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('The request could not be completed. Please try again.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The request could not be completed. Please try again.',
+    );
     expect(screen.getByText('Welcome back, collector_28.')).toBeInTheDocument();
   });
 });
