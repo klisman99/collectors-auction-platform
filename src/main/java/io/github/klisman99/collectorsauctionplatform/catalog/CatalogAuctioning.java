@@ -63,12 +63,16 @@ public class CatalogAuctioning {
   }
 
   @Transactional
-  public void resolveAdministrativeCancellation(UUID itemId, boolean revokeApproval, Instant now) {
+  public void releaseApprovedItemAfterAdministrativeCancellation(UUID itemId, Instant now) {
     CollectibleItem item = items.findById(itemId).orElseThrow(ItemNotAuctionable::notFound);
     item.releaseAfterTerminalAuction(now);
-    if (revokeApproval) {
-      item.invalidateApproval(now);
-    }
+  }
+
+  @Transactional
+  public void revokeApprovalAfterAdministrativeCancellation(UUID itemId, Instant now) {
+    CollectibleItem item = items.findById(itemId).orElseThrow(ItemNotAuctionable::notFound);
+    item.releaseAfterTerminalAuction(now);
+    item.invalidateApproval(now);
   }
 
   public record ItemSnapshot(

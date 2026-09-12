@@ -169,10 +169,10 @@ class AuctionOperationsController {
       return new OperationsTimelineResponse(
           entry.type().name(),
           entry.occurredAt(),
-          entry.reasonCategory(),
+          entry.reasonCategory() == null ? null : entry.reasonCategory().name(),
           entry.publicReason(),
           includeInternalNotes ? entry.internalNote() : null,
-          entry.itemDisposition());
+          entry.itemDisposition() == null ? null : entry.itemDisposition().name());
     }
   }
 }

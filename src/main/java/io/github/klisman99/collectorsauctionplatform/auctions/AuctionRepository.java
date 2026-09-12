@@ -35,7 +35,8 @@ interface AuctionRepository extends JpaRepository<Auction, UUID> {
 
   Page<Auction> findAllByStateIn(List<Auction.State> states, Pageable pageable);
 
-  List<Auction> findAllBySellerIdAndStateOrderByStartsAtAsc(UUID sellerId, Auction.State state);
+  List<Auction> findAllBySellerIdAndStateInOrderByStartsAtAsc(
+      UUID sellerId, List<Auction.State> states);
 
   List<Auction> findAllByStateOrderBySuspendedAtAsc(Auction.State state);
 

@@ -2,6 +2,7 @@ package io.github.klisman99.collectorsauctionplatform.auctions;
 
 import io.github.klisman99.collectorsauctionplatform.identity.AccountDirectory;
 import java.time.Instant;
+import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
@@ -45,11 +46,11 @@ class AuctionLifecycleEventPublisher {
   void publishAdministrative(
       Auction auction,
       AuctionLifecycleEvent.Type type,
-      java.util.UUID actorId,
-      String reasonCategory,
+      UUID actorId,
+      SuspensionReasonCategory reasonCategory,
       String publicReason,
       String internalNote,
-      String itemDisposition,
+      AdministrativeItemDisposition itemDisposition,
       Instant occurredAt) {
     AccountDirectory.AccountContact contact = accounts.regularAccount(auction.sellerId());
     events.publishEvent(

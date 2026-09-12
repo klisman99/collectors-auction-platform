@@ -14,6 +14,7 @@ import {
   administrativelyCancelAuction,
   listAuctions,
   listSuspendedAuctions,
+  resumeSuspendedAuction,
   suspendAuction,
 } from '../api/client';
 import { AuctionOperationsWorkspace } from './AuctionOperationsWorkspace';
@@ -51,6 +52,7 @@ describe('AuctionOperationsWorkspace', () => {
     vi.mocked(listSuspendedAuctions).mockResolvedValue([suspended]);
     vi.mocked(suspendAuction).mockReset();
     vi.mocked(administrativelyCancelAuction).mockReset();
+    vi.mocked(resumeSuspendedAuction).mockReset();
   });
 
   test('shows frozen live time while keeping resolution administrator-only', async () => {
@@ -87,5 +89,18 @@ describe('AuctionOperationsWorkspace', () => {
         itemDisposition: 'REVOKE_APPROVAL_TO_DRAFT',
       }),
     );
+  });
+
+  test('shows an authorization failure returned while resolving a suspension', async () => {
+    vi.mocked(resumeSuspendedAuction).mockRejectedValue(
+      new Error('Only an administrator may resolve a suspended auction.'),
+    );
+    render(<AuctionOperationsWorkspace administrator />);
+    await screen.findByText('Provenance review card');
+    fireEvent.click(screen.getByRole('button', { name: 'Resume with remaining time' }));
+
+    expect(
+      await screen.findByText('Only an administrator may resolve a suspended auction.'),
+    ).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 package io.github.klisman99.collectorsauctionplatform.auctions;
 
-enum SuspensionReasonCategory {
+public enum SuspensionReasonCategory {
   POLICY_REVIEW,
   SECURITY,
   ITEM_CONCERN,

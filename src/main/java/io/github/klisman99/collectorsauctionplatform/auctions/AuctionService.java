@@ -107,7 +107,8 @@ class AuctionService {
 
   @Transactional(readOnly = true)
   List<Auction> scheduledForSeller(UUID sellerId) {
-    return auctions.findAllBySellerIdAndStateOrderByStartsAtAsc(sellerId, Auction.State.SCHEDULED);
+    return auctions.findAllBySellerIdAndStateInOrderByStartsAtAsc(
+        sellerId, List.of(Auction.State.DRAFT, Auction.State.SCHEDULED));
   }
 
   @Transactional(readOnly = true)
@@ -129,7 +130,7 @@ class AuctionService {
         auction,
         AuctionLifecycleEvent.Type.SUSPENDED,
         operator.accountId(),
-        reasonCategory.name(),
+        reasonCategory,
         publicReason.trim(),
         internalNote,
         null,
@@ -186,18 +187,20 @@ class AuctionService {
     Auction auction = lock(auctionId);
     Instant now = Instant.now(clock);
     auction.administrativelyCancel(reasonCategory, publicReason, internalNote, disposition, now);
-    catalog.resolveAdministrativeCancellation(
-        auction.itemId(),
-        disposition == AdministrativeItemDisposition.REVOKE_APPROVAL_TO_DRAFT,
-        now);
+    switch (disposition) {
+      case RELEASE_APPROVED_ITEM ->
+          catalog.releaseApprovedItemAfterAdministrativeCancellation(auction.itemId(), now);
+      case REVOKE_APPROVAL_TO_DRAFT ->
+          catalog.revokeApprovalAfterAdministrativeCancellation(auction.itemId(), now);
+    }
     lifecycleEvents.publishAdministrative(
         auction,
         AuctionLifecycleEvent.Type.ADMINISTRATIVELY_CANCELLED,
         operator.accountId(),
-        reasonCategory.name(),
+        reasonCategory,
         publicReason.trim(),
         internalNote,
-        disposition.name(),
+        disposition,
         now);
     return auction;
   }
@@ -227,6 +230,17 @@ class AuctionService {
         new AuctionLifecycleEvent.PublishedTerms(
             auction.reserveAmountCents(), auction.startsAt(), auction.endsAt());
     Instant now = Instant.now(clock);
+    if (auction.state() == Auction.State.DRAFT) {
+      try {
+        catalog.lockApprovedItem(sellerId, auction.itemId(), now);
+      } catch (CatalogAuctioning.ItemNotAuctionable exception) {
+        throw switch (exception.reason()) {
+          case NOT_FOUND -> AuctionApiException.itemNotFound();
+          case NOT_APPROVED -> AuctionApiException.itemNotApproved();
+          case LOCKED -> AuctionApiException.itemAlreadyScheduled();
+        };
+      }
+    }
     auction.updateEditableTerms(reserveAmountCents, startsAt, endsAt, now);
     lifecycleEvents.publish(
         auction, AuctionLifecycleEvent.Type.RESCHEDULED, null, now, previousTerms);

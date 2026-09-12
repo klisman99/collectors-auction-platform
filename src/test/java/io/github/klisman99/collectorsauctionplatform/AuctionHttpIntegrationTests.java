@@ -473,6 +473,19 @@ class AuctionHttpIntegrationTests {
         .andExpect(jsonPath("$.timeline[1].reasonCategory").value("POLICY_REVIEW"))
         .andExpect(jsonPath("$.timeline[1].internalNote").doesNotExist());
 
+    for (var participant :
+        java.util.List.of(
+            user(ownerId.toString()).authorities(tradingEligible()),
+            user(moderatorId.toString()).roles("MODERATOR"))) {
+      mockMvc
+          .perform(get("/api/v1/auctions/{id}", auctionId).with(participant))
+          .andExpect(status().isOk())
+          .andExpect(
+              jsonPath("$.timeline[1].publicReason")
+                  .value("The listing requires an operational review."))
+          .andExpect(jsonPath("$.timeline[1].internalNote").doesNotExist());
+    }
+
     mockMvc
         .perform(
             post("/api/v1/operations/auctions/{id}/release", auctionId)
@@ -505,6 +518,30 @@ class AuctionHttpIntegrationTests {
                 .with(csrf()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.state").value("DRAFT"));
+
+    Instant rescheduledStart = startsAt.plus(1, ChronoUnit.HOURS);
+    mockMvc
+        .perform(get("/api/v1/auctions/mine").with(user(ownerId.toString())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].state").value("DRAFT"));
+    mockMvc
+        .perform(
+            put("/api/v1/auctions/{id}/terms", auctionId)
+                .with(user(ownerId.toString()).authorities(tradingEligible()))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new EditableTermsRequest(
+                            null, rescheduledStart, rescheduledStart.plus(2, ChronoUnit.HOURS)))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("SCHEDULED"));
+    org.assertj.core.api.Assertions.assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT auction_locked_at FROM collectible_items WHERE id = ?",
+                Instant.class,
+                itemId))
+        .isNotNull();
   }
 
   @Test
@@ -569,6 +606,17 @@ class AuctionHttpIntegrationTests {
                 itemId))
         .isNull();
     awaitAudit("AUCTION_ADMINISTRATIVELY_CANCELLED", UUID.fromString(auctionId));
+    String cancellationMetadata =
+        jdbcTemplate.queryForObject(
+            "SELECT metadata FROM audit_records WHERE action = 'AUCTION_ADMINISTRATIVELY_CANCELLED' AND target_id = ?",
+            String.class,
+            UUID.fromString(auctionId));
+    org.assertj.core.api.Assertions.assertThat(cancellationMetadata)
+        .contains(
+            "reasonCategory=ITEM_CONCERN",
+            "publicReason=Approval was revoked after review.",
+            "internalNote=Evidence retained by operations.",
+            "itemDisposition=REVOKE_APPROVAL_TO_DRAFT");
   }
 
   private UUID approvedItem(UUID ownerId) {

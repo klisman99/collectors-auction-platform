@@ -12,10 +12,10 @@ public record AuctionLifecycleEvent(
     String itemTitle,
     Type type,
     UUID operationalActorId,
-    String reasonCategory,
+    SuspensionReasonCategory reasonCategory,
     String publicReason,
     String internalNote,
-    String itemDisposition,
+    AdministrativeItemDisposition itemDisposition,
     Instant occurredAt,
     PublishedTerms previousTerms,
     PublishedTerms currentTerms) {

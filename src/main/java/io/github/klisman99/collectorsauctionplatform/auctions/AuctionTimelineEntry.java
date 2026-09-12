@@ -20,23 +20,25 @@ class AuctionTimelineEntry {
   private String publicReason;
 
   @Column(name = "reason_category", updatable = false)
-  private String reasonCategory;
+  @Enumerated(EnumType.STRING)
+  private SuspensionReasonCategory reasonCategory;
 
   @Column(name = "internal_note", updatable = false, length = 2000)
   private String internalNote;
 
   @Column(name = "item_disposition", updatable = false)
-  private String itemDisposition;
+  @Enumerated(EnumType.STRING)
+  private AdministrativeItemDisposition itemDisposition;
 
   protected AuctionTimelineEntry() {}
 
   private AuctionTimelineEntry(
       Type type,
       Instant occurredAt,
-      String reasonCategory,
+      SuspensionReasonCategory reasonCategory,
       String publicReason,
       String internalNote,
-      String itemDisposition) {
+      AdministrativeItemDisposition itemDisposition) {
     this.type = type;
     this.occurredAt = occurredAt;
     this.reasonCategory = reasonCategory;
@@ -66,7 +68,10 @@ class AuctionTimelineEntry {
   }
 
   static AuctionTimelineEntry suspended(
-      Instant occurredAt, String reasonCategory, String publicReason, String internalNote) {
+      Instant occurredAt,
+      SuspensionReasonCategory reasonCategory,
+      String publicReason,
+      String internalNote) {
     return new AuctionTimelineEntry(
         Type.SUSPENDED, occurredAt, reasonCategory, publicReason, internalNote, null);
   }
@@ -81,10 +86,10 @@ class AuctionTimelineEntry {
 
   static AuctionTimelineEntry administrativelyCancelled(
       Instant occurredAt,
-      String reasonCategory,
+      SuspensionReasonCategory reasonCategory,
       String publicReason,
       String internalNote,
-      String itemDisposition) {
+      AdministrativeItemDisposition itemDisposition) {
     return new AuctionTimelineEntry(
         Type.CANCELLED, occurredAt, reasonCategory, publicReason, internalNote, itemDisposition);
   }
@@ -105,7 +110,7 @@ class AuctionTimelineEntry {
     return publicReason;
   }
 
-  String reasonCategory() {
+  SuspensionReasonCategory reasonCategory() {
     return reasonCategory;
   }
 
@@ -113,7 +118,7 @@ class AuctionTimelineEntry {
     return internalNote;
   }
 
-  String itemDisposition() {
+  AdministrativeItemDisposition itemDisposition() {
     return itemDisposition;
   }
 

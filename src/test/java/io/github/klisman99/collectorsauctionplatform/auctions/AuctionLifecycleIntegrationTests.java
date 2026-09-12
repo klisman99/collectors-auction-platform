@@ -66,6 +66,8 @@ class AuctionLifecycleIntegrationTests {
 
   @Autowired private AuctionLifecycle lifecycle;
 
+  @Autowired private AuctionBidding auctionBidding;
+
   @Autowired private MutableClock clock;
 
   @Autowired private JdbcTemplate jdbcTemplate;
@@ -178,7 +180,7 @@ class AuctionLifecycleIntegrationTests {
   }
 
   @Test
-  void liveSuspensionStoresExactRemainingDurationAndResumeUsesServerTime() {
+  void liveSuspensionStoresExactRemainingDurationAndResumeUsesServerTime() throws Exception {
     Auction auction = scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900));
     clock.set(auction.startsAt());
     lifecycle.reconcileDueAuctions();
@@ -193,6 +195,17 @@ class AuctionLifecycleIntegrationTests {
 
     Auction suspended = auctions.get(auction.id());
     assertThat(suspended.remainingDuration()).isEqualTo(java.time.Duration.ofSeconds(137));
+    assertThatThrownBy(() -> auctionBidding.lockOpenAuction(auction.id()))
+        .isInstanceOf(AuctionBidding.BidUnavailable.class);
+    awaitAudit("AUCTION_SUSPENDED", auction.id());
+    String suspensionMetadata =
+        jdbcTemplate.queryForObject(
+            "SELECT metadata FROM audit_records WHERE action = 'AUCTION_SUSPENDED' AND target_id = ?",
+            String.class,
+            auction.id());
+    assertThat(suspensionMetadata)
+        .contains(
+            "reasonCategory=SECURITY", "publicReason=Bidding is paused for a security review.");
     clock.set(auction.endsAt().plusSeconds(600));
     lifecycle.reconcileDueAuctions();
     assertThat(auctions.get(auction.id()).state()).isEqualTo(Auction.State.SUSPENDED);

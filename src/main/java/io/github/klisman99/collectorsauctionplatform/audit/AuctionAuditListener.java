@@ -50,7 +50,7 @@ class AuctionAuditListener {
     auditRecords.save(record);
   }
 
-  private String valueMetadata(String name, String value) {
+  private String valueMetadata(String name, Object value) {
     return value == null ? "" : ";" + name + "=" + value;
   }
 

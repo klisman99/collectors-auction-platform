@@ -122,7 +122,8 @@ class Auction {
   }
 
   void updateEditableTerms(Long reserveAmountCents, Instant startsAt, Instant endsAt, Instant now) {
-    if (state != State.SCHEDULED || !now.isBefore(this.startsAt)) {
+    boolean releasedDraft = state == State.DRAFT;
+    if (!releasedDraft && (state != State.SCHEDULED || !now.isBefore(this.startsAt))) {
       throw AuctionApiException.notEditable();
     }
     if (reserveAmountCents != null
@@ -134,6 +135,10 @@ class Auction {
     this.reserveAmountCents = reserveAmountCents;
     this.startsAt = startsAt;
     this.endsAt = endsAt;
+    if (releasedDraft) {
+      state = State.SCHEDULED;
+      activeItemId = itemId;
+    }
     this.timeline.add(AuctionTimelineEntry.rescheduled(now));
   }
 
@@ -175,8 +180,7 @@ class Auction {
         state == State.LIVE ? Math.max(0, Duration.between(now, endsAt).toMillis()) : null;
     state = State.SUSPENDED;
     timeline.add(
-        AuctionTimelineEntry.suspended(
-            now, reasonCategory.name(), publicReason.trim(), internalNote));
+        AuctionTimelineEntry.suspended(now, reasonCategory, publicReason.trim(), internalNote));
   }
 
   void release(Instant now) {
@@ -212,7 +216,7 @@ class Auction {
     clearSuspension();
     timeline.add(
         AuctionTimelineEntry.administrativelyCancelled(
-            now, reasonCategory.name(), cancellationReason, internalNote, disposition.name()));
+            now, reasonCategory, cancellationReason, internalNote, disposition));
   }
 
   private void requireSuspendedFrom(State expectedSource) {

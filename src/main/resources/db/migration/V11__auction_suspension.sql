@@ -13,7 +13,10 @@ ALTER TABLE auctions ADD CONSTRAINT auctions_active_item_check CHECK (
     OR (state NOT IN ('DRAFT', 'SOLD', 'UNSOLD', 'CANCELLED') AND active_item_id = item_id)
 );
 ALTER TABLE auctions ADD CONSTRAINT auctions_suspension_check CHECK (
-    (state = 'SUSPENDED' AND suspension_source_state IN ('SCHEDULED', 'LIVE') AND suspended_at IS NOT NULL)
+    (state = 'SUSPENDED' AND suspended_at IS NOT NULL AND (
+        (suspension_source_state = 'SCHEDULED' AND remaining_duration_millis IS NULL)
+        OR (suspension_source_state = 'LIVE' AND remaining_duration_millis IS NOT NULL AND remaining_duration_millis >= 0)
+    ))
     OR (state <> 'SUSPENDED' AND suspension_source_state IS NULL AND suspended_at IS NULL AND remaining_duration_millis IS NULL)
 );
 
@@ -31,7 +34,11 @@ ALTER TABLE auction_timeline_events ADD CONSTRAINT auction_timeline_event_type_c
 ));
 ALTER TABLE auction_timeline_events ADD CONSTRAINT auction_timeline_administrative_detail_check CHECK (
     (event_type = 'SUSPENDED' AND reason_category IS NOT NULL)
-    OR event_type <> 'SUSPENDED'
+    OR (item_disposition IS NOT NULL AND event_type = 'CANCELLED' AND reason_category IS NOT NULL)
+    OR (event_type <> 'SUSPENDED' AND item_disposition IS NULL)
+);
+ALTER TABLE auction_timeline_events ADD CONSTRAINT auction_timeline_reason_category_check CHECK (
+    reason_category IS NULL OR reason_category IN ('POLICY_REVIEW', 'SECURITY', 'ITEM_CONCERN', 'OTHER')
 );
 ALTER TABLE auction_timeline_events ADD CONSTRAINT auction_timeline_disposition_check CHECK (
     item_disposition IS NULL OR item_disposition IN ('RELEASE_APPROVED_ITEM', 'REVOKE_APPROVAL_TO_DRAFT')

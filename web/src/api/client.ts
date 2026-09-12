@@ -123,6 +123,7 @@ export type Auction = {
   itemId: string;
   sellerHandle: string;
   state:
+    | 'DRAFT'
     | 'SCHEDULED'
     | 'LIVE'
     | 'SUSPENDED'
