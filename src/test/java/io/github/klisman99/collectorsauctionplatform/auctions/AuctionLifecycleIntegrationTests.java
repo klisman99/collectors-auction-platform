@@ -206,16 +206,20 @@ class AuctionLifecycleIntegrationTests {
     assertThat(suspensionMetadata)
         .contains(
             "reasonCategory=SECURITY", "publicReason=Bidding is paused for a security review.");
-    clock.set(auction.endsAt().plusSeconds(600));
-    lifecycle.reconcileDueAuctions();
+    Instant resumedAt = auction.endsAt().plusSeconds(600);
+    NEW_CONTEXT_TIME.set(resumedAt);
+    try (ConfigurableApplicationContext ignored = restartApplication()) {
+      // Restart reconciliation must preserve the live suspension and remaining duration.
+    }
     assertThat(auctions.get(auction.id()).state()).isEqualTo(Auction.State.SUSPENDED);
 
-    Instant resumedAt = Instant.now(clock);
+    clock.set(resumedAt);
     auctions.resume(AuctionOperator.administrator(UUID.randomUUID()), auction.id());
 
     Auction resumed = auctions.get(auction.id());
     assertThat(resumed.state()).isEqualTo(Auction.State.LIVE);
     assertThat(resumed.effectiveEndAt()).isEqualTo(resumedAt.plusSeconds(137));
+    awaitAudit("AUCTION_RESUMED", auction.id());
   }
 
   private ConfigurableApplicationContext restartApplication() {

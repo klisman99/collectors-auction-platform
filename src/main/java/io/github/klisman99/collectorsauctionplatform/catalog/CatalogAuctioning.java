@@ -58,21 +58,24 @@ public class CatalogAuctioning {
 
   @Transactional
   public void releaseUnchangedItem(UUID itemId, Instant now) {
-    CollectibleItem item = items.findById(itemId).orElseThrow(ItemNotAuctionable::notFound);
-    item.releaseAfterTerminalAuction(now);
+    release(itemId, now);
   }
 
   @Transactional
   public void releaseApprovedItemAfterAdministrativeCancellation(UUID itemId, Instant now) {
-    CollectibleItem item = items.findById(itemId).orElseThrow(ItemNotAuctionable::notFound);
-    item.releaseAfterTerminalAuction(now);
+    release(itemId, now);
   }
 
   @Transactional
   public void revokeApprovalAfterAdministrativeCancellation(UUID itemId, Instant now) {
+    CollectibleItem item = release(itemId, now);
+    item.invalidateApproval(now);
+  }
+
+  private CollectibleItem release(UUID itemId, Instant now) {
     CollectibleItem item = items.findById(itemId).orElseThrow(ItemNotAuctionable::notFound);
     item.releaseAfterTerminalAuction(now);
-    item.invalidateApproval(now);
+    return item;
   }
 
   public record ItemSnapshot(

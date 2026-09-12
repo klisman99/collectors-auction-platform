@@ -33,9 +33,10 @@ ALTER TABLE auction_timeline_events ADD CONSTRAINT auction_timeline_event_type_c
     'SCHEDULED', 'RESCHEDULED', 'STARTED', 'CANCELLED', 'ENDED', 'SUSPENDED', 'RELEASED', 'RESUMED'
 ));
 ALTER TABLE auction_timeline_events ADD CONSTRAINT auction_timeline_administrative_detail_check CHECK (
-    (event_type = 'SUSPENDED' AND reason_category IS NOT NULL)
-    OR (item_disposition IS NOT NULL AND event_type = 'CANCELLED' AND reason_category IS NOT NULL)
-    OR (event_type <> 'SUSPENDED' AND item_disposition IS NULL)
+    (event_type = 'SUSPENDED' AND reason_category IS NOT NULL AND item_disposition IS NULL)
+    OR (event_type = 'CANCELLED' AND reason_category IS NOT NULL AND item_disposition IS NOT NULL)
+    OR (event_type = 'CANCELLED' AND reason_category IS NULL AND internal_note IS NULL AND item_disposition IS NULL)
+    OR (event_type NOT IN ('SUSPENDED', 'CANCELLED') AND reason_category IS NULL AND internal_note IS NULL AND item_disposition IS NULL)
 );
 ALTER TABLE auction_timeline_events ADD CONSTRAINT auction_timeline_reason_category_check CHECK (
     reason_category IS NULL OR reason_category IN ('POLICY_REVIEW', 'SECURITY', 'ITEM_CONCERN', 'OTHER')
