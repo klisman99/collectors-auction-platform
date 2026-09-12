@@ -14,6 +14,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +65,16 @@ class Auction {
 
   @Column(name = "cancellation_reason")
   private String cancellationReason;
+
+  @Column(name = "suspension_source_state")
+  @Enumerated(EnumType.STRING)
+  private State suspensionSourceState;
+
+  @Column(name = "suspended_at")
+  private Instant suspendedAt;
+
+  @Column(name = "remaining_duration_millis")
+  private Long remainingDurationMillis;
 
   @Embedded private AuctionItemSnapshot itemSnapshot;
 
@@ -147,6 +158,84 @@ class Auction {
     }
   }
 
+  void suspend(
+      SuspensionReasonCategory reasonCategory,
+      String publicReason,
+      String internalNote,
+      Instant now) {
+    if ((state != State.SCHEDULED && state != State.LIVE)
+        || (state == State.SCHEDULED && !now.isBefore(startsAt))
+        || (state == State.LIVE && !now.isBefore(endsAt))) {
+      throw AuctionApiException.notSuspendable();
+    }
+    validateAdministrativeReason(publicReason, internalNote);
+    suspensionSourceState = state;
+    suspendedAt = now;
+    remainingDurationMillis =
+        state == State.LIVE ? Math.max(0, Duration.between(now, endsAt).toMillis()) : null;
+    state = State.SUSPENDED;
+    timeline.add(
+        AuctionTimelineEntry.suspended(
+            now, reasonCategory.name(), publicReason.trim(), internalNote));
+  }
+
+  void release(Instant now) {
+    requireSuspendedFrom(State.SCHEDULED);
+    state = State.DRAFT;
+    activeItemId = null;
+    clearSuspension();
+    timeline.add(AuctionTimelineEntry.released(now));
+  }
+
+  void resume(Instant now) {
+    requireSuspendedFrom(State.LIVE);
+    endsAt = now.plusMillis(remainingDurationMillis);
+    state = State.LIVE;
+    clearSuspension();
+    timeline.add(AuctionTimelineEntry.resumed(now));
+  }
+
+  void administrativelyCancel(
+      SuspensionReasonCategory reasonCategory,
+      String publicReason,
+      String internalNote,
+      AdministrativeItemDisposition disposition,
+      Instant now) {
+    if (state != State.SUSPENDED) {
+      throw AuctionApiException.suspensionResolutionInvalid();
+    }
+    validateAdministrativeReason(publicReason, internalNote);
+    state = State.CANCELLED;
+    activeItemId = null;
+    endedAt = now;
+    cancellationReason = publicReason.trim();
+    clearSuspension();
+    timeline.add(
+        AuctionTimelineEntry.administrativelyCancelled(
+            now, reasonCategory.name(), cancellationReason, internalNote, disposition.name()));
+  }
+
+  private void requireSuspendedFrom(State expectedSource) {
+    if (state != State.SUSPENDED || suspensionSourceState != expectedSource) {
+      throw AuctionApiException.suspensionResolutionInvalid();
+    }
+  }
+
+  private void clearSuspension() {
+    suspensionSourceState = null;
+    suspendedAt = null;
+    remainingDurationMillis = null;
+  }
+
+  private void validateAdministrativeReason(String publicReason, String internalNote) {
+    if (publicReason == null || publicReason.isBlank() || publicReason.length() > 500) {
+      throw AuctionApiException.invalidAdministrativeReason();
+    }
+    if (internalNote != null && internalNote.length() > 2000) {
+      throw AuctionApiException.invalidAdministrativeReason();
+    }
+  }
+
   boolean isDueToEnd(Instant now) {
     return (state == State.SCHEDULED || state == State.LIVE) && !now.isBefore(endsAt);
   }
@@ -225,6 +314,18 @@ class Auction {
     return cancellationReason;
   }
 
+  State suspensionSourceState() {
+    return suspensionSourceState;
+  }
+
+  Instant suspendedAt() {
+    return suspendedAt;
+  }
+
+  Duration remainingDuration() {
+    return remainingDurationMillis == null ? null : Duration.ofMillis(remainingDurationMillis);
+  }
+
   List<AuctionTimelineEntry> timeline() {
     return List.copyOf(timeline);
   }
@@ -242,6 +343,7 @@ class Auction {
   }
 
   enum State {
+    DRAFT,
     SCHEDULED,
     LIVE,
     SUSPENDED,

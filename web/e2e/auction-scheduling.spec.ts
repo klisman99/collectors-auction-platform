@@ -5,7 +5,7 @@ const administratorEmail = process.env.INITIAL_ADMINISTRATOR_EMAIL ?? 'admin-e2e
 const administratorPassword =
   process.env.INITIAL_ADMINISTRATOR_PASSWORD ?? 'e2e administrator password';
 
-test('seller publishes, cancels, and exposes an ended auction to anonymous discovery', async ({
+test('seller publishes, administrator suspends and cancels, and the public timeline explains why', async ({
   browser,
   page,
   request,
@@ -51,9 +51,9 @@ test('seller publishes, cancels, and exposes an ended auction to anonymous disco
   await page.getByRole('button', { name: 'Submit for review' }).click();
   await expect(page.getByText('Submitted for moderation.')).toBeVisible();
 
-  const administratorContext = await browser.newContext();
+  const interventionContext = await browser.newContext();
   try {
-    const administratorPage = await administratorContext.newPage();
+    const administratorPage = await interventionContext.newPage();
     await signInAsAdministrator(administratorPage);
     const submission = administratorPage
       .getByRole('listitem')
@@ -63,7 +63,7 @@ test('seller publishes, cancels, and exposes an ended auction to anonymous disco
     await submission.getByRole('button', { name: 'Approve' }).click();
     await expect(administratorPage.getByText('Collectible approved.')).toBeVisible();
   } finally {
-    await administratorContext.close();
+    await interventionContext.close();
   }
 
   await page.reload();
@@ -80,14 +80,41 @@ test('seller publishes, cancels, and exposes an ended auction to anonymous disco
   await expect(page.getByRole('heading', { name: 'Published snapshot' })).toBeVisible();
   await expect(page.getByText('Locked after publication')).toBeVisible();
   await expect(page.getByText('Editable before start')).toBeVisible();
-  await expect(page.getByText(/R\$\s*100,00/)).toBeVisible();
+  await expect(page.getByText('R$ 100,00', { exact: true })).toBeVisible();
 
-  await page
-    .getByLabel('Public cancellation reason')
-    .fill('The collectible is no longer available for sale.');
   const messagesBeforeCancellation = await mailpitMessageIds(request);
-  await page.getByRole('button', { name: 'Cancel auction' }).click();
-  await expect(page.getByRole('status')).toContainText('Auction cancelled.');
+  const administratorContext = await browser.newContext();
+  try {
+    const administratorPage = await administratorContext.newPage();
+    await signInAsAdministrator(administratorPage);
+    const intervention = administratorPage.getByRole('region', { name: 'Auction intervention' });
+    await intervention
+      .getByLabel('Auction', { exact: true })
+      .selectOption({ label: `${title} — SCHEDULED` });
+    await intervention.getByLabel('Reason category').selectOption('ITEM_CONCERN');
+    await intervention
+      .getByLabel('Public reason')
+      .fill('The collectible requires an authenticity review.');
+    await intervention
+      .getByLabel('Internal note (optional)')
+      .fill('Escalated by the operations team.');
+    await intervention.getByRole('button', { name: 'Suspend auction' }).click();
+    await expect(administratorPage.getByRole('status')).toContainText('Auction suspended.');
+    const suspendedAuction = intervention.getByRole('listitem').filter({ hasText: title });
+    await expect(suspendedAuction.getByText('SCHEDULED · seller')).toBeVisible();
+    await expect(suspendedAuction.getByText('Start blocked')).toBeVisible();
+
+    await intervention
+      .getByLabel('Public reason')
+      .fill('The collectible approval was revoked after review.');
+    await intervention
+      .getByLabel('Cancellation item disposition')
+      .selectOption('REVOKE_APPROVAL_TO_DRAFT');
+    await suspendedAuction.getByRole('button', { name: 'Cancel auction' }).click();
+    await expect(administratorPage.getByRole('status')).toContainText('Auction cancelled.');
+  } finally {
+    await administratorContext.close();
+  }
   await expect
     .poll(async () => (await mailpitMessageIds(request)).size, { timeout: 30_000 })
     .toBeGreaterThan(messagesBeforeCancellation.size);
@@ -100,8 +127,9 @@ test('seller publishes, cancels, and exposes an ended auction to anonymous disco
     await expect(visitorPage.getByText(title)).toBeVisible();
     await visitorPage.getByRole('button', { name: `View ${title}` }).click();
     await expect(
-      visitorPage.getByText('The collectible is no longer available for sale.'),
+      visitorPage.getByText('The collectible approval was revoked after review.'),
     ).toBeVisible();
+    await expect(visitorPage.getByText('Escalated by the operations team.')).not.toBeVisible();
   } finally {
     await visitorContext.close();
   }

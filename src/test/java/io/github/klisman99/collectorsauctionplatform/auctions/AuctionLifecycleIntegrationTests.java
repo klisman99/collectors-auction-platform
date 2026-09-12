@@ -144,6 +144,67 @@ class AuctionLifecycleIntegrationTests {
         .isInstanceOf(AuctionApiException.class);
   }
 
+  @Test
+  void scheduledSuspensionPreventsStartAndAdministratorReleasesItToDraft() {
+    Auction auction = scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900));
+    UUID moderatorId = UUID.randomUUID();
+    UUID administratorId = UUID.randomUUID();
+
+    auctions.suspend(
+        AuctionOperator.moderator(moderatorId),
+        auction.id(),
+        SuspensionReasonCategory.POLICY_REVIEW,
+        "The listing requires an operational review.",
+        "Check the provenance document.");
+    NEW_CONTEXT_TIME.set(auction.startsAt());
+    try (ConfigurableApplicationContext ignored = restartApplication()) {
+      // Startup reconciliation must leave the suspended auction frozen.
+    }
+
+    Auction suspended = auctions.get(auction.id());
+    assertThat(suspended.state()).isEqualTo(Auction.State.SUSPENDED);
+    assertThat(suspended.suspensionSourceState()).isEqualTo(Auction.State.SCHEDULED);
+
+    auctions.release(AuctionOperator.administrator(administratorId), auction.id());
+
+    Auction released = auctions.get(auction.id());
+    assertThat(released.state()).isEqualTo(Auction.State.DRAFT);
+    assertThat(released.timeline())
+        .extracting(AuctionTimelineEntry::type)
+        .containsExactly(
+            AuctionTimelineEntry.Type.SCHEDULED,
+            AuctionTimelineEntry.Type.SUSPENDED,
+            AuctionTimelineEntry.Type.RELEASED);
+  }
+
+  @Test
+  void liveSuspensionStoresExactRemainingDurationAndResumeUsesServerTime() {
+    Auction auction = scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900));
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+    clock.set(auction.endsAt().minusSeconds(137));
+
+    auctions.suspend(
+        AuctionOperator.moderator(UUID.randomUUID()),
+        auction.id(),
+        SuspensionReasonCategory.SECURITY,
+        "Bidding is paused for a security review.",
+        null);
+
+    Auction suspended = auctions.get(auction.id());
+    assertThat(suspended.remainingDuration()).isEqualTo(java.time.Duration.ofSeconds(137));
+    clock.set(auction.endsAt().plusSeconds(600));
+    lifecycle.reconcileDueAuctions();
+    assertThat(auctions.get(auction.id()).state()).isEqualTo(Auction.State.SUSPENDED);
+
+    Instant resumedAt = Instant.now(clock);
+    auctions.resume(AuctionOperator.administrator(UUID.randomUUID()), auction.id());
+
+    Auction resumed = auctions.get(auction.id());
+    assertThat(resumed.state()).isEqualTo(Auction.State.LIVE);
+    assertThat(resumed.effectiveEndAt()).isEqualTo(resumedAt.plusSeconds(137));
+  }
+
   private ConfigurableApplicationContext restartApplication() {
     return new SpringApplicationBuilder(
             CollectorsAuctionPlatformApplication.class,

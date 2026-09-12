@@ -45,7 +45,7 @@ class AuctionController {
                 request.reserveAmountCents(),
                 request.startsAt(),
                 request.endsAt()));
-    return response(auction, true);
+    return response(auction, true, false);
   }
 
   @GetMapping("/{id}")
@@ -54,7 +54,7 @@ class AuctionController {
     AuctionAccess access =
         auctions.getVisible(
             id, authenticatedAccountId(authentication), isAdministrator(authentication));
-    return response(access.auction(), access.exactReserveVisible());
+    return response(access.auction(), access.exactReserveVisible(), access.internalNotesVisible());
   }
 
   @GetMapping
@@ -74,7 +74,12 @@ class AuctionController {
             AuctionDiscoveryView.fromHttp(state), page, size, viewerId, administrator);
     List<AuctionResponse> content =
         result.stream()
-            .map(access -> response(access.auction(), access.exactReserveVisible()))
+            .map(
+                access ->
+                    response(
+                        access.auction(),
+                        access.exactReserveVisible(),
+                        access.internalNotesVisible()))
             .toList();
     return new AuctionPageResponse(
         content,
@@ -101,7 +106,7 @@ class AuctionController {
       summary = "List the seller's editable auctions")
   List<AuctionResponse> mine(Principal principal) {
     return auctions.scheduledForSeller(UUID.fromString(principal.getName())).stream()
-        .map(auction -> response(auction, true))
+        .map(auction -> response(auction, true, false))
         .toList();
   }
 
@@ -120,7 +125,7 @@ class AuctionController {
             request.reserveAmountCents(),
             request.startsAt(),
             request.endsAt());
-    return response(auction, true);
+    return response(auction, true, false);
   }
 
   @PostMapping(path = "/{id}/cancellation", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -128,10 +133,13 @@ class AuctionController {
   AuctionResponse cancel(
       Principal principal, @PathVariable UUID id, @Valid @RequestBody CancellationRequest request) {
     return response(
-        auctions.cancel(UUID.fromString(principal.getName()), id, request.publicReason()), true);
+        auctions.cancel(UUID.fromString(principal.getName()), id, request.publicReason()),
+        true,
+        false);
   }
 
-  private AuctionResponse response(Auction auction, boolean includeReserve) {
+  private AuctionResponse response(
+      Auction auction, boolean includeReserve, boolean includeInternalNotes) {
     AuctionItemSnapshot item = auction.itemSnapshot();
     return new AuctionResponse(
         auction.id(),
@@ -174,7 +182,9 @@ class AuctionController {
             auction.policySnapshot().minimumDurationSeconds(),
             auction.policySnapshot().maximumDurationSeconds(),
             auction.policySnapshot().protectionWindowSeconds()),
-        auction.timeline().stream().map(TimelineResponse::from).toList(),
+        auction.timeline().stream()
+            .map(entry -> TimelineResponse.from(entry, includeInternalNotes))
+            .toList(),
         List.of(),
         List.of());
   }
@@ -255,9 +265,21 @@ class AuctionController {
       long maximumDurationSeconds,
       long protectionWindowSeconds) {}
 
-  record TimelineResponse(String type, Instant occurredAt, String publicReason) {
-    static TimelineResponse from(AuctionTimelineEntry entry) {
-      return new TimelineResponse(entry.type().name(), entry.occurredAt(), entry.publicReason());
+  record TimelineResponse(
+      String type,
+      Instant occurredAt,
+      String reasonCategory,
+      String publicReason,
+      String internalNote,
+      String itemDisposition) {
+    static TimelineResponse from(AuctionTimelineEntry entry, boolean includeInternalNotes) {
+      return new TimelineResponse(
+          entry.type().name(),
+          entry.occurredAt(),
+          entry.reasonCategory(),
+          entry.publicReason(),
+          includeInternalNotes ? entry.internalNote() : null,
+          entry.itemDisposition());
     }
   }
 }

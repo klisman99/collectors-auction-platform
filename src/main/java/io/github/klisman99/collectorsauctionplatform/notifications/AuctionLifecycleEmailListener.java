@@ -23,7 +23,8 @@ class AuctionLifecycleEmailListener {
   @ApplicationModuleListener
   void sendLifecycleEmail(AuctionLifecycleEvent event) throws MessagingException {
     if (event.type() != AuctionLifecycleEvent.Type.STARTED
-        && event.type() != AuctionLifecycleEvent.Type.CANCELLED) {
+        && event.type() != AuctionLifecycleEvent.Type.CANCELLED
+        && event.type() != AuctionLifecycleEvent.Type.ADMINISTRATIVELY_CANCELLED) {
       return;
     }
     MimeMessage message = mailSender.createMimeMessage();

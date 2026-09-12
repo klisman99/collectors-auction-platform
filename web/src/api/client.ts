@@ -162,12 +162,46 @@ export type Auction = {
     protectionWindowSeconds: number;
   };
   timeline: Array<{
-    type: 'SCHEDULED' | 'RESCHEDULED' | 'STARTED' | 'CANCELLED' | 'ENDED';
+    type:
+      | 'SCHEDULED'
+      | 'RESCHEDULED'
+      | 'STARTED'
+      | 'CANCELLED'
+      | 'ENDED'
+      | 'SUSPENDED'
+      | 'RELEASED'
+      | 'RESUMED';
     occurredAt: string;
+    reasonCategory?: string;
     publicReason?: string;
+    internalNote?: string;
+    itemDisposition?: string;
   }>;
   eligibleBidHistory: Array<unknown>;
   disqualifications: Array<unknown>;
+};
+export type SuspendedAuction = {
+  id: string;
+  itemTitle: string;
+  sellerHandle: string;
+  state: string;
+  sourceState?: 'SCHEDULED' | 'LIVE';
+  suspendedAt?: string;
+  remainingDurationMillis?: number | null;
+  effectiveEndAt: string;
+  timeline: Array<{
+    type: string;
+    occurredAt: string;
+    reasonCategory?: string;
+    publicReason?: string;
+    internalNote?: string;
+    itemDisposition?: string;
+  }>;
+};
+export type AuctionAdministrativeReason = {
+  reasonCategory: string;
+  publicReason: string;
+  internalNote?: string;
 };
 export type AuctionView = 'SCHEDULED' | 'LIVE' | 'ENDED';
 export type AuctionPage = {
@@ -351,6 +385,32 @@ export async function listMyScheduledAuctions(): Promise<Auction[]> {
   return response.json() as Promise<Auction[]>;
 }
 
+export async function listSuspendedAuctions(): Promise<SuspendedAuction[]> {
+  return operationsAuctionRequest('/api/v1/operations/auctions/suspended', 'GET');
+}
+
+export async function suspendAuction(
+  id: string,
+  reason: AuctionAdministrativeReason,
+): Promise<SuspendedAuction> {
+  return operationsAuctionRequest(`/api/v1/operations/auctions/${id}/suspension`, 'POST', reason);
+}
+
+export async function releaseSuspendedAuction(id: string): Promise<SuspendedAuction> {
+  return operationsAuctionRequest(`/api/v1/operations/auctions/${id}/release`, 'POST');
+}
+
+export async function resumeSuspendedAuction(id: string): Promise<SuspendedAuction> {
+  return operationsAuctionRequest(`/api/v1/operations/auctions/${id}/resume`, 'POST');
+}
+
+export async function administrativelyCancelAuction(
+  id: string,
+  reason: AuctionAdministrativeReason & { itemDisposition: string },
+): Promise<SuspendedAuction> {
+  return operationsAuctionRequest(`/api/v1/operations/auctions/${id}/cancellation`, 'POST', reason);
+}
+
 export async function listModerationSubmissions(): Promise<ModerationSubmission[]> {
   const response = await fetch('/api/v1/moderation/submissions', { credentials: 'same-origin' });
   if (!response.ok) throw await apiError(response, 'Moderation submissions could not be loaded.');
@@ -424,6 +484,22 @@ async function moderationRequest(
   });
   if (!response.ok) throw await apiError(response, 'The moderation decision could not be saved.');
   return response.json() as Promise<ModerationSubmission>;
+}
+
+async function operationsAuctionRequest<T>(
+  url: string,
+  method: string,
+  body?: unknown,
+): Promise<T> {
+  const csrf = method === 'GET' ? { headers: {} } : await csrfHeaders();
+  const response = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...csrf.headers },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) throw await apiError(response, 'The auction operation could not be completed.');
+  return response.json() as Promise<T>;
 }
 
 async function auctionRequest(url: string, method: string, body: unknown): Promise<Auction> {

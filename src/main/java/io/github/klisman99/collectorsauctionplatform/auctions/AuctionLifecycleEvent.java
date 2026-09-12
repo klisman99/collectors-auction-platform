@@ -11,7 +11,11 @@ public record AuctionLifecycleEvent(
     String sellerEmail,
     String itemTitle,
     Type type,
+    UUID operationalActorId,
+    String reasonCategory,
     String publicReason,
+    String internalNote,
+    String itemDisposition,
     Instant occurredAt,
     PublishedTerms previousTerms,
     PublishedTerms currentTerms) {
@@ -23,6 +27,10 @@ public record AuctionLifecycleEvent(
     RESCHEDULED,
     STARTED,
     CANCELLED,
-    ENDED
+    ENDED,
+    SUSPENDED,
+    RELEASED,
+    RESUMED,
+    ADMINISTRATIVELY_CANCELLED
   }
 }

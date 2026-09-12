@@ -442,6 +442,135 @@ class AuctionHttpIntegrationTests {
         .andExpect(jsonPath("$.content[1].id").value(earlierId));
   }
 
+  @Test
+  void operationsSuspendWithLayeredPrivacyAndOnlyAdministratorCanResolve() throws Exception {
+    UUID ownerId = UUID.randomUUID();
+    UUID itemId = approvedItem(ownerId);
+    Instant startsAt = Instant.now().plus(30, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
+    MvcResult scheduled =
+        schedule(
+            ownerId, itemId, 10_000, 1_000, null, startsAt, startsAt.plus(2, ChronoUnit.HOURS));
+    String auctionId =
+        objectMapper.readTree(scheduled.getResponse().getContentAsString()).get("id").asText();
+    UUID moderatorId = UUID.randomUUID();
+    UUID administratorId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            post("/api/v1/operations/auctions/{id}/suspension", auctionId)
+                .with(user(moderatorId.toString()).roles("MODERATOR"))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"reasonCategory":"POLICY_REVIEW",
+                     "publicReason":"The listing requires an operational review.",
+                     "internalNote":"Check the private provenance document."}
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("SUSPENDED"))
+        .andExpect(jsonPath("$.sourceState").value("SCHEDULED"))
+        .andExpect(jsonPath("$.timeline[1].reasonCategory").value("POLICY_REVIEW"))
+        .andExpect(jsonPath("$.timeline[1].internalNote").doesNotExist());
+
+    mockMvc
+        .perform(
+            post("/api/v1/operations/auctions/{id}/release", auctionId)
+                .with(user(moderatorId.toString()).roles("MODERATOR"))
+                .with(csrf()))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("AUCTION_ADMINISTRATOR_REQUIRED"));
+
+    mockMvc
+        .perform(
+            get("/api/v1/operations/auctions/suspended")
+                .with(user(administratorId.toString()).roles("ADMINISTRATOR")))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$[0].timeline[1].internalNote")
+                .value("Check the private provenance document."));
+
+    mockMvc
+        .perform(get("/api/v1/auctions/{id}", auctionId))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$.timeline[1].publicReason")
+                .value("The listing requires an operational review."))
+        .andExpect(jsonPath("$.timeline[1].internalNote").doesNotExist());
+
+    mockMvc
+        .perform(
+            post("/api/v1/operations/auctions/{id}/release", auctionId)
+                .with(user(administratorId.toString()).roles("ADMINISTRATOR"))
+                .with(csrf()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("DRAFT"));
+  }
+
+  @Test
+  void administratorCancellationRequiresAndAppliesExplicitItemDisposition() throws Exception {
+    UUID ownerId = UUID.randomUUID();
+    UUID itemId = approvedItem(ownerId);
+    Instant startsAt = Instant.now().plus(30, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
+    String auctionId =
+        objectMapper
+            .readTree(
+                schedule(
+                        ownerId,
+                        itemId,
+                        10_000,
+                        1_000,
+                        null,
+                        startsAt,
+                        startsAt.plus(2, ChronoUnit.HOURS))
+                    .getResponse()
+                    .getContentAsString())
+            .get("id")
+            .asText();
+    UUID administratorId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            post("/api/v1/operations/auctions/{id}/suspension", auctionId)
+                .with(user(administratorId.toString()).roles("ADMINISTRATOR"))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"reasonCategory":"ITEM_CONCERN","publicReason":"The item needs review."}
+                    """))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            post("/api/v1/operations/auctions/{id}/cancellation", auctionId)
+                .with(user(administratorId.toString()).roles("ADMINISTRATOR"))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"reasonCategory":"ITEM_CONCERN",
+                     "publicReason":"Approval was revoked after review.",
+                     "internalNote":"Evidence retained by operations.",
+                     "itemDisposition":"REVOKE_APPROVAL_TO_DRAFT"}
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("CANCELLED"))
+        .andExpect(jsonPath("$.timeline[2].itemDisposition").value("REVOKE_APPROVAL_TO_DRAFT"));
+
+    org.assertj.core.api.Assertions.assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT status FROM collectible_items WHERE id = ?", String.class, itemId))
+        .isEqualTo("DRAFT");
+    org.assertj.core.api.Assertions.assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT auction_locked_at FROM collectible_items WHERE id = ?",
+                Instant.class,
+                itemId))
+        .isNull();
+    awaitAudit("AUCTION_ADMINISTRATIVELY_CANCELLED", UUID.fromString(auctionId));
+  }
+
   private UUID approvedItem(UUID ownerId) {
     Instant now = Instant.now();
     activeAccount(ownerId, now);

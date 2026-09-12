@@ -31,9 +31,42 @@ class AuctionLifecycleEventPublisher {
             contact.email(),
             auction.itemSnapshot().title(),
             type,
+            null,
+            null,
             publicReason,
+            null,
+            null,
             occurredAt,
             previousTerms,
+            new AuctionLifecycleEvent.PublishedTerms(
+                auction.reserveAmountCents(), auction.startsAt(), auction.endsAt())));
+  }
+
+  void publishAdministrative(
+      Auction auction,
+      AuctionLifecycleEvent.Type type,
+      java.util.UUID actorId,
+      String reasonCategory,
+      String publicReason,
+      String internalNote,
+      String itemDisposition,
+      Instant occurredAt) {
+    AccountDirectory.AccountContact contact = accounts.regularAccount(auction.sellerId());
+    events.publishEvent(
+        new AuctionLifecycleEvent(
+            auction.id(),
+            auction.itemId(),
+            auction.sellerId(),
+            contact.email(),
+            auction.itemSnapshot().title(),
+            type,
+            actorId,
+            reasonCategory,
+            publicReason,
+            internalNote,
+            itemDisposition,
+            occurredAt,
+            null,
             new AuctionLifecycleEvent.PublishedTerms(
                 auction.reserveAmountCents(), auction.startsAt(), auction.endsAt())));
   }

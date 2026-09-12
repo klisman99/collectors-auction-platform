@@ -119,6 +119,18 @@ class AuditRecord {
         ActorType.SYSTEM, null, action, TargetType.AUCTION, auctionId, occurredAt, metadata);
   }
 
+  static AuditRecord operationalAuctionAction(
+      AuditAction action, UUID actorId, UUID auctionId, Instant occurredAt, String metadata) {
+    return new AuditRecord(
+        ActorType.OPERATIONAL_ACCOUNT,
+        actorId,
+        action,
+        TargetType.AUCTION,
+        auctionId,
+        occurredAt,
+        metadata);
+  }
+
   static AuditRecord operationalAction(
       AuditAction action, UUID actorId, UUID targetId, Instant occurredAt, String metadata) {
     return new AuditRecord(
@@ -196,7 +208,11 @@ class AuditRecord {
     AUCTION_RESCHEDULED,
     AUCTION_STARTED,
     AUCTION_CANCELLED,
-    AUCTION_ENDED
+    AUCTION_ENDED,
+    AUCTION_SUSPENDED,
+    AUCTION_RELEASED,
+    AUCTION_RESUMED,
+    AUCTION_ADMINISTRATIVELY_CANCELLED
   }
 
   enum TargetType {
