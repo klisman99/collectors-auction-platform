@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { ActivateOperationalAccountData, ActivateOperationalAccountResponses, ApproveModerationSubmissionData, ApproveModerationSubmissionResponses, CancelAuctionData, CancelAuctionResponses, CreateCatalogDraftData, CreateCatalogDraftResponses, CsrfTokenData, CsrfTokenResponses, DeactivateOperationalAccountData, DeactivateOperationalAccountResponses, DeleteCatalogDraftData, DeleteCatalogDraftResponses, GetAuctionData, GetAuctionImageData, GetAuctionImageResponses, GetAuctionResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetCatalogDraftData, GetCatalogDraftImageData, GetCatalogDraftImageResponses, GetCatalogDraftImageThumbnailData, GetCatalogDraftImageThumbnailResponses, GetCatalogDraftResponses, GetModerationSubmissionImageData, GetModerationSubmissionImageResponses, GetPlatformStatusData, GetPlatformStatusResponses, InviteOperationalAccountData, InviteOperationalAccountResponses, ListAdministrativeAuditRecordsData, ListAdministrativeAuditRecordsResponses, ListAuctionsData, ListAuctionsResponses, ListCatalogDraftsData, ListCatalogDraftsResponses, ListModerationSubmissionsData, ListModerationSubmissionsResponses, ListMyScheduledAuctionsData, ListMyScheduledAuctionsResponses, ListOperationalAccountsData, ListOperationalAccountsResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, RejectModerationSubmissionData, RejectModerationSubmissionResponses, ReorderCatalogDraftImagesData, ReorderCatalogDraftImagesResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, ScheduleAuctionData, ScheduleAuctionResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, SubmitCatalogDraftData, SubmitCatalogDraftResponses, UpdateAuctionTermsData, UpdateAuctionTermsResponses, UpdateCatalogDraftData, UpdateCatalogDraftResponses, UploadCatalogDraftImageData, UploadCatalogDraftImageResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
+import type { ActivateOperationalAccountData, ActivateOperationalAccountResponses, AdministrativelyCancelAuctionData, AdministrativelyCancelAuctionResponses, ApproveModerationSubmissionData, ApproveModerationSubmissionResponses, CancelAuctionData, CancelAuctionResponses, CreateCatalogDraftData, CreateCatalogDraftResponses, CsrfTokenData, CsrfTokenResponses, DeactivateOperationalAccountData, DeactivateOperationalAccountResponses, DeleteCatalogDraftData, DeleteCatalogDraftResponses, GetAuctionData, GetAuctionImageData, GetAuctionImageResponses, GetAuctionResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetCatalogDraftData, GetCatalogDraftImageData, GetCatalogDraftImageResponses, GetCatalogDraftImageThumbnailData, GetCatalogDraftImageThumbnailResponses, GetCatalogDraftResponses, GetModerationSubmissionImageData, GetModerationSubmissionImageResponses, GetPlatformStatusData, GetPlatformStatusResponses, InviteOperationalAccountData, InviteOperationalAccountResponses, ListAdministrativeAuditRecordsData, ListAdministrativeAuditRecordsResponses, ListAuctionsData, ListAuctionsResponses, ListCatalogDraftsData, ListCatalogDraftsResponses, ListModerationSubmissionsData, ListModerationSubmissionsResponses, ListMyScheduledAuctionsData, ListMyScheduledAuctionsResponses, ListOperationalAccountsData, ListOperationalAccountsResponses, ListSuspendedAuctionsData, ListSuspendedAuctionsResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, RejectModerationSubmissionData, RejectModerationSubmissionResponses, ReleaseSuspendedAuctionData, ReleaseSuspendedAuctionResponses, ReorderCatalogDraftImagesData, ReorderCatalogDraftImagesResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, ResumeSuspendedAuctionData, ResumeSuspendedAuctionResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, ScheduleAuctionData, ScheduleAuctionResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, SubmitCatalogDraftData, SubmitCatalogDraftResponses, SuspendAuctionData, SuspendAuctionResponses, UpdateAuctionTermsData, UpdateAuctionTermsResponses, UpdateCatalogDraftData, UpdateCatalogDraftResponses, UploadCatalogDraftImageData, UploadCatalogDraftImageResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -57,6 +57,40 @@ export const reorderCatalogDraftImages = <ThrowOnError extends boolean = false>(
  */
 export const updateAuctionTerms = <ThrowOnError extends boolean = false>(options: Options<UpdateAuctionTermsData, ThrowOnError>): RequestResult<UpdateAuctionTermsResponses, unknown, ThrowOnError> => (options.client ?? client).put<UpdateAuctionTermsResponses, unknown, ThrowOnError>({
     url: '/api/v1/auctions/{id}/terms',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Suspend a scheduled or live auction
+ */
+export const suspendAuction = <ThrowOnError extends boolean = false>(options: Options<SuspendAuctionData, ThrowOnError>): RequestResult<SuspendAuctionResponses, unknown, ThrowOnError> => (options.client ?? client).post<SuspendAuctionResponses, unknown, ThrowOnError>({
+    url: '/api/v1/operations/auctions/{id}/suspension',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Resume a live suspension
+ */
+export const resumeSuspendedAuction = <ThrowOnError extends boolean = false>(options: Options<ResumeSuspendedAuctionData, ThrowOnError>): RequestResult<ResumeSuspendedAuctionResponses, unknown, ThrowOnError> => (options.client ?? client).post<ResumeSuspendedAuctionResponses, unknown, ThrowOnError>({ url: '/api/v1/operations/auctions/{id}/resume', ...options });
+
+/**
+ * Release a scheduled suspension
+ */
+export const releaseSuspendedAuction = <ThrowOnError extends boolean = false>(options: Options<ReleaseSuspendedAuctionData, ThrowOnError>): RequestResult<ReleaseSuspendedAuctionResponses, unknown, ThrowOnError> => (options.client ?? client).post<ReleaseSuspendedAuctionResponses, unknown, ThrowOnError>({ url: '/api/v1/operations/auctions/{id}/release', ...options });
+
+/**
+ * Cancel a suspended auction with explicit item disposition
+ */
+export const administrativelyCancelAuction = <ThrowOnError extends boolean = false>(options: Options<AdministrativelyCancelAuctionData, ThrowOnError>): RequestResult<AdministrativelyCancelAuctionResponses, unknown, ThrowOnError> => (options.client ?? client).post<AdministrativelyCancelAuctionResponses, unknown, ThrowOnError>({
+    url: '/api/v1/operations/auctions/{id}/cancellation',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -260,6 +294,11 @@ export const deactivateOperationalAccount = <ThrowOnError extends boolean = fals
  * Read the public platform status
  */
 export const getPlatformStatus = <ThrowOnError extends boolean = false>(options?: Options<GetPlatformStatusData, ThrowOnError>): RequestResult<GetPlatformStatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetPlatformStatusResponses, unknown, ThrowOnError>({ url: '/api/v1/status', ...options });
+
+/**
+ * List the suspension operations queue
+ */
+export const listSuspendedAuctions = <ThrowOnError extends boolean = false>(options?: Options<ListSuspendedAuctionsData, ThrowOnError>): RequestResult<ListSuspendedAuctionsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListSuspendedAuctionsResponses, unknown, ThrowOnError>({ url: '/api/v1/operations/auctions/suspended', ...options });
 
 /**
  * List collectible submissions awaiting review

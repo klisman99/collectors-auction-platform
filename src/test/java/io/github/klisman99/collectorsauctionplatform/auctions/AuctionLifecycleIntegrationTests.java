@@ -66,6 +66,8 @@ class AuctionLifecycleIntegrationTests {
 
   @Autowired private AuctionLifecycle lifecycle;
 
+  @Autowired private AuctionBidding auctionBidding;
+
   @Autowired private MutableClock clock;
 
   @Autowired private JdbcTemplate jdbcTemplate;
@@ -142,6 +144,82 @@ class AuctionLifecycleIntegrationTests {
     assertThatThrownBy(
             () -> auctions.cancel(auction.sellerId(), auction.id(), "Too late to cancel."))
         .isInstanceOf(AuctionApiException.class);
+  }
+
+  @Test
+  void scheduledSuspensionPreventsStartAndAdministratorReleasesItToDraft() {
+    Auction auction = scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900));
+    UUID moderatorId = UUID.randomUUID();
+    UUID administratorId = UUID.randomUUID();
+
+    auctions.suspend(
+        AuctionOperator.moderator(moderatorId),
+        auction.id(),
+        SuspensionReasonCategory.POLICY_REVIEW,
+        "The listing requires an operational review.",
+        "Check the provenance document.");
+    NEW_CONTEXT_TIME.set(auction.startsAt());
+    try (ConfigurableApplicationContext ignored = restartApplication()) {
+      // Startup reconciliation must leave the suspended auction frozen.
+    }
+
+    Auction suspended = auctions.get(auction.id());
+    assertThat(suspended.state()).isEqualTo(Auction.State.SUSPENDED);
+    assertThat(suspended.suspensionSourceState()).isEqualTo(Auction.State.SCHEDULED);
+
+    auctions.release(AuctionOperator.administrator(administratorId), auction.id());
+
+    Auction released = auctions.get(auction.id());
+    assertThat(released.state()).isEqualTo(Auction.State.DRAFT);
+    assertThat(released.timeline())
+        .extracting(AuctionTimelineEntry::type)
+        .containsExactly(
+            AuctionTimelineEntry.Type.SCHEDULED,
+            AuctionTimelineEntry.Type.SUSPENDED,
+            AuctionTimelineEntry.Type.RELEASED);
+  }
+
+  @Test
+  void liveSuspensionStoresExactRemainingDurationAndResumeUsesServerTime() throws Exception {
+    Auction auction = scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900));
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+    clock.set(auction.endsAt().minusSeconds(137));
+
+    auctions.suspend(
+        AuctionOperator.moderator(UUID.randomUUID()),
+        auction.id(),
+        SuspensionReasonCategory.SECURITY,
+        "Bidding is paused for a security review.",
+        null);
+
+    Auction suspended = auctions.get(auction.id());
+    assertThat(suspended.remainingDuration()).isEqualTo(java.time.Duration.ofSeconds(137));
+    assertThatThrownBy(() -> auctionBidding.lockOpenAuction(auction.id()))
+        .isInstanceOf(AuctionBidding.BidUnavailable.class);
+    awaitAudit("AUCTION_SUSPENDED", auction.id());
+    String suspensionMetadata =
+        jdbcTemplate.queryForObject(
+            "SELECT metadata FROM audit_records WHERE action = 'AUCTION_SUSPENDED' AND target_id = ?",
+            String.class,
+            auction.id());
+    assertThat(suspensionMetadata)
+        .contains(
+            "reasonCategory=SECURITY", "publicReason=Bidding is paused for a security review.");
+    Instant resumedAt = auction.endsAt().plusSeconds(600);
+    NEW_CONTEXT_TIME.set(resumedAt);
+    try (ConfigurableApplicationContext ignored = restartApplication()) {
+      // Restart reconciliation must preserve the live suspension and remaining duration.
+    }
+    assertThat(auctions.get(auction.id()).state()).isEqualTo(Auction.State.SUSPENDED);
+
+    clock.set(resumedAt);
+    auctions.resume(AuctionOperator.administrator(UUID.randomUUID()), auction.id());
+
+    Auction resumed = auctions.get(auction.id());
+    assertThat(resumed.state()).isEqualTo(Auction.State.LIVE);
+    assertThat(resumed.effectiveEndAt()).isEqualTo(resumedAt.plusSeconds(137));
+    awaitAudit("AUCTION_RESUMED", auction.id());
   }
 
   private ConfigurableApplicationContext restartApplication() {

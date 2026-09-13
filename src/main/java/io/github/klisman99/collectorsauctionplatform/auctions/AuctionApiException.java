@@ -94,6 +94,38 @@ class AuctionApiException extends ErrorResponseException {
         "State must be SCHEDULED, LIVE, or ENDED and pagination must be within range.");
   }
 
+  static AuctionApiException notSuspendable() {
+    return new AuctionApiException(
+        HttpStatus.CONFLICT,
+        "AUCTION_NOT_SUSPENDABLE",
+        "BR-CLOSE-005",
+        "Only a scheduled or live auction may be suspended.");
+  }
+
+  static AuctionApiException invalidAdministrativeReason() {
+    return new AuctionApiException(
+        HttpStatus.BAD_REQUEST,
+        "AUCTION_ADMINISTRATIVE_REASON_INVALID",
+        "BR-AUDIT-005",
+        "A categorized public reason is required and the optional internal note must be valid.");
+  }
+
+  static AuctionApiException administratorRequired() {
+    return new AuctionApiException(
+        HttpStatus.FORBIDDEN,
+        "AUCTION_ADMINISTRATOR_REQUIRED",
+        "BR-CLOSE-006",
+        "Only an administrator may resolve a suspended auction.");
+  }
+
+  static AuctionApiException suspensionResolutionInvalid() {
+    return new AuctionApiException(
+        HttpStatus.CONFLICT,
+        "AUCTION_SUSPENSION_RESOLUTION_INVALID",
+        "BR-CLOSE-006",
+        "The requested resolution is not valid for this suspended auction.");
+  }
+
   private static ProblemDetail problem(
       HttpStatus status, String code, String ruleId, String detail) {
     ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);

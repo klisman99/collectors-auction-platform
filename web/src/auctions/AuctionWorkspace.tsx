@@ -147,7 +147,7 @@ export function AuctionWorkspace({ approvedItems }: { approvedItems: Draft[] }) 
       </div>
       {scheduled.length > 0 && (
         <div className="mt-5">
-          <p className="text-sm font-semibold text-amber-300">Your scheduled auctions</p>
+          <p className="text-sm font-semibold text-amber-300">Your editable auctions</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {scheduled.map((auction) => (
               <button
@@ -211,7 +211,9 @@ export function AuctionWorkspace({ approvedItems }: { approvedItems: Draft[] }) 
                 </div>
               </dl>
             </div>
-            {(published === null || published.state === 'SCHEDULED') && (
+            {(published === null ||
+              published.state === 'DRAFT' ||
+              published.state === 'SCHEDULED') && (
               <form className="grid gap-3 bg-amber-950/15 p-5" onSubmit={publish}>
                 <p className="text-sm font-semibold text-amber-300">Editable before start</p>
                 {published === null && (
@@ -269,13 +271,15 @@ export function AuctionWorkspace({ approvedItems }: { approvedItems: Draft[] }) 
                 </button>
               </form>
             )}
-            {published !== null && published.state !== 'SCHEDULED' && (
-              <div className="bg-slate-950/60 p-5">
-                <p className="text-sm font-semibold text-slate-200">
-                  Auction {published.state.toLowerCase().replaceAll('_', ' ')}.
-                </p>
-              </div>
-            )}
+            {published !== null &&
+              published.state !== 'DRAFT' &&
+              published.state !== 'SCHEDULED' && (
+                <div className="bg-slate-950/60 p-5">
+                  <p className="text-sm font-semibold text-slate-200">
+                    Auction {published.state.toLowerCase().replaceAll('_', ' ')}.
+                  </p>
+                </div>
+              )}
           </div>
           {published !== null && (
             <div className="border-t border-slate-700 px-5 py-4">

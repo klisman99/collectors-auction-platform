@@ -19,32 +19,83 @@ class AuctionTimelineEntry {
   @Column(name = "public_reason", updatable = false)
   private String publicReason;
 
+  @Column(name = "reason_category", updatable = false)
+  @Enumerated(EnumType.STRING)
+  private SuspensionReasonCategory reasonCategory;
+
+  @Column(name = "internal_note", updatable = false, length = 2000)
+  private String internalNote;
+
+  @Column(name = "item_disposition", updatable = false)
+  @Enumerated(EnumType.STRING)
+  private AdministrativeItemDisposition itemDisposition;
+
   protected AuctionTimelineEntry() {}
 
-  private AuctionTimelineEntry(Type type, Instant occurredAt, String publicReason) {
+  private AuctionTimelineEntry(
+      Type type,
+      Instant occurredAt,
+      SuspensionReasonCategory reasonCategory,
+      String publicReason,
+      String internalNote,
+      AdministrativeItemDisposition itemDisposition) {
     this.type = type;
     this.occurredAt = occurredAt;
+    this.reasonCategory = reasonCategory;
     this.publicReason = publicReason;
+    this.internalNote = internalNote;
+    this.itemDisposition = itemDisposition;
   }
 
   static AuctionTimelineEntry scheduled(Instant occurredAt) {
-    return new AuctionTimelineEntry(Type.SCHEDULED, occurredAt, null);
+    return simple(Type.SCHEDULED, occurredAt);
   }
 
   static AuctionTimelineEntry rescheduled(Instant occurredAt) {
-    return new AuctionTimelineEntry(Type.RESCHEDULED, occurredAt, null);
+    return simple(Type.RESCHEDULED, occurredAt);
   }
 
   static AuctionTimelineEntry cancelled(Instant occurredAt, String publicReason) {
-    return new AuctionTimelineEntry(Type.CANCELLED, occurredAt, publicReason);
+    return new AuctionTimelineEntry(Type.CANCELLED, occurredAt, null, publicReason, null, null);
   }
 
   static AuctionTimelineEntry started(Instant occurredAt) {
-    return new AuctionTimelineEntry(Type.STARTED, occurredAt, null);
+    return simple(Type.STARTED, occurredAt);
   }
 
   static AuctionTimelineEntry ended(Instant occurredAt) {
-    return new AuctionTimelineEntry(Type.ENDED, occurredAt, null);
+    return simple(Type.ENDED, occurredAt);
+  }
+
+  static AuctionTimelineEntry suspended(
+      Instant occurredAt,
+      SuspensionReasonCategory reasonCategory,
+      String publicReason,
+      String internalNote) {
+    return new AuctionTimelineEntry(
+        Type.SUSPENDED, occurredAt, reasonCategory, publicReason, internalNote, null);
+  }
+
+  static AuctionTimelineEntry released(Instant occurredAt) {
+    return simple(Type.RELEASED, occurredAt);
+  }
+
+  static AuctionTimelineEntry resumed(Instant occurredAt) {
+    return simple(Type.RESUMED, occurredAt);
+  }
+
+  static AuctionTimelineEntry administrativelyCancelled(
+      Instant occurredAt,
+      SuspensionReasonCategory reasonCategory,
+      String publicReason,
+      String internalNote,
+      AdministrativeItemDisposition itemDisposition) {
+    return new AuctionTimelineEntry(
+        Type.CANCELLED, occurredAt, reasonCategory, publicReason, internalNote, itemDisposition);
+  }
+
+  private static AuctionTimelineEntry simple(Type type, Instant occurredAt) {
+    return new AuctionTimelineEntry(type, occurredAt, null, null, null, null);
   }
 
   Type type() {
@@ -59,11 +110,26 @@ class AuctionTimelineEntry {
     return publicReason;
   }
 
+  SuspensionReasonCategory reasonCategory() {
+    return reasonCategory;
+  }
+
+  String internalNote() {
+    return internalNote;
+  }
+
+  AdministrativeItemDisposition itemDisposition() {
+    return itemDisposition;
+  }
+
   enum Type {
     SCHEDULED,
     RESCHEDULED,
     STARTED,
     CANCELLED,
-    ENDED
+    ENDED,
+    SUSPENDED,
+    RELEASED,
+    RESUMED
   }
 }

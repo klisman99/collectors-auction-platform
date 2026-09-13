@@ -102,7 +102,44 @@ export type PolicyResponse = {
 export type TimelineResponse = {
     type?: string;
     occurredAt?: string;
+    reasonCategory?: string;
     publicReason?: string;
+    internalNote?: string;
+    itemDisposition?: string;
+};
+
+export type ReasonRequest = {
+    reasonCategory: string;
+    publicReason: string;
+    internalNote?: string;
+};
+
+export type OperationsTimelineResponse = {
+    type?: string;
+    occurredAt?: string;
+    reasonCategory?: string;
+    publicReason?: string;
+    internalNote?: string;
+    itemDisposition?: string;
+};
+
+export type SuspendedAuctionResponse = {
+    id?: string;
+    itemTitle?: string;
+    sellerHandle?: string;
+    state?: string;
+    sourceState?: string;
+    suspendedAt?: string;
+    remainingDurationMillis?: number;
+    effectiveEndAt?: string;
+    timeline?: Array<OperationsTimelineResponse>;
+};
+
+export type CancellationRequest = {
+    reasonCategory: string;
+    publicReason: string;
+    internalNote?: string;
+    itemDisposition: string;
 };
 
 export type ReviewDecisionRequest = {
@@ -219,10 +256,6 @@ export type ScheduleRequest = {
     reserveAmountCents?: number;
     startsAt: string;
     endsAt: string;
-};
-
-export type CancellationRequest = {
-    publicReason: string;
 };
 
 export type InviteOperationalAccountRequest = {
@@ -385,6 +418,78 @@ export type UpdateAuctionTermsResponses = {
 };
 
 export type UpdateAuctionTermsResponse = UpdateAuctionTermsResponses[keyof UpdateAuctionTermsResponses];
+
+export type SuspendAuctionData = {
+    body: ReasonRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/operations/auctions/{id}/suspension';
+};
+
+export type SuspendAuctionResponses = {
+    /**
+     * OK
+     */
+    200: SuspendedAuctionResponse;
+};
+
+export type SuspendAuctionResponse = SuspendAuctionResponses[keyof SuspendAuctionResponses];
+
+export type ResumeSuspendedAuctionData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/operations/auctions/{id}/resume';
+};
+
+export type ResumeSuspendedAuctionResponses = {
+    /**
+     * OK
+     */
+    200: SuspendedAuctionResponse;
+};
+
+export type ResumeSuspendedAuctionResponse = ResumeSuspendedAuctionResponses[keyof ResumeSuspendedAuctionResponses];
+
+export type ReleaseSuspendedAuctionData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/operations/auctions/{id}/release';
+};
+
+export type ReleaseSuspendedAuctionResponses = {
+    /**
+     * OK
+     */
+    200: SuspendedAuctionResponse;
+};
+
+export type ReleaseSuspendedAuctionResponse = ReleaseSuspendedAuctionResponses[keyof ReleaseSuspendedAuctionResponses];
+
+export type AdministrativelyCancelAuctionData = {
+    body: CancellationRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/operations/auctions/{id}/cancellation';
+};
+
+export type AdministrativelyCancelAuctionResponses = {
+    /**
+     * OK
+     */
+    200: SuspendedAuctionResponse;
+};
+
+export type AdministrativelyCancelAuctionResponse = AdministrativelyCancelAuctionResponses[keyof AdministrativelyCancelAuctionResponses];
 
 export type RejectModerationSubmissionData = {
     body: ReviewDecisionRequest;
@@ -739,6 +844,22 @@ export type GetPlatformStatusResponses = {
 };
 
 export type GetPlatformStatusResponse = GetPlatformStatusResponses[keyof GetPlatformStatusResponses];
+
+export type ListSuspendedAuctionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/operations/auctions/suspended';
+};
+
+export type ListSuspendedAuctionsResponses = {
+    /**
+     * OK
+     */
+    200: Array<SuspendedAuctionResponse>;
+};
+
+export type ListSuspendedAuctionsResponse = ListSuspendedAuctionsResponses[keyof ListSuspendedAuctionsResponses];
 
 export type ListModerationSubmissionsData = {
     body?: never;

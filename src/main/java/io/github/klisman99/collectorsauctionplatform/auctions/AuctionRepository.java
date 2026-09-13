@@ -17,13 +17,28 @@ interface AuctionRepository extends JpaRepository<Auction, UUID> {
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   Optional<Auction> findByIdAndSellerId(UUID id, UUID sellerId);
 
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select auction from Auction auction where auction.id = :id")
+  Optional<Auction> findByIdForUpdate(@Param("id") UUID id);
+
   List<Auction> findAllByStateOrderByStartsAtAsc(Auction.State state);
 
   Page<Auction> findAllByState(Auction.State state, Pageable pageable);
 
+  @Query(
+      "select auction from Auction auction where auction.state = 'SCHEDULED' or (auction.state = 'SUSPENDED' and auction.suspensionSourceState = 'SCHEDULED')")
+  Page<Auction> findScheduledDiscovery(Pageable pageable);
+
+  @Query(
+      "select auction from Auction auction where auction.state = 'LIVE' or (auction.state = 'SUSPENDED' and auction.suspensionSourceState = 'LIVE')")
+  Page<Auction> findLiveDiscovery(Pageable pageable);
+
   Page<Auction> findAllByStateIn(List<Auction.State> states, Pageable pageable);
 
-  List<Auction> findAllBySellerIdAndStateOrderByStartsAtAsc(UUID sellerId, Auction.State state);
+  List<Auction> findAllBySellerIdAndStateInOrderByStartsAtAsc(
+      UUID sellerId, List<Auction.State> states);
+
+  List<Auction> findAllByStateOrderBySuspendedAtAsc(Auction.State state);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query(

@@ -84,12 +84,10 @@ class AuctionService {
     Page<Auction> result =
         switch (view) {
           case SCHEDULED ->
-              auctions.findAllByState(
-                  Auction.State.SCHEDULED,
+              auctions.findScheduledDiscovery(
                   PageRequest.of(page, size, Sort.by("startsAt").ascending()));
           case LIVE ->
-              auctions.findAllByState(
-                  Auction.State.LIVE, PageRequest.of(page, size, Sort.by("endsAt").ascending()));
+              auctions.findLiveDiscovery(PageRequest.of(page, size, Sort.by("endsAt").ascending()));
           case ENDED ->
               auctions.findAllByStateIn(
                   List.of(Auction.State.SOLD, Auction.State.UNSOLD, Auction.State.CANCELLED),
@@ -109,7 +107,112 @@ class AuctionService {
 
   @Transactional(readOnly = true)
   List<Auction> scheduledForSeller(UUID sellerId) {
-    return auctions.findAllBySellerIdAndStateOrderByStartsAtAsc(sellerId, Auction.State.SCHEDULED);
+    return auctions.findAllBySellerIdAndStateInOrderByStartsAtAsc(
+        sellerId, List.of(Auction.State.DRAFT, Auction.State.SCHEDULED));
+  }
+
+  @Transactional(readOnly = true)
+  List<Auction> suspendedQueue() {
+    return auctions.findAllByStateOrderBySuspendedAtAsc(Auction.State.SUSPENDED);
+  }
+
+  @Transactional
+  Auction suspend(
+      AuctionOperator operator,
+      UUID auctionId,
+      SuspensionReasonCategory reasonCategory,
+      String publicReason,
+      String internalNote) {
+    Auction auction = lock(auctionId);
+    Instant now = Instant.now(clock);
+    auction.suspend(reasonCategory, publicReason, internalNote, now);
+    lifecycleEvents.publishAdministrative(
+        auction,
+        AuctionLifecycleEvent.Type.SUSPENDED,
+        operator.accountId(),
+        reasonCategory,
+        publicReason.trim(),
+        internalNote,
+        null,
+        now);
+    return auction;
+  }
+
+  @Transactional
+  Auction release(AuctionOperator operator, UUID auctionId) {
+    requireAdministrator(operator);
+    Auction auction = lock(auctionId);
+    Instant now = Instant.now(clock);
+    auction.release(now);
+    catalog.releaseUnchangedItem(auction.itemId(), now);
+    lifecycleEvents.publishAdministrative(
+        auction,
+        AuctionLifecycleEvent.Type.RELEASED,
+        operator.accountId(),
+        null,
+        null,
+        null,
+        null,
+        now);
+    return auction;
+  }
+
+  @Transactional
+  Auction resume(AuctionOperator operator, UUID auctionId) {
+    requireAdministrator(operator);
+    Auction auction = lock(auctionId);
+    Instant now = Instant.now(clock);
+    auction.resume(now);
+    lifecycleEvents.publishAdministrative(
+        auction,
+        AuctionLifecycleEvent.Type.RESUMED,
+        operator.accountId(),
+        null,
+        null,
+        null,
+        null,
+        now);
+    return auction;
+  }
+
+  @Transactional
+  Auction administrativelyCancel(
+      AuctionOperator operator,
+      UUID auctionId,
+      SuspensionReasonCategory reasonCategory,
+      String publicReason,
+      String internalNote,
+      AdministrativeItemDisposition disposition) {
+    requireAdministrator(operator);
+    Auction auction = lock(auctionId);
+    Instant now = Instant.now(clock);
+    auction.administrativelyCancel(reasonCategory, publicReason, internalNote, disposition, now);
+    switch (disposition) {
+      case RELEASE_APPROVED_ITEM ->
+          catalog.releaseApprovedItemAfterAdministrativeCancellation(auction.itemId(), now);
+      case REVOKE_APPROVAL_TO_DRAFT ->
+          catalog.revokeApprovalAfterAdministrativeCancellation(auction.itemId(), now);
+    }
+    lifecycleEvents.publishAdministrative(
+        auction,
+        AuctionLifecycleEvent.Type.ADMINISTRATIVELY_CANCELLED,
+        operator.accountId(),
+        reasonCategory,
+        publicReason.trim(),
+        internalNote,
+        disposition,
+        now);
+    return auction;
+  }
+
+  private Auction lock(UUID auctionId) {
+    return auctions.findByIdForUpdate(auctionId).orElseThrow(AuctionApiException::notFound);
+  }
+
+  private void requireAdministrator(AuctionOperator operator) {
+    if (!operator.isAdministrator()) {
+      throw AuctionApiException.administratorRequired();
+    }
   }
 
   @Transactional
@@ -127,6 +230,17 @@ class AuctionService {
         new AuctionLifecycleEvent.PublishedTerms(
             auction.reserveAmountCents(), auction.startsAt(), auction.endsAt());
     Instant now = Instant.now(clock);
+    if (auction.state() == Auction.State.DRAFT) {
+      try {
+        catalog.lockApprovedItem(sellerId, auction.itemId(), now);
+      } catch (CatalogAuctioning.ItemNotAuctionable exception) {
+        throw switch (exception.reason()) {
+          case NOT_FOUND -> AuctionApiException.itemNotFound();
+          case NOT_APPROVED -> AuctionApiException.itemNotApproved();
+          case LOCKED -> AuctionApiException.itemAlreadyScheduled();
+        };
+      }
+    }
     auction.updateEditableTerms(reserveAmountCents, startsAt, endsAt, now);
     lifecycleEvents.publish(
         auction, AuctionLifecycleEvent.Type.RESCHEDULED, null, now, previousTerms);
@@ -153,6 +267,8 @@ class AuctionService {
 
   private AuctionAccess withAccess(Auction auction, UUID viewerId, boolean administrator) {
     return new AuctionAccess(
-        auction, administrator || (viewerId != null && auction.sellerId().equals(viewerId)));
+        auction,
+        administrator || (viewerId != null && auction.sellerId().equals(viewerId)),
+        administrator);
   }
 }

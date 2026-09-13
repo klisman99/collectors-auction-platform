@@ -22,21 +22,36 @@ class AuctionAuditListener {
           case STARTED -> AuditRecord.AuditAction.AUCTION_STARTED;
           case CANCELLED -> AuditRecord.AuditAction.AUCTION_CANCELLED;
           case ENDED -> AuditRecord.AuditAction.AUCTION_ENDED;
+          case SUSPENDED -> AuditRecord.AuditAction.AUCTION_SUSPENDED;
+          case RELEASED -> AuditRecord.AuditAction.AUCTION_RELEASED;
+          case RESUMED -> AuditRecord.AuditAction.AUCTION_RESUMED;
+          case ADMINISTRATIVELY_CANCELLED ->
+              AuditRecord.AuditAction.AUCTION_ADMINISTRATIVELY_CANCELLED;
         };
     String metadata =
         "itemId="
             + event.itemId()
             + termsMetadata("previous", event.previousTerms())
             + termsMetadata("current", event.currentTerms())
-            + (event.publicReason() == null ? "" : ";publicReason=" + event.publicReason());
+            + valueMetadata("reasonCategory", event.reasonCategory())
+            + valueMetadata("publicReason", event.publicReason())
+            + valueMetadata("internalNote", event.internalNote())
+            + valueMetadata("itemDisposition", event.itemDisposition());
     AuditRecord record =
-        event.type() == AuctionLifecycleEvent.Type.STARTED
-                || event.type() == AuctionLifecycleEvent.Type.ENDED
-            ? AuditRecord.systemAuctionAction(
-                action, event.auctionId(), event.occurredAt(), metadata)
-            : AuditRecord.accountAuctionAction(
-                action, event.sellerId(), event.auctionId(), event.occurredAt(), metadata);
+        event.operationalActorId() != null
+            ? AuditRecord.operationalAuctionAction(
+                action, event.operationalActorId(), event.auctionId(), event.occurredAt(), metadata)
+            : event.type() == AuctionLifecycleEvent.Type.STARTED
+                    || event.type() == AuctionLifecycleEvent.Type.ENDED
+                ? AuditRecord.systemAuctionAction(
+                    action, event.auctionId(), event.occurredAt(), metadata)
+                : AuditRecord.accountAuctionAction(
+                    action, event.sellerId(), event.auctionId(), event.occurredAt(), metadata);
     auditRecords.save(record);
+  }
+
+  private String valueMetadata(String name, Object value) {
+    return value == null ? "" : ";" + name + "=" + value;
   }
 
   private String termsMetadata(String prefix, AuctionLifecycleEvent.PublishedTerms publishedTerms) {

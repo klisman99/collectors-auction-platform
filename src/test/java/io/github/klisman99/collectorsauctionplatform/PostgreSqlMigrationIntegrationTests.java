@@ -40,6 +40,6 @@ class PostgreSqlMigrationIntegrationTests {
 
   @Test
   void appliesTheForwardOnlyMigrationsAgainstPostgreSql() {
-    assertThat(flyway.info().applied()).hasSize(10);
+    assertThat(flyway.info().applied()).hasSize(11);
   }
 }
