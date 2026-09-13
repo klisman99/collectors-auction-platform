@@ -26,10 +26,17 @@ public class AccountDirectory {
     return new TradingAccount(
         account.id(),
         account.publicHandle(),
-        account.status() == AccountStatus.ACTIVE && account.isVerified());
+        account.status() == AccountStatus.ACTIVE,
+        account.isVerified());
   }
 
   public record AccountContact(UUID accountId, String email, String publicHandle) {}
 
-  public record TradingAccount(UUID accountId, String publicHandle, boolean eligible) {}
+  public record TradingAccount(
+      UUID accountId, String publicHandle, boolean active, boolean verified) {
+
+    public boolean eligible() {
+      return active && verified;
+    }
+  }
 }

@@ -212,6 +212,18 @@ export type AuctionPage = {
   totalElements: number;
   totalPages: number;
 };
+export type PublicBid = {
+  amountCents: number;
+  acceptedAt: string;
+  sequence: number;
+  bidderPseudonym: string;
+};
+export type BidRequest = { amountCents: number; idempotencyKey: string };
+export type BidResult = PublicBid & {
+  status: 'ACCEPTED' | 'DEDUPLICATED';
+  code: string;
+  requiredAmountCents?: number;
+};
 
 client.setConfig({ baseUrl: '/', credentials: 'same-origin' });
 
@@ -219,17 +231,20 @@ export type ApiProblem = {
   code?: string;
   detail?: string;
   fieldErrors?: Array<{ field?: string; message?: string }>;
+  requiredAmountCents?: number;
 };
 
 export class ApiError extends Error {
   readonly code?: string;
   readonly fieldErrors: ApiProblem['fieldErrors'];
+  readonly requiredAmountCents?: number;
 
   constructor(problem: ApiProblem, fallbackMessage: string) {
     super(problem.detail ?? fallbackMessage);
     this.name = 'ApiError';
     this.code = problem.code;
     this.fieldErrors = problem.fieldErrors;
+    this.requiredAmountCents = problem.requiredAmountCents;
   }
 }
 
@@ -378,6 +393,24 @@ export async function getAuction(id: string): Promise<Auction> {
   const response = await fetch(`/api/v1/auctions/${id}`, { credentials: 'same-origin' });
   if (!response.ok) throw await apiError(response, 'Auction details could not be loaded.');
   return response.json() as Promise<Auction>;
+}
+
+export async function listPublicBids(id: string): Promise<PublicBid[]> {
+  const response = await fetch(`/api/v1/auctions/${id}/bids`, { credentials: 'same-origin' });
+  if (!response.ok) throw await apiError(response, 'Bid history could not be loaded.');
+  return response.json() as Promise<PublicBid[]>;
+}
+
+export async function placeBid(id: string, input: BidRequest): Promise<BidResult> {
+  const csrf = await csrfHeaders();
+  const response = await fetch(`/api/v1/auctions/${id}/bids`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', ...csrf.headers },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await apiError(response, 'The bid could not be placed.');
+  return response.json() as Promise<BidResult>;
 }
 
 export async function listMyScheduledAuctions(): Promise<Auction[]> {

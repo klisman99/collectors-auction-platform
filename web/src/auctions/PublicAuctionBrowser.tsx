@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 
 import {
+  ApiError,
   type Auction,
   type AuctionPage,
   type AuctionView,
   getAuction,
   listAuctions,
+  listPublicBids,
+  type PublicBid,
+  placeBid,
 } from '../api/client';
 import { formatBrl, formatSaoPaulo } from './presentation';
 
@@ -17,19 +21,21 @@ const emptyPage: AuctionPage = {
   totalPages: 0,
 };
 
-export function PublicAuctionBrowser() {
+export function PublicAuctionBrowser({ canBid = false }: { canBid?: boolean }) {
   const [view, setView] = useState<AuctionView>('SCHEDULED');
   const [pageNumber, setPageNumber] = useState(0);
   const [page, setPage] = useState<AuctionPage>(emptyPage);
   const [selected, setSelected] = useState<Auction | null>(null);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<string | null>(null);
+  const [publicBids, setPublicBids] = useState<PublicBid[]>([]);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setFailure(null);
     setSelected(null);
+    setPublicBids([]);
     listAuctions(view, pageNumber)
       .then((result) => {
         if (active) setPage(result);
@@ -48,10 +54,18 @@ export function PublicAuctionBrowser() {
   async function showDetails(auctionId: string) {
     setFailure(null);
     try {
-      setSelected(await getAuction(auctionId));
+      const [auction, bids] = await Promise.all([getAuction(auctionId), listPublicBids(auctionId)]);
+      setSelected(auction);
+      setPublicBids(bids);
     } catch {
       setFailure('Auction details could not be loaded. Try again.');
     }
+  }
+
+  async function refreshDetails(auctionId: string) {
+    const [auction, bids] = await Promise.all([getAuction(auctionId), listPublicBids(auctionId)]);
+    setSelected(auction);
+    setPublicBids(bids);
   }
 
   return (
@@ -141,12 +155,79 @@ export function PublicAuctionBrowser() {
           </button>
         </div>
       )}
-      {selected !== null && <AuctionDetails auction={selected} />}
+      {selected !== null && (
+        <AuctionDetails
+          auction={selected}
+          bids={publicBids}
+          canBid={canBid}
+          refresh={() => refreshDetails(selected.id)}
+        />
+      )}
     </section>
   );
 }
 
-function AuctionDetails({ auction }: { auction: Auction }) {
+function AuctionDetails({
+  auction,
+  bids,
+  canBid,
+  refresh,
+}: {
+  auction: Auction;
+  bids: PublicBid[];
+  canBid: boolean;
+  refresh: () => Promise<void>;
+}) {
+  const calculatedRequiredAmount =
+    bids.length === 0
+      ? auction.openingAmountCents
+      : auction.currentAmountCents + auction.minimumIncrementCents;
+  const [serverRequiredAmount, setServerRequiredAmount] = useState<number | null>(null);
+  const requiredAmount = serverRequiredAmount ?? calculatedRequiredAmount;
+  const [amount, setAmount] = useState((requiredAmount / 100).toFixed(2));
+  const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
+  const [submitting, setSubmitting] = useState(false);
+  const [bidNotice, setBidNotice] = useState<string | null>(null);
+  const [bidFailure, setBidFailure] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAmount((requiredAmount / 100).toFixed(2));
+  }, [requiredAmount]);
+
+  async function submitBid(event: React.FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setBidNotice(null);
+    setBidFailure(null);
+    try {
+      const result = await placeBid(auction.id, {
+        amountCents: Math.round(Number(amount) * 100),
+        idempotencyKey,
+      });
+      setBidNotice(
+        result.status === 'DEDUPLICATED'
+          ? `Duplicate command returned bid #${result.sequence}.`
+          : `Bid accepted as #${result.sequence}.`,
+      );
+      setIdempotencyKey(newIdempotencyKey());
+      await refresh();
+      setServerRequiredAmount(null);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setBidFailure(bidFailureMessage(error));
+        if (error.requiredAmountCents !== undefined) {
+          setServerRequiredAmount(error.requiredAmountCents);
+          setAmount((error.requiredAmountCents / 100).toFixed(2));
+        }
+        if (error.code !== undefined) setIdempotencyKey(newIdempotencyKey());
+      } else {
+        setBidFailure('The bid could not be confirmed. Retry to safely use the same command key.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <article className="mt-6 rounded-xl border border-cyan-800 bg-cyan-950/20 p-5">
       <p className="text-xs font-semibold tracking-wide text-cyan-300 uppercase">
@@ -214,11 +295,54 @@ function AuctionDetails({ auction }: { auction: Auction }) {
         ))}
       </ol>
       <h4 className="mt-5 font-semibold text-white">Eligible bid history</h4>
-      <p className="mt-2 text-sm text-slate-300">
-        {auction.eligibleBidHistory.length === 0
-          ? 'No eligible bids.'
-          : `${auction.eligibleBidHistory.length} eligible bids.`}
-      </p>
+      {bids.length === 0 ? (
+        <p className="mt-2 text-sm text-slate-300">No eligible bids.</p>
+      ) : (
+        <ol className="mt-2 space-y-2 text-sm text-slate-300">
+          {bids.map((bid) => (
+            <li key={bid.sequence}>
+              #{bid.sequence} ·{' '}
+              <span className="font-medium text-white">{bid.bidderPseudonym}</span> ·{' '}
+              {formatBrl(bid.amountCents)} · {formatSaoPaulo(bid.acceptedAt)}
+            </li>
+          ))}
+        </ol>
+      )}
+      {canBid && auction.state === 'LIVE' && (
+        <form className="mt-5 rounded-lg border border-amber-700/60 p-4" onSubmit={submitBid}>
+          <p className="text-sm text-amber-200">Required bid: {formatBrl(requiredAmount)}</p>
+          <label className="mt-3 block text-sm text-slate-300" htmlFor={`bid-${auction.id}`}>
+            Bid amount
+          </label>
+          <input
+            className="mt-1 w-full rounded-md border border-slate-600 bg-slate-950 px-3 py-2"
+            id={`bid-${auction.id}`}
+            min={(requiredAmount / 100).toFixed(2)}
+            onChange={(event) => setAmount(event.target.value)}
+            required
+            step="0.01"
+            type="number"
+            value={amount}
+          />
+          <button
+            className="mt-3 rounded-md bg-amber-300 px-4 py-2 font-semibold text-slate-950"
+            disabled={submitting}
+            type="submit"
+          >
+            {submitting ? 'Placing bid…' : 'Place bid'}
+          </button>
+          {bidNotice !== null && (
+            <p className="mt-3 text-sm text-emerald-300" role="status">
+              {bidNotice}
+            </p>
+          )}
+          {bidFailure !== null && (
+            <p className="mt-3 text-sm text-rose-300" role="alert">
+              {bidFailure}
+            </p>
+          )}
+        </form>
+      )}
       <h4 className="mt-5 font-semibold text-white">Disqualifications</h4>
       <p className="mt-2 text-sm text-slate-300">
         {auction.disqualifications.length === 0
@@ -227,6 +351,29 @@ function AuctionDetails({ auction }: { auction: Auction }) {
       </p>
     </article>
   );
+}
+
+function newIdempotencyKey(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+}
+
+function bidFailureMessage(error: ApiError): string {
+  switch (error.code) {
+    case 'BID_AMOUNT_TOO_LOW':
+      return error.requiredAmountCents === undefined
+        ? 'Bid rejected because the amount is too low.'
+        : `Bid rejected. Required amount is ${formatBrl(error.requiredAmountCents)}.`;
+    case 'BID_RATE_LIMITED':
+      return 'Bid rate limit reached. Wait a moment before trying again.';
+    case 'BID_LATE_OR_UNAVAILABLE':
+      return 'The bid was late or the auction is no longer live.';
+    case 'BID_IDEMPOTENCY_CONFLICT':
+      return 'This command key was already used for a different amount.';
+    case 'BIDDER_INELIGIBLE':
+      return 'This account is not eligible to bid on the auction.';
+    default:
+      return error.message;
+  }
 }
 
 function ProjectedCountdown({ auction }: { auction: Auction }) {

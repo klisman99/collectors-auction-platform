@@ -21,6 +21,8 @@ vi.mock('./api/client', () => ({
   verifyEmail: vi.fn(),
   listDrafts: vi.fn(),
   listAuctions: vi.fn(),
+  listPublicBids: vi.fn(),
+  placeBid: vi.fn(),
   listSuspendedAuctions: vi.fn(),
   listMyScheduledAuctions: vi.fn(),
   getAuction: vi.fn(),
@@ -53,6 +55,7 @@ import {
   listAuctions,
   listDrafts,
   listMyScheduledAuctions,
+  listPublicBids,
   listSuspendedAuctions,
   registerAccount,
   requestPasswordRecovery,
@@ -92,6 +95,7 @@ describe('App', () => {
     });
     vi.mocked(listSuspendedAuctions).mockResolvedValue([]);
     vi.mocked(listMyScheduledAuctions).mockResolvedValue([]);
+    vi.mocked(listPublicBids).mockResolvedValue([]);
     vi.mocked(getAuction).mockReset();
     vi.mocked(scheduleAuction).mockReset();
     window.history.replaceState({}, '', '/');

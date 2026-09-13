@@ -258,6 +258,21 @@ export type ScheduleRequest = {
     endsAt: string;
 };
 
+export type BidRequest = {
+    amountCents?: number;
+    idempotencyKey: string;
+};
+
+export type BidCommandResult = {
+    status?: 'ACCEPTED' | 'REJECTED' | 'DEDUPLICATED' | 'RATE_LIMITED' | 'IDEMPOTENCY_CONFLICT';
+    code?: string;
+    amountCents?: number;
+    requiredAmountCents?: number;
+    sequence?: number;
+    bidderPseudonym?: string;
+    acceptedAt?: string;
+};
+
 export type InviteOperationalAccountRequest = {
     email: string;
     role: string;
@@ -303,6 +318,13 @@ export type AuctionPageResponse = {
     size?: number;
     totalElements?: number;
     totalPages?: number;
+};
+
+export type PublicBid = {
+    amountCents?: number;
+    acceptedAt?: string;
+    sequence?: number;
+    bidderPseudonym?: string;
 };
 
 export type OperationalAccountView = {
@@ -778,6 +800,42 @@ export type CancelAuctionResponses = {
 };
 
 export type CancelAuctionResponse = CancelAuctionResponses[keyof CancelAuctionResponses];
+
+export type ListPublicBidsData = {
+    body?: never;
+    path: {
+        auctionId: string;
+    };
+    query?: never;
+    url: '/api/v1/auctions/{auctionId}/bids';
+};
+
+export type ListPublicBidsResponses = {
+    /**
+     * OK
+     */
+    200: Array<PublicBid>;
+};
+
+export type ListPublicBidsResponse = ListPublicBidsResponses[keyof ListPublicBidsResponses];
+
+export type PlaceBidData = {
+    body: BidRequest;
+    path: {
+        auctionId: string;
+    };
+    query?: never;
+    url: '/api/v1/auctions/{auctionId}/bids';
+};
+
+export type PlaceBidResponses = {
+    /**
+     * OK
+     */
+    200: BidCommandResult;
+};
+
+export type PlaceBidResponse = PlaceBidResponses[keyof PlaceBidResponses];
 
 export type ListOperationalAccountsData = {
     body?: never;
