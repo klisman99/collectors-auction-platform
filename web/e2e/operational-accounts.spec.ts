@@ -15,10 +15,13 @@ test('administrator can invite, activate, and deactivate a non-trading moderator
   const password = 'a moderator e2e password';
 
   await signInAsAdministrator(page);
-  await page.getByLabel('Email address').fill(email);
-  await page.getByLabel('Public reason').first().fill('Provide weekend moderation coverage');
+  const invitationForm = page
+    .locator('form')
+    .filter({ has: page.getByRole('heading', { name: 'Invite an operational account' }) });
+  await invitationForm.getByLabel('Email address').fill(email);
+  await invitationForm.getByLabel('Public reason').fill('Provide weekend moderation coverage');
   const messageIdsBeforeInvitation = await mailpitMessageIds(request);
-  await page.getByRole('button', { name: 'Send invitation' }).click();
+  await invitationForm.getByRole('button', { name: 'Send invitation' }).click();
   await expect(page.getByRole('cell', { name: email })).toBeVisible();
 
   const activationLink = await mailpitLink(
@@ -42,14 +45,14 @@ test('administrator can invite, activate, and deactivate a non-trading moderator
   try {
     const administratorPage = await administratorContext.newPage();
     await signInAsAdministrator(administratorPage);
-    await administratorPage
+    const deactivationForm = administratorPage
+      .locator('form')
+      .filter({ has: administratorPage.getByRole('heading', { name: 'Deactivate an account' }) });
+    await deactivationForm
       .getByLabel('Account', { exact: true })
       .selectOption({ label: `${email} · MODERATOR · ACTIVE` });
-    await administratorPage
-      .getByLabel('Public reason', { exact: true })
-      .last()
-      .fill('End of operational assignment');
-    await administratorPage.getByRole('button', { name: 'Deactivate account' }).click();
+    await deactivationForm.getByLabel('Public reason').fill('End of operational assignment');
+    await deactivationForm.getByRole('button', { name: 'Deactivate account' }).click();
     await expect(
       administratorPage.getByText('OPERATIONAL_ACCOUNT_DEACTIVATED', { exact: true }),
     ).toBeVisible();
