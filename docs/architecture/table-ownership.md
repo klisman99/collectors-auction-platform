@@ -14,6 +14,9 @@ access happens through a deliberate public API or a durable event, never a direc
 | `auctions` | `auctions` | Published terms, lifecycle and suspension timing state, and immutable item/policy snapshots | Auctions only; other modules use deliberate auction contracts. |
 | `auction_item_snapshot_media` | `auctions` | Ordered media metadata and binary content frozen when an auction is published | Auctions only. |
 | `auction_timeline_events` | `auctions` | Ordered lifecycle events with public reasons and restricted administrative detail | Auctions only. |
+| `bidder_pseudonyms` | `bidding` | Stable auction-local public names for bidders | Bidding only. |
+| `accepted_bids` | `bidding` | Immutable sequenced bids accepted under the auction lock | Bidding only. |
+| `bid_attempts` | `bidding` | Accepted, rejected, duplicate, conflicting, and rate-limited command outcomes | Bidding only. |
 | `audit_records` | `audit` | Append-only auditable facts | Product modules publish facts; audit persists projections. |
 | `spring_session` | `platform` | Server-side HTTP session metadata | Only Spring Session through platform configuration. |
 | `spring_session_attributes` | `platform` | Server-side HTTP session attributes | Only Spring Session through platform configuration. |

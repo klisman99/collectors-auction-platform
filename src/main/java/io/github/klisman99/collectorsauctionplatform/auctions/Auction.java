@@ -48,6 +48,12 @@ class Auction {
   @Column(name = "minimum_increment_cents", nullable = false, updatable = false)
   private long minimumIncrementCents;
 
+  @Column(name = "current_amount_cents", nullable = false)
+  private long currentAmountCents;
+
+  @Column(name = "accepted_bid_count", nullable = false)
+  private long acceptedBidCount;
+
   @Column(name = "reserve_amount_cents")
   private Long reserveAmountCents;
 
@@ -110,6 +116,8 @@ class Auction {
     auction.state = State.SCHEDULED;
     auction.openingAmountCents = command.openingAmountCents();
     auction.minimumIncrementCents = command.minimumIncrementCents();
+    auction.currentAmountCents = command.openingAmountCents();
+    auction.acceptedBidCount = 0;
     auction.reserveAmountCents = command.reserveAmountCents();
     auction.startsAt = command.startsAt();
     auction.endsAt = command.endsAt();
@@ -283,11 +291,17 @@ class Auction {
   }
 
   long currentAmountCents() {
-    return openingAmountCents;
+    return currentAmountCents;
   }
 
   boolean reserveMet() {
-    return false;
+    return acceptedBidCount > 0
+        && (reserveAmountCents == null || currentAmountCents >= reserveAmountCents);
+  }
+
+  void recordAcceptedBid(long amountCents) {
+    currentAmountCents = amountCents;
+    acceptedBidCount++;
   }
 
   Instant effectiveEndAt() {

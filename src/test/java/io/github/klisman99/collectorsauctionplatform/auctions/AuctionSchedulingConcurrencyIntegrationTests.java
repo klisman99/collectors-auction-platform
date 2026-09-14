@@ -52,6 +52,9 @@ class AuctionSchedulingConcurrencyIntegrationTests {
 
   @BeforeEach
   void clearAuctionFixtures() {
+    jdbcTemplate.update("DELETE FROM bid_attempts");
+    jdbcTemplate.update("DELETE FROM accepted_bids");
+    jdbcTemplate.update("DELETE FROM bidder_pseudonyms");
     jdbcTemplate.update("DELETE FROM auction_item_snapshot_media");
     jdbcTemplate.update("DELETE FROM auctions");
     jdbcTemplate.update("DELETE FROM collectible_item_media");
