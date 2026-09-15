@@ -112,6 +112,37 @@ describe('PublicAuctionBrowser bidding', () => {
     expect(await screen.findByText('Bidder-A1B2C3D4')).toBeInTheDocument();
   });
 
+  test('replaces the live-auction deadline with the committed snapshot after a late bid', async () => {
+    const extendedAuction: Auction = {
+      ...liveAuction,
+      currentAmountCents: 10_000,
+      endsAt: '2026-09-13T23:00:00Z',
+      effectiveEndAt: '2026-09-13T23:00:00Z',
+    };
+    vi.mocked(getAuction).mockResolvedValueOnce(liveAuction).mockResolvedValueOnce(extendedAuction);
+    vi.mocked(placeBid).mockResolvedValue({
+      status: 'ACCEPTED',
+      code: 'BID_ACCEPTED',
+      amountCents: 10_000,
+      requiredAmountCents: 10_000,
+      sequence: 1,
+      bidderPseudonym: 'Bidder-A1B2C3D4',
+      acceptedAt: '2026-09-13T21:00:00Z',
+    });
+
+    render(<PublicAuctionBrowser canBid />);
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Live auctions' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'View Live bidding card' }));
+    const auctionCard = screen.getByRole('heading', { name: 'Live bidding card' }).closest('li');
+    if (auctionCard === null) throw new Error('The live-auction card was not rendered.');
+    expect(auctionCard).toHaveTextContent('ends Sep 13, 2026, 7:00 PM');
+    fireEvent.click(await screen.findByRole('button', { name: 'Place bid' }));
+
+    await waitFor(() => expect(auctionCard).toHaveTextContent('ends Sep 13, 2026, 8:00 PM'));
+    expect(auctionCard).not.toHaveTextContent('ends Sep 13, 2026, 7:00 PM');
+  });
+
   test.each([
     ['BID_RATE_LIMITED', undefined, 'Bid rate limit reached'],
     ['BID_LATE_OR_UNAVAILABLE', undefined, 'bid was late'],

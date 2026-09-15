@@ -50,9 +50,9 @@ public class AuctionBidding {
             now));
   }
 
-  public void recordAcceptedBid(UUID auctionId, long amountCents) {
+  public void recordAcceptedBid(UUID auctionId, long amountCents, Instant acceptedAt) {
     Auction auction = auctions.findById(auctionId).orElseThrow(() -> new BidUnavailable(auctionId));
-    auction.recordAcceptedBid(amountCents);
+    auction.recordAcceptedBid(amountCents, acceptedAt);
   }
 
   public record OpenAuction(

@@ -2,6 +2,10 @@ package io.github.klisman99.collectorsauctionplatform.auctions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.klisman99.collectorsauctionplatform.CollectorsAuctionPlatformApplication;
 import jakarta.mail.MessagingException;
@@ -21,20 +25,25 @@ import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import({
   AuctionLifecycleIntegrationTests.ClockConfiguration.class,
@@ -71,6 +80,8 @@ class AuctionLifecycleIntegrationTests {
   @Autowired private MutableClock clock;
 
   @Autowired private JdbcTemplate jdbcTemplate;
+
+  @Autowired private MockMvc mockMvc;
 
   @Autowired private RecordingMailSender mailSender;
 
@@ -127,6 +138,35 @@ class AuctionLifecycleIntegrationTests {
                 Instant.class,
                 auction.itemId()))
         .isNull();
+  }
+
+  @Test
+  void restartPreservesRepeatedPersistedLateBidExtensions() throws Exception {
+    Auction auction = scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900));
+    UUID firstBidderId = activeAccount("first_bidder");
+    UUID secondBidderId = activeAccount("second_bidder");
+    Instant originalEnd = auction.endsAt();
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+
+    clock.set(originalEnd.minusSeconds(60));
+    mockMvc
+        .perform(bidRequest(firstBidderId, auction.id(), 10_000))
+        .andExpect(status().isCreated());
+    clock.set(originalEnd);
+    mockMvc
+        .perform(bidRequest(secondBidderId, auction.id(), 11_000))
+        .andExpect(status().isCreated());
+    Instant extendedEnd = originalEnd.plusSeconds(120);
+
+    NEW_CONTEXT_TIME.set(originalEnd);
+    try (ConfigurableApplicationContext ignored = restartApplication()) {
+      // Startup reconciliation must read the persisted extended deadline, not the original one.
+    }
+
+    Auction restarted = auctions.get(auction.id());
+    assertThat(restarted.state()).isEqualTo(Auction.State.LIVE);
+    assertThat(restarted.effectiveEndAt()).isEqualTo(extendedEnd);
   }
 
   @Test
@@ -241,6 +281,20 @@ class AuctionLifecycleIntegrationTests {
             "--platform.auctions.reconciliation-delay-ms=60000");
   }
 
+  private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder bidRequest(
+      UUID bidderId, UUID auctionId, long amountCents) {
+    return post("/api/v1/auctions/{id}/bids", auctionId)
+        .with(user(bidderId.toString()).authorities(new SimpleGrantedAuthority("TRADING_ELIGIBLE")))
+        .with(csrf())
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(
+            "{\"amountCents\":"
+                + amountCents
+                + ",\"idempotencyKey\":\""
+                + UUID.randomUUID()
+                + "\"}");
+  }
+
   private void awaitAudit(String action, UUID targetId) throws InterruptedException {
     long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
     Integer count = 0;
@@ -287,6 +341,22 @@ class AuctionLifecycleIntegrationTests {
         Timestamp.from(INITIAL_TIME));
     return auctions.schedule(
         sellerId, new ScheduleAuction(itemId, 10_000, 1_000, null, startsAt, endsAt));
+  }
+
+  private UUID activeAccount(String prefix) {
+    UUID accountId = UUID.randomUUID();
+    jdbcTemplate.update(
+        """
+        INSERT INTO regular_accounts
+            (id, normalized_email, public_handle, password_hash, status, registered_at, verified_at)
+        VALUES (?, ?, ?, 'unused', 'ACTIVE', ?, ?)
+        """,
+        accountId,
+        accountId + "@example.com",
+        prefix + "_" + accountId.toString().substring(0, 8),
+        Timestamp.from(INITIAL_TIME),
+        Timestamp.from(INITIAL_TIME));
+    return accountId;
   }
 
   @TestConfiguration

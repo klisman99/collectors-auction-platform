@@ -122,6 +122,47 @@ class BiddingConcurrencyIntegrationTests {
   }
 
   @Test
+  void persistsTheWinningProtectedBidDeadlineUnderPostgreSqlContention() throws Exception {
+    UUID sellerId = activeAccount("seller");
+    UUID firstBidder = activeAccount("first");
+    UUID secondBidder = activeAccount("second");
+    UUID auctionId = liveAuction(sellerId, 10_000, 1_000);
+    Instant originalEnd = Instant.now().plusSeconds(90).truncatedTo(ChronoUnit.MICROS);
+    jdbcTemplate.update(
+        "UPDATE auctions SET ends_at = ? WHERE id = ?", Timestamp.from(originalEnd), auctionId);
+    CountDownLatch start = new CountDownLatch(1);
+
+    BidCommandResult first;
+    BidCommandResult second;
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      Future<BidCommandResult> firstResult =
+          executor.submit(() -> placeAfter(start, firstBidder, auctionId, 10_000));
+      Future<BidCommandResult> secondResult =
+          executor.submit(() -> placeAfter(start, secondBidder, auctionId, 10_000));
+      start.countDown();
+      first = firstResult.get(20, TimeUnit.SECONDS);
+      second = secondResult.get(20, TimeUnit.SECONDS);
+    }
+
+    BidCommandResult accepted =
+        java.util.List.of(first, second).stream()
+            .filter(result -> result.status() == BidCommandResult.Status.ACCEPTED)
+            .findFirst()
+            .orElseThrow();
+    assertThat(java.util.List.of(first.status(), second.status()))
+        .containsExactlyInAnyOrder(
+            BidCommandResult.Status.ACCEPTED, BidCommandResult.Status.REJECTED);
+    assertThat(
+            jdbcTemplate
+                .queryForObject(
+                    "SELECT ends_at FROM auctions WHERE id = ?", Timestamp.class, auctionId)
+                .toInstant())
+        .isEqualTo(accepted.acceptedAt().plusSeconds(120));
+    assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM accepted_bids", Integer.class))
+        .isEqualTo(1);
+  }
+
+  @Test
   void enforcesIncrementSellerEligibilityIdempotencyPayloadAndRateLimit() {
     UUID sellerId = activeAccount("seller");
     UUID bidderId = activeAccount("bidder");
