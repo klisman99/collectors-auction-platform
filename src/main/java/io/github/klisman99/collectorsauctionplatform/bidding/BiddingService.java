@@ -185,7 +185,7 @@ class BiddingService {
         acceptedBids.save(
             new AcceptedBid(
                 auctionId, bidderId, amountCents, sequence, acceptedAt, pseudonym.pseudonym()));
-    auctions.recordAcceptedBid(auctionId, amountCents);
+    auctions.recordAcceptedBid(auctionId, amountCents, acceptedAt);
     events.publishEvent(
         new BidAccepted(
             auctionId,
