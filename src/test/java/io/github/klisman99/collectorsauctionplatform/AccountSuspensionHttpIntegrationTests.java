@@ -122,7 +122,23 @@ class AccountSuspensionHttpIntegrationTests {
     assertThat(protectedEndBeforeSuspension).isAfter(originalEndBeforeExtension);
     placeBid(suspendedAccountId, terminalAuctionId, 10_000);
     jdbcTemplate.update(
-        "UPDATE auctions SET state = 'SOLD', active_item_id = NULL, ended_at = ends_at WHERE id = ?",
+        """
+        UPDATE auctions
+        SET state = 'SOLD',
+            active_item_id = NULL,
+            ended_at = ends_at,
+            final_bid_id = (SELECT id FROM accepted_bids WHERE auction_id = ?),
+            final_bidder_id = (SELECT bidder_id FROM accepted_bids WHERE auction_id = ?),
+            final_bidder_pseudonym =
+                (SELECT bidder_pseudonym FROM accepted_bids WHERE auction_id = ?),
+            final_amount_cents = (SELECT amount_cents FROM accepted_bids WHERE auction_id = ?),
+            final_outcome_recorded_at = ends_at
+        WHERE id = ?
+        """,
+        terminalAuctionId,
+        terminalAuctionId,
+        terminalAuctionId,
+        terminalAuctionId,
         terminalAuctionId);
     UUID disqualifiedBidId =
         jdbcTemplate.queryForObject(

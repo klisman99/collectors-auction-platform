@@ -1,9 +1,11 @@
 package io.github.klisman99.collectorsauctionplatform.auctions;
 
+import io.github.klisman99.collectorsauctionplatform.catalog.CatalogAuctioning;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,11 +14,22 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuctionBidding {
 
   private final AuctionRepository auctions;
+  private final CatalogAuctioning catalog;
   private final Clock clock;
+  private final AuctionLifecycleEventPublisher lifecycleEvents;
+  private final ApplicationEventPublisher events;
 
-  AuctionBidding(AuctionRepository auctions, Clock clock) {
+  AuctionBidding(
+      AuctionRepository auctions,
+      CatalogAuctioning catalog,
+      Clock clock,
+      AuctionLifecycleEventPublisher lifecycleEvents,
+      ApplicationEventPublisher events) {
     this.auctions = auctions;
+    this.catalog = catalog;
     this.clock = clock;
+    this.lifecycleEvents = lifecycleEvents;
+    this.events = events;
   }
 
   @Transactional
@@ -62,6 +75,43 @@ public class AuctionBidding {
     auction.recalculateEligibleBidProjection(eligibleBidCount, currentAmountCents);
   }
 
+  /** Locks a durably claimed auction so bidding can select its one eligible final bid. */
+  @Transactional
+  public ClosingAuction lockClaimedAuction(UUID auctionId) {
+    Optional<Auction> result = auctions.findByIdForUpdate(auctionId);
+    if (result.isEmpty() || !result.get().isClosing()) {
+      return ClosingAuction.notClaimed();
+    }
+    Auction auction = result.get();
+    return ClosingAuction.claimed(auction.reserveAmountCents());
+  }
+
+  /** Records an outcome while holding the same auction lock used for bid acceptance. */
+  @Transactional
+  public boolean recordClosingOutcome(
+      UUID auctionId, ClosingOutcome outcome, FinalBid finalBid, Instant recordedAt) {
+    Auction auction =
+        auctions.findByIdForUpdate(auctionId).orElseThrow(() -> new BidUnavailable(auctionId));
+    if (!auction.recordClosingOutcome(outcome, finalBid, recordedAt)) {
+      return false;
+    }
+    if (outcome == ClosingOutcome.UNSOLD) {
+      catalog.releaseUnchangedItem(auction.itemId(), recordedAt);
+    }
+    lifecycleEvents.publishOutcome(auction, outcome, finalBid, recordedAt);
+    if (outcome == ClosingOutcome.SOLD) {
+      events.publishEvent(
+          new AuctionSold(
+              auction.id(),
+              auction.itemId(),
+              auction.sellerId(),
+              finalBid.bidderId(),
+              finalBid.amountCents(),
+              recordedAt));
+    }
+    return true;
+  }
+
   public record OpenAuction(
       UUID sellerId,
       long currentAmountCents,
@@ -71,6 +121,25 @@ public class AuctionBidding {
 
   public record BidDisqualificationTarget(
       Auction.State state, long openingAmountCents, boolean acceptsDisqualification) {}
+
+  public record ClosingAuction(boolean claimed, Long reserveAmountCents) {
+
+    static ClosingAuction notClaimed() {
+      return new ClosingAuction(false, null);
+    }
+
+    static ClosingAuction claimed(Long reserveAmountCents) {
+      return new ClosingAuction(true, reserveAmountCents);
+    }
+  }
+
+  public record FinalBid(UUID bidId, UUID bidderId, String bidderPseudonym, long amountCents) {}
+
+  public enum ClosingOutcome {
+    SOLD,
+    UNSOLD,
+    AWAITING_SELLER_DECISION
+  }
 
   public record BidAvailability(State state, OpenAuction auction) {
 

@@ -147,6 +147,12 @@ export type Auction = {
   effectiveEndAt: string;
   scheduledAt: string;
   endedAt?: string;
+  finalOutcome?: {
+    amountCents?: number;
+    bidderPseudonym?: string;
+    bidderHandle?: string;
+    recordedAt?: string;
+  };
   item: {
     category: string;
     otherCategoryLabel?: string;

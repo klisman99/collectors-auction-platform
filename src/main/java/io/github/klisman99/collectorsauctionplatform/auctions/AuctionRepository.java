@@ -53,4 +53,9 @@ interface AuctionRepository extends JpaRepository<Auction, UUID> {
   @Query(
       "select auction from Auction auction where auction.state = 'LIVE' and auction.endsAt <= :now order by auction.endsAt")
   List<Auction> findDueLiveForUpdate(@Param("now") Instant now);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query(
+      "select auction from Auction auction where auction.state = 'CLOSING' order by auction.endsAt")
+  List<Auction> findClaimedClosingForUpdate();
 }

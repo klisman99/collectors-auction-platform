@@ -22,6 +22,9 @@ class AuctionAuditListener {
           case STARTED -> AuditRecord.AuditAction.AUCTION_STARTED;
           case CANCELLED -> AuditRecord.AuditAction.AUCTION_CANCELLED;
           case ENDED -> AuditRecord.AuditAction.AUCTION_ENDED;
+          case SOLD -> AuditRecord.AuditAction.AUCTION_SOLD;
+          case UNSOLD -> AuditRecord.AuditAction.AUCTION_UNSOLD;
+          case AWAITING_SELLER_DECISION -> AuditRecord.AuditAction.AUCTION_AWAITING_SELLER_DECISION;
           case SUSPENDED -> AuditRecord.AuditAction.AUCTION_SUSPENDED;
           case RELEASED -> AuditRecord.AuditAction.AUCTION_RELEASED;
           case RESUMED -> AuditRecord.AuditAction.AUCTION_RESUMED;
@@ -33,6 +36,9 @@ class AuctionAuditListener {
             + event.itemId()
             + termsMetadata("previous", event.previousTerms())
             + termsMetadata("current", event.currentTerms())
+            + valueMetadata("finalAmountCents", event.finalAmountCents())
+            + valueMetadata("winningBidderId", event.winningBidderId())
+            + valueMetadata("winningBidderHandle", event.winningBidderHandle())
             + valueMetadata("reasonCategory", event.reasonCategory())
             + valueMetadata("publicReason", event.publicReason())
             + valueMetadata("internalNote", event.internalNote())
@@ -43,6 +49,9 @@ class AuctionAuditListener {
                 action, event.operationalActorId(), event.auctionId(), event.occurredAt(), metadata)
             : event.type() == AuctionLifecycleEvent.Type.STARTED
                     || event.type() == AuctionLifecycleEvent.Type.ENDED
+                    || event.type() == AuctionLifecycleEvent.Type.SOLD
+                    || event.type() == AuctionLifecycleEvent.Type.UNSOLD
+                    || event.type() == AuctionLifecycleEvent.Type.AWAITING_SELLER_DECISION
                 ? AuditRecord.systemAuctionAction(
                     action, event.auctionId(), event.occurredAt(), metadata)
                 : AuditRecord.accountAuctionAction(

@@ -54,7 +54,11 @@ class AuctionController {
     AuctionAccess access =
         auctions.getVisible(
             id, authenticatedAccountId(authentication), isAdministrator(authentication));
-    return response(access.auction(), access.exactReserveVisible(), access.internalNotesVisible());
+    return response(
+        access.auction(),
+        access.exactReserveVisible(),
+        access.internalNotesVisible(),
+        access.winningBidderHandle());
   }
 
   @GetMapping
@@ -79,7 +83,8 @@ class AuctionController {
                     response(
                         access.auction(),
                         access.exactReserveVisible(),
-                        access.internalNotesVisible()))
+                        access.internalNotesVisible(),
+                        access.winningBidderHandle()))
             .toList();
     return new AuctionPageResponse(
         content,
@@ -140,6 +145,14 @@ class AuctionController {
 
   private AuctionResponse response(
       Auction auction, boolean includeReserve, boolean includeInternalNotes) {
+    return response(auction, includeReserve, includeInternalNotes, null);
+  }
+
+  private AuctionResponse response(
+      Auction auction,
+      boolean includeReserve,
+      boolean includeInternalNotes,
+      String winningBidderHandle) {
     AuctionItemSnapshot item = auction.itemSnapshot();
     return new AuctionResponse(
         auction.id(),
@@ -187,7 +200,19 @@ class AuctionController {
             .map(entry -> TimelineResponse.from(entry, includeInternalNotes))
             .toList(),
         List.of(),
-        List.of());
+        List.of(),
+        finalOutcome(auction, winningBidderHandle));
+  }
+
+  private FinalOutcomeResponse finalOutcome(Auction auction, String winningBidderHandle) {
+    if (auction.finalOutcomeRecordedAt() == null) {
+      return null;
+    }
+    return new FinalOutcomeResponse(
+        auction.finalAmountCents(),
+        auction.finalBidderPseudonym(),
+        winningBidderHandle,
+        auction.finalOutcomeRecordedAt());
   }
 
   private UUID authenticatedAccountId(Authentication authentication) {
@@ -240,7 +265,11 @@ class AuctionController {
       PolicyResponse policy,
       List<TimelineResponse> timeline,
       List<Object> eligibleBidHistory,
-      List<Object> disqualifications) {}
+      List<Object> disqualifications,
+      FinalOutcomeResponse finalOutcome) {}
+
+  record FinalOutcomeResponse(
+      Long amountCents, String bidderPseudonym, String bidderHandle, Instant recordedAt) {}
 
   record AuctionPageResponse(
       List<AuctionResponse> content, int page, int size, long totalElements, int totalPages) {}

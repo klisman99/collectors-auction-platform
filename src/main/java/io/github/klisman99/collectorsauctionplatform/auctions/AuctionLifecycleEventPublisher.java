@@ -40,7 +40,11 @@ class AuctionLifecycleEventPublisher {
             occurredAt,
             previousTerms,
             new AuctionLifecycleEvent.PublishedTerms(
-                auction.reserveAmountCents(), auction.startsAt(), auction.endsAt())));
+                auction.reserveAmountCents(), auction.startsAt(), auction.endsAt()),
+            null,
+            null,
+            null,
+            null));
   }
 
   void publishAdministrative(
@@ -69,6 +73,47 @@ class AuctionLifecycleEventPublisher {
             occurredAt,
             null,
             new AuctionLifecycleEvent.PublishedTerms(
-                auction.reserveAmountCents(), auction.startsAt(), auction.endsAt())));
+                auction.reserveAmountCents(), auction.startsAt(), auction.endsAt()),
+            null,
+            null,
+            null,
+            null));
+  }
+
+  void publishOutcome(
+      Auction auction,
+      AuctionBidding.ClosingOutcome outcome,
+      AuctionBidding.FinalBid finalBid,
+      Instant occurredAt) {
+    AccountDirectory.AccountContact seller = accounts.regularAccount(auction.sellerId());
+    AccountDirectory.AccountContact winner =
+        finalBid == null ? null : accounts.regularAccount(finalBid.bidderId());
+    AuctionLifecycleEvent.Type type =
+        switch (outcome) {
+          case SOLD -> AuctionLifecycleEvent.Type.SOLD;
+          case UNSOLD -> AuctionLifecycleEvent.Type.UNSOLD;
+          case AWAITING_SELLER_DECISION -> AuctionLifecycleEvent.Type.AWAITING_SELLER_DECISION;
+        };
+    events.publishEvent(
+        new AuctionLifecycleEvent(
+            auction.id(),
+            auction.itemId(),
+            auction.sellerId(),
+            seller.email(),
+            auction.itemSnapshot().title(),
+            type,
+            null,
+            null,
+            null,
+            null,
+            null,
+            occurredAt,
+            null,
+            new AuctionLifecycleEvent.PublishedTerms(
+                auction.reserveAmountCents(), auction.startsAt(), auction.endsAt()),
+            finalBid == null ? null : finalBid.amountCents(),
+            winner == null ? null : winner.accountId(),
+            winner == null ? null : winner.publicHandle(),
+            winner == null ? null : winner.email()));
   }
 }

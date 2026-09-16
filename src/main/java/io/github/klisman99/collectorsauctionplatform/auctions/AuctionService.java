@@ -90,7 +90,11 @@ class AuctionService {
               auctions.findLiveDiscovery(PageRequest.of(page, size, Sort.by("endsAt").ascending()));
           case ENDED ->
               auctions.findAllByStateIn(
-                  List.of(Auction.State.SOLD, Auction.State.UNSOLD, Auction.State.CANCELLED),
+                  List.of(
+                      Auction.State.AWAITING_SELLER_DECISION,
+                      Auction.State.SOLD,
+                      Auction.State.UNSOLD,
+                      Auction.State.CANCELLED),
                   PageRequest.of(page, size, Sort.by("endedAt").descending()));
         };
     return result.map(auction -> withAccess(auction, viewerId, administrator));
@@ -266,9 +270,11 @@ class AuctionService {
   }
 
   private AuctionAccess withAccess(Auction auction, UUID viewerId, boolean administrator) {
-    return new AuctionAccess(
-        auction,
-        administrator || (viewerId != null && auction.sellerId().equals(viewerId)),
-        administrator);
+    boolean seller = viewerId != null && auction.sellerId().equals(viewerId);
+    String winningBidderHandle =
+        auction.state() == Auction.State.SOLD && (administrator || seller)
+            ? accounts.regularAccount(auction.finalBidderId()).publicHandle()
+            : null;
+    return new AuctionAccess(auction, administrator || seller, administrator, winningBidderHandle);
   }
 }

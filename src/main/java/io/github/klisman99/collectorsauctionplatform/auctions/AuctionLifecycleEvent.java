@@ -18,7 +18,11 @@ public record AuctionLifecycleEvent(
     AdministrativeItemDisposition itemDisposition,
     Instant occurredAt,
     PublishedTerms previousTerms,
-    PublishedTerms currentTerms) {
+    PublishedTerms currentTerms,
+    Long finalAmountCents,
+    UUID winningBidderId,
+    String winningBidderHandle,
+    String winningBidderEmail) {
 
   public record PublishedTerms(Long reserveAmountCents, Instant startsAt, Instant endsAt) {}
 
@@ -28,6 +32,9 @@ public record AuctionLifecycleEvent(
     STARTED,
     CANCELLED,
     ENDED,
+    SOLD,
+    UNSOLD,
+    AWAITING_SELLER_DECISION,
     SUSPENDED,
     RELEASED,
     RESUMED,
