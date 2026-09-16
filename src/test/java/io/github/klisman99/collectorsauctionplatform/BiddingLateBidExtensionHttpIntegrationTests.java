@@ -53,6 +53,8 @@ class BiddingLateBidExtensionHttpIntegrationTests {
     jdbcTemplate.update("DELETE FROM auction_item_snapshot_media");
     jdbcTemplate.update("DELETE FROM auctions");
     jdbcTemplate.update("DELETE FROM collectible_items");
+    jdbcTemplate.update("DELETE FROM email_verification_tokens");
+    jdbcTemplate.update("DELETE FROM password_recovery_tokens");
     jdbcTemplate.update("DELETE FROM regular_accounts");
     clock.set(INITIAL_TIME);
   }
