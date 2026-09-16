@@ -51,6 +51,7 @@ class AuctionHttpIntegrationTests {
   void clearAuctionFixtures() {
     mailSender.clear();
     jdbcTemplate.update("DELETE FROM bid_attempts");
+    jdbcTemplate.update("DELETE FROM bid_disqualifications");
     jdbcTemplate.update("DELETE FROM accepted_bids");
     jdbcTemplate.update("DELETE FROM bidder_pseudonyms");
     jdbcTemplate.update("DELETE FROM auction_item_snapshot_media");
