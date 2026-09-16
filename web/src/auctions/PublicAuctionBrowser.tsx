@@ -65,6 +65,12 @@ export function PublicAuctionBrowser({ canBid = false }: { canBid?: boolean }) {
   async function refreshDetails(auctionId: string) {
     const [auction, bids] = await Promise.all([getAuction(auctionId), listPublicBids(auctionId)]);
     setSelected(auction);
+    setPage((current) => ({
+      ...current,
+      content: current.content.map((candidate) =>
+        candidate.id === auction.id ? auction : candidate,
+      ),
+    }));
     setPublicBids(bids);
   }
 

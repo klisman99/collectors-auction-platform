@@ -299,9 +299,14 @@ class Auction {
         && (reserveAmountCents == null || currentAmountCents >= reserveAmountCents);
   }
 
-  void recordAcceptedBid(long amountCents) {
+  void recordAcceptedBid(long amountCents, Instant acceptedAt) {
     currentAmountCents = amountCents;
     acceptedBidCount++;
+    Instant extendedEndAt = acceptedAt.plusSeconds(policySnapshot.protectionWindowSeconds());
+    if (!acceptedAt.isBefore(endsAt.minusSeconds(policySnapshot.protectionWindowSeconds()))
+        && extendedEndAt.isAfter(endsAt)) {
+      endsAt = extendedEndAt;
+    }
   }
 
   Instant effectiveEndAt() {
