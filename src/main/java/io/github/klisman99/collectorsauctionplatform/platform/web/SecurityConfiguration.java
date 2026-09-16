@@ -66,7 +66,7 @@ class SecurityConfiguration {
                     .requestMatchers("/api/v1/operations/**")
                     .hasAnyAuthority("ROLE_MODERATOR", "ROLE_ADMINISTRATOR")
                     .requestMatchers(HttpMethod.GET, "/api/v1/auctions/mine")
-                    .authenticated()
+                    .hasAuthority("TRADING_ELIGIBLE")
                     .requestMatchers(HttpMethod.GET, "/api/v1/**")
                     .permitAll()
                     .requestMatchers("/api/v1/**")

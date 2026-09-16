@@ -6,6 +6,7 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -38,8 +39,28 @@ class PostgreSqlMigrationIntegrationTests {
 
   @Autowired private Flyway flyway;
 
+  @Autowired private JdbcTemplate jdbcTemplate;
+
   @Test
   void appliesTheForwardOnlyMigrationsAgainstPostgreSql() {
-    assertThat(flyway.info().applied()).hasSize(12);
+    assertThat(flyway.info().applied()).hasSize(13);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                """
+                SELECT count(*)
+                FROM information_schema.columns
+                WHERE table_name = 'auctions' AND column_name = 'eligible_bid_count'
+                """,
+                Integer.class))
+        .isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                """
+                SELECT count(*)
+                FROM information_schema.tables
+                WHERE table_name = 'bid_disqualifications'
+                """,
+                Integer.class))
+        .isEqualTo(1);
   }
 }

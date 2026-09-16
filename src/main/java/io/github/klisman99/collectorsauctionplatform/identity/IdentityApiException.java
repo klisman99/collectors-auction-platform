@@ -133,6 +133,30 @@ class IdentityApiException extends ErrorResponseException {
         "The platform must retain at least one active administrator.");
   }
 
+  static IdentityApiException regularAccountNotFound() {
+    return new IdentityApiException(
+        HttpStatus.NOT_FOUND,
+        "REGULAR_ACCOUNT_NOT_FOUND",
+        "BR-AUTH-013",
+        "The regular account does not exist.");
+  }
+
+  static IdentityApiException regularAccountNotSuspendable() {
+    return new IdentityApiException(
+        HttpStatus.CONFLICT,
+        "REGULAR_ACCOUNT_NOT_SUSPENDABLE",
+        "BR-AUTH-009",
+        "Only an active regular account can be suspended.");
+  }
+
+  static IdentityApiException regularAccountNotReactivatable() {
+    return new IdentityApiException(
+        HttpStatus.CONFLICT,
+        "REGULAR_ACCOUNT_NOT_REACTIVATABLE",
+        "BR-AUTH-009",
+        "Only a suspended regular account can be reactivated.");
+  }
+
   private static ProblemDetail problem(
       HttpStatus status, String code, String ruleId, String detail) {
     ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);

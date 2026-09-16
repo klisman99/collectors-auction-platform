@@ -55,6 +55,7 @@ export type AuctionResponse = {
     state?: string;
     openingAmountCents?: number;
     currentAmountCents?: number;
+    nextMinimumAmountCents?: number;
     minimumIncrementCents?: number;
     reserveAmountCents?: number;
     reserveMet?: boolean;
@@ -273,6 +274,20 @@ export type BidCommandResult = {
     acceptedAt?: string;
 };
 
+export type SuspensionRequest = {
+    reasonCategory: string;
+    publicReason: string;
+    internalNote?: string;
+};
+
+export type RegularAccountView = {
+    id?: string;
+    email?: string;
+    publicHandle?: string;
+    status?: string;
+    verified?: boolean;
+};
+
 export type InviteOperationalAccountRequest = {
     email: string;
     role: string;
@@ -306,6 +321,20 @@ export type PlatformStatus = {
     timestamp: string;
 };
 
+export type OperationalBid = {
+    id?: string;
+    amountCents?: number;
+    acceptedAt?: string;
+    sequence?: number;
+    bidderPseudonym?: string;
+    bidderId?: string;
+    bidderHandle?: string;
+    disqualified?: boolean;
+    reasonCategory?: string;
+    publicReason?: string;
+    internalNote?: string;
+};
+
 export type CsrfToken = {
     parameterName?: string;
     token?: string;
@@ -325,6 +354,7 @@ export type PublicBid = {
     acceptedAt?: string;
     sequence?: number;
     bidderPseudonym?: string;
+    disqualified?: boolean;
 };
 
 export type OperationalAccountView = {
@@ -837,6 +867,42 @@ export type PlaceBidResponses = {
 
 export type PlaceBidResponse = PlaceBidResponses[keyof PlaceBidResponses];
 
+export type SuspendRegularAccountData = {
+    body: SuspensionRequest;
+    path: {
+        accountId: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/regular-accounts/{accountId}/suspension';
+};
+
+export type SuspendRegularAccountResponses = {
+    /**
+     * OK
+     */
+    200: RegularAccountView;
+};
+
+export type SuspendRegularAccountResponse = SuspendRegularAccountResponses[keyof SuspendRegularAccountResponses];
+
+export type ReactivateRegularAccountData = {
+    body: SuspensionRequest;
+    path: {
+        accountId: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/regular-accounts/{accountId}/reactivation';
+};
+
+export type ReactivateRegularAccountResponses = {
+    /**
+     * OK
+     */
+    200: RegularAccountView;
+};
+
+export type ReactivateRegularAccountResponse = ReactivateRegularAccountResponses[keyof ReactivateRegularAccountResponses];
+
 export type ListOperationalAccountsData = {
     body?: never;
     path?: never;
@@ -902,6 +968,24 @@ export type GetPlatformStatusResponses = {
 };
 
 export type GetPlatformStatusResponse = GetPlatformStatusResponses[keyof GetPlatformStatusResponses];
+
+export type ListOperationalBidHistoryData = {
+    body?: never;
+    path: {
+        auctionId: string;
+    };
+    query?: never;
+    url: '/api/v1/operations/auctions/{auctionId}/bids';
+};
+
+export type ListOperationalBidHistoryResponses = {
+    /**
+     * OK
+     */
+    200: Array<OperationalBid>;
+};
+
+export type ListOperationalBidHistoryResponse = ListOperationalBidHistoryResponses[keyof ListOperationalBidHistoryResponses];
 
 export type ListSuspendedAuctionsData = {
     body?: never;
@@ -1076,6 +1160,22 @@ export type ListMyScheduledAuctionsResponses = {
 };
 
 export type ListMyScheduledAuctionsResponse = ListMyScheduledAuctionsResponses[keyof ListMyScheduledAuctionsResponses];
+
+export type ListRegularAccountsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/regular-accounts';
+};
+
+export type ListRegularAccountsResponses = {
+    /**
+     * OK
+     */
+    200: Array<RegularAccountView>;
+};
+
+export type ListRegularAccountsResponse = ListRegularAccountsResponses[keyof ListRegularAccountsResponses];
 
 export type ListAdministrativeAuditRecordsData = {
     body?: never;

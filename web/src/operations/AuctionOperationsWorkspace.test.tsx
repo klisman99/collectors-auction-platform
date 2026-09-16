@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 vi.mock('../api/client', () => ({
   administrativelyCancelAuction: vi.fn(),
   listAuctions: vi.fn(),
+  listOperationalBidHistory: vi.fn(),
   listSuspendedAuctions: vi.fn(),
   releaseSuspendedAuction: vi.fn(),
   resumeSuspendedAuction: vi.fn(),
@@ -13,6 +14,7 @@ vi.mock('../api/client', () => ({
 import {
   administrativelyCancelAuction,
   listAuctions,
+  listOperationalBidHistory,
   listSuspendedAuctions,
   resumeSuspendedAuction,
   suspendAuction,
@@ -50,6 +52,7 @@ describe('AuctionOperationsWorkspace', () => {
       totalPages: 0,
     });
     vi.mocked(listSuspendedAuctions).mockResolvedValue([suspended]);
+    vi.mocked(listOperationalBidHistory).mockReset();
     vi.mocked(suspendAuction).mockReset();
     vi.mocked(administrativelyCancelAuction).mockReset();
     vi.mocked(resumeSuspendedAuction).mockReset();
@@ -102,5 +105,33 @@ describe('AuctionOperationsWorkspace', () => {
     expect(
       await screen.findByText('Only an administrator may resolve a suspended auction.'),
     ).toBeInTheDocument();
+  });
+
+  test('keeps attribution and administrator notes in the private operational history', async () => {
+    vi.mocked(listOperationalBidHistory).mockResolvedValue([
+      {
+        id: 'bid-37',
+        amountCents: 11_000,
+        acceptedAt: '2026-09-12T12:00:00Z',
+        sequence: 2,
+        bidderPseudonym: 'Bidder-2',
+        bidderId: 'account-37',
+        bidderHandle: 'suspended_37',
+        disqualified: true,
+        publicReason: 'The account is under review.',
+        internalNote: 'Retain the case reference.',
+      },
+    ]);
+    render(<AuctionOperationsWorkspace administrator />);
+
+    await screen.findByText('Provenance review card');
+    fireEvent.change(screen.getByLabelText('Auction for private bid history'), {
+      target: { value: 'auction-34' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Review bid history' }));
+
+    expect(await screen.findByText(/suspended_37.*Disqualified/)).toBeInTheDocument();
+    expect(screen.getByText('The account is under review.')).toBeInTheDocument();
+    expect(screen.getByText('Administrator note: Retain the case reference.')).toBeInTheDocument();
   });
 });

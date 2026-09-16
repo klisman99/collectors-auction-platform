@@ -3,17 +3,21 @@ import {
   activateOperationalAccount as activateOperationalAccountCommand,
   deactivateOperationalAccount as deactivateOperationalAccountCommand,
   inviteOperationalAccount as inviteOperationalAccountCommand,
+  reactivateRegularAccount as reactivateRegularAccountCommand,
   registerRegularAccount,
   listAdministrativeAuditRecords as requestAdministrativeAuditRecords,
   getAuthenticatedSession as requestAuthenticatedSession,
   csrfToken as requestCsrfToken,
   listOperationalAccounts as requestOperationalAccounts,
+  listOperationalBidHistory as requestOperationalBidHistory,
   requestPasswordRecovery as requestPasswordRecoveryCommand,
   getPlatformStatus as requestPlatformStatus,
+  listRegularAccounts as requestRegularAccounts,
   resetPassword as resetPasswordCommand,
   revokeAllSessions as revokeAllSessionsCommand,
   signInRegularAccount,
   signOut as signOutCommand,
+  suspendRegularAccount as suspendRegularAccountCommand,
   verifyRegularAccountEmail,
 } from './generated/sdk.gen';
 import type {
@@ -134,6 +138,7 @@ export type Auction = {
     | 'CANCELLED';
   openingAmountCents: number;
   currentAmountCents: number;
+  nextMinimumAmountCents?: number;
   minimumIncrementCents: number;
   reserveAmountCents?: number;
   reserveMet: boolean;
@@ -204,6 +209,18 @@ export type AuctionAdministrativeReason = {
   publicReason: string;
   internalNote?: string;
 };
+export type RegularAccountView = {
+  id: string;
+  email: string;
+  publicHandle: string;
+  status: 'PENDING_VERIFICATION' | 'ACTIVE' | 'SUSPENDED';
+  verified: boolean;
+};
+export type RegularAccountSuspension = {
+  reasonCategory: 'SECURITY' | 'POLICY_VIOLATION' | 'FRAUD' | 'OTHER';
+  publicReason: string;
+  internalNote?: string;
+};
 export type AuctionView = 'SCHEDULED' | 'LIVE' | 'ENDED';
 export type AuctionPage = {
   content: Auction[];
@@ -217,6 +234,15 @@ export type PublicBid = {
   acceptedAt: string;
   sequence: number;
   bidderPseudonym: string;
+  disqualified?: boolean;
+};
+export type OperationalBid = PublicBid & {
+  id: string;
+  bidderId: string;
+  bidderHandle: string;
+  reasonCategory?: string;
+  publicReason?: string;
+  internalNote?: string;
 };
 export type BidRequest = { amountCents: number; idempotencyKey: string };
 export type BidResult = PublicBid & {
@@ -421,6 +447,40 @@ export async function listMyScheduledAuctions(): Promise<Auction[]> {
 
 export async function listSuspendedAuctions(): Promise<SuspendedAuction[]> {
   return operationsAuctionRequest('/api/v1/operations/auctions/suspended', 'GET');
+}
+
+export async function listOperationalBidHistory(auctionId: string): Promise<OperationalBid[]> {
+  const { data, error } = await requestOperationalBidHistory({ path: { auctionId } });
+  return required(data, error, 'Private bid history could not be loaded.') as OperationalBid[];
+}
+
+export async function getRegularAccounts(): Promise<RegularAccountView[]> {
+  const { data, error } = await requestRegularAccounts();
+  return required(data, error, 'Regular accounts could not be loaded.') as RegularAccountView[];
+}
+
+export async function suspendRegularAccount(
+  accountId: string,
+  suspension: RegularAccountSuspension,
+): Promise<RegularAccountView> {
+  const { data, error } = await suspendRegularAccountCommand({
+    body: suspension,
+    path: { accountId },
+    ...(await csrfHeaders()),
+  });
+  return required(data, error, 'The regular account could not be changed.') as RegularAccountView;
+}
+
+export async function reactivateRegularAccount(
+  accountId: string,
+  reason: RegularAccountSuspension,
+): Promise<RegularAccountView> {
+  const { data, error } = await reactivateRegularAccountCommand({
+    body: reason,
+    path: { accountId },
+    ...(await csrfHeaders()),
+  });
+  return required(data, error, 'The regular account could not be changed.') as RegularAccountView;
 }
 
 export async function suspendAuction(

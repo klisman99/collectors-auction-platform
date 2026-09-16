@@ -143,6 +143,38 @@ describe('PublicAuctionBrowser bidding', () => {
     expect(auctionCard).not.toHaveTextContent('ends Sep 13, 2026, 7:00 PM');
   });
 
+  test('marks permanently disqualified bids while using the server-projected next minimum', async () => {
+    vi.mocked(getAuction).mockResolvedValue({
+      ...liveAuction,
+      currentAmountCents: 10_000,
+      nextMinimumAmountCents: 11_000,
+    });
+    vi.mocked(listPublicBids).mockResolvedValue([
+      {
+        amountCents: 11_000,
+        sequence: 2,
+        bidderPseudonym: 'Bidder-DQ37',
+        acceptedAt: '2026-09-13T20:02:00Z',
+        disqualified: true,
+      },
+      {
+        amountCents: 10_000,
+        sequence: 1,
+        bidderPseudonym: 'Bidder-OK37',
+        acceptedAt: '2026-09-13T20:01:00Z',
+        disqualified: false,
+      },
+    ]);
+
+    render(<PublicAuctionBrowser canBid />);
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Live auctions' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'View Live bidding card' }));
+
+    expect(await screen.findByText('Disqualified')).toBeInTheDocument();
+    expect(screen.getByText(/Required bid/)).toHaveTextContent(/R\$\s*110,00/);
+  });
+
   test.each([
     ['BID_RATE_LIMITED', undefined, 'Bid rate limit reached'],
     ['BID_LATE_OR_UNAVAILABLE', undefined, 'bid was late'],
@@ -163,6 +195,6 @@ describe('PublicAuctionBrowser bidding', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Place bid' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(message);
-    expect(screen.getByText('No eligible bids.')).toBeInTheDocument();
+    expect(screen.getByText('No accepted bids.')).toBeInTheDocument();
   });
 });

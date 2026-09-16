@@ -2,6 +2,8 @@ package io.github.klisman99.collectorsauctionplatform.bidding;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.klisman99.collectorsauctionplatform.accountadministration.AccountAdministrationService;
+import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountSuspensionReasonCategory;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -18,6 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -47,11 +50,16 @@ class BiddingConcurrencyIntegrationTests {
 
   @Autowired private BiddingService bidding;
 
+  @Autowired private AccountAdministrationService accountAdministration;
+
   @Autowired private JdbcTemplate jdbcTemplate;
+
+  @Autowired private TransactionTemplate transactions;
 
   @BeforeEach
   void clearFixtures() {
     jdbcTemplate.update("DELETE FROM bid_attempts");
+    jdbcTemplate.update("DELETE FROM bid_disqualifications");
     jdbcTemplate.update("DELETE FROM accepted_bids");
     jdbcTemplate.update("DELETE FROM bidder_pseudonyms");
     jdbcTemplate.update("DELETE FROM auction_timeline_events");
@@ -163,6 +171,104 @@ class BiddingConcurrencyIntegrationTests {
   }
 
   @Test
+  void serializesSuspensionWithABidAcceptedAtTheSameTime() throws Exception {
+    UUID sellerId = activeAccount("seller");
+    UUID bidderId = activeAccount("suspended_bidder");
+    UUID auctionId = liveAuction(sellerId, 10_000, 1_000);
+    CountDownLatch acceptedBidsTableLocked = new CountDownLatch(1);
+    CountDownLatch releaseAcceptedBidsTable = new CountDownLatch(1);
+
+    try (var executor = Executors.newFixedThreadPool(3)) {
+      Future<?> tableLock =
+          executor.submit(
+              () -> lockAcceptedBidsTable(acceptedBidsTableLocked, releaseAcceptedBidsTable));
+      assertThat(acceptedBidsTableLocked.await(10, TimeUnit.SECONDS)).isTrue();
+
+      Future<BidCommandResult> bid =
+          executor.submit(() -> bidding.place(bidderId, auctionId, UUID.randomUUID(), 10_000));
+      awaitPostgreSqlLockOn("accepted_bids");
+
+      Future<?> suspension =
+          executor.submit(
+              () ->
+                  accountAdministration.suspend(
+                      UUID.randomUUID(),
+                      bidderId,
+                      RegularAccountSuspensionReasonCategory.FRAUD,
+                      "The account is under review.",
+                      "Concurrency coverage."));
+      awaitPostgreSqlLockOn("regular_accounts");
+
+      releaseAcceptedBidsTable.countDown();
+      tableLock.get(10, TimeUnit.SECONDS);
+      assertThat(bid.get(10, TimeUnit.SECONDS).status())
+          .isEqualTo(BidCommandResult.Status.ACCEPTED);
+      suspension.get(10, TimeUnit.SECONDS);
+    }
+
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM accepted_bids WHERE auction_id = ?",
+                Integer.class,
+                auctionId))
+        .isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM bid_disqualifications WHERE accepted_bid_id = "
+                    + "(SELECT id FROM accepted_bids WHERE auction_id = ?)",
+                Integer.class,
+                auctionId))
+        .isEqualTo(1);
+  }
+
+  @Test
+  void suspendsAccountsWithCrossAuctionBidsWithoutDeadlocking() throws Exception {
+    UUID firstAccountId = activeAccount("first_seller");
+    UUID secondAccountId = activeAccount("second_seller");
+    UUID firstAuctionId = liveAuction(firstAccountId, 10_000, 1_000);
+    UUID secondAuctionId = liveAuction(secondAccountId, 10_000, 1_000);
+    bidding.place(secondAccountId, firstAuctionId, UUID.randomUUID(), 10_000);
+    bidding.place(firstAccountId, secondAuctionId, UUID.randomUUID(), 10_000);
+    CountDownLatch start = new CountDownLatch(1);
+    CountDownLatch advisoryLockAcquired = new CountDownLatch(1);
+    CountDownLatch releaseAdvisoryLock = new CountDownLatch(1);
+
+    installSuspensionTimelineLockTrigger();
+    try (var executor = Executors.newFixedThreadPool(3)) {
+      Future<?> advisoryLock =
+          executor.submit(
+              () -> holdTransactionAdvisoryLock(advisoryLockAcquired, releaseAdvisoryLock));
+      assertThat(advisoryLockAcquired.await(10, TimeUnit.SECONDS)).isTrue();
+
+      Future<?> firstSuspension = executor.submit(() -> suspendAfter(start, firstAccountId));
+      Future<?> secondSuspension = executor.submit(() -> suspendAfter(start, secondAccountId));
+      start.countDown();
+      awaitPostgreSqlLockWaiters(2);
+      releaseAdvisoryLock.countDown();
+
+      advisoryLock.get(10, TimeUnit.SECONDS);
+      firstSuspension.get(20, TimeUnit.SECONDS);
+      secondSuspension.get(20, TimeUnit.SECONDS);
+    } finally {
+      releaseAdvisoryLock.countDown();
+      removeSuspensionTimelineLockTrigger();
+    }
+
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM regular_accounts WHERE status = 'SUSPENDED'", Integer.class))
+        .isEqualTo(2);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM auctions WHERE state = 'SUSPENDED'", Integer.class))
+        .isEqualTo(2);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM bid_disqualifications", Integer.class))
+        .isEqualTo(2);
+  }
+
+  @Test
   void enforcesIncrementSellerEligibilityIdempotencyPayloadAndRateLimit() {
     UUID sellerId = activeAccount("seller");
     UUID bidderId = activeAccount("bidder");
@@ -215,6 +321,108 @@ class BiddingConcurrencyIntegrationTests {
     try {
       start.await(10, TimeUnit.SECONDS);
       return bidding.place(bidderId, auctionId, UUID.randomUUID(), amountCents);
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(exception);
+    }
+  }
+
+  private void suspendAfter(CountDownLatch start, UUID accountId) {
+    await(start);
+    accountAdministration.suspend(
+        UUID.randomUUID(),
+        accountId,
+        RegularAccountSuspensionReasonCategory.FRAUD,
+        "The account is under review.",
+        "Cross-auction concurrency coverage.");
+  }
+
+  private void lockAcceptedBidsTable(CountDownLatch acquired, CountDownLatch release) {
+    transactions.executeWithoutResult(
+        ignored -> {
+          jdbcTemplate.execute("LOCK TABLE accepted_bids IN SHARE MODE");
+          acquired.countDown();
+          await(release);
+        });
+  }
+
+  private void installSuspensionTimelineLockTrigger() {
+    jdbcTemplate.execute(
+        """
+        CREATE FUNCTION block_suspension_timeline_event() RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+          PERFORM pg_advisory_xact_lock(3737001);
+          RETURN NEW;
+        END;
+        $$
+        """);
+    jdbcTemplate.execute(
+        """
+        CREATE TRIGGER block_suspension_timeline_event
+        BEFORE INSERT ON auction_timeline_events
+        FOR EACH ROW EXECUTE FUNCTION block_suspension_timeline_event()
+        """);
+  }
+
+  private void removeSuspensionTimelineLockTrigger() {
+    jdbcTemplate.execute(
+        "DROP TRIGGER IF EXISTS block_suspension_timeline_event ON auction_timeline_events");
+    jdbcTemplate.execute("DROP FUNCTION IF EXISTS block_suspension_timeline_event()");
+  }
+
+  private void holdTransactionAdvisoryLock(CountDownLatch acquired, CountDownLatch release) {
+    transactions.executeWithoutResult(
+        ignored -> {
+          jdbcTemplate.execute("SELECT pg_advisory_xact_lock(3737001)");
+          acquired.countDown();
+          await(release);
+        });
+  }
+
+  private void awaitPostgreSqlLockWaiters(int expectedWaiters) throws InterruptedException {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    while (System.nanoTime() < deadline) {
+      Integer count =
+          jdbcTemplate.queryForObject(
+              "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'",
+              Integer.class);
+      if (count != null && count >= expectedWaiters) {
+        return;
+      }
+      Thread.sleep(25);
+    }
+    throw new AssertionError("Expected " + expectedWaiters + " PostgreSQL lock waiters.");
+  }
+
+  private void awaitPostgreSqlLockOn(String tableName) throws InterruptedException {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    while (System.nanoTime() < deadline) {
+      Integer count =
+          jdbcTemplate.queryForObject(
+              """
+              SELECT count(*)
+              FROM pg_stat_activity
+              WHERE pid <> pg_backend_pid()
+                AND wait_event_type = 'Lock'
+                AND query LIKE ?
+              """,
+              Integer.class,
+              "%" + tableName + "%");
+      if (count != null && count > 0) {
+        return;
+      }
+      Thread.sleep(25);
+    }
+    throw new AssertionError("Expected a PostgreSQL lock wait on " + tableName + ".");
+  }
+
+  private void await(CountDownLatch latch) {
+    try {
+      if (!latch.await(10, TimeUnit.SECONDS)) {
+        throw new IllegalStateException("Timed out while waiting for a concurrent test command.");
+      }
     } catch (InterruptedException exception) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException(exception);

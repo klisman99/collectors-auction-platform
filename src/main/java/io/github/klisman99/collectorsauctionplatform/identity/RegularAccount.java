@@ -71,6 +71,20 @@ class RegularAccount {
     this.passwordHash = passwordHash;
   }
 
+  void suspend() {
+    if (status != AccountStatus.ACTIVE) {
+      throw IdentityApiException.regularAccountNotSuspendable();
+    }
+    status = AccountStatus.SUSPENDED;
+  }
+
+  void reactivate() {
+    if (status != AccountStatus.SUSPENDED) {
+      throw IdentityApiException.regularAccountNotReactivatable();
+    }
+    status = AccountStatus.ACTIVE;
+  }
+
   UUID id() {
     return id;
   }

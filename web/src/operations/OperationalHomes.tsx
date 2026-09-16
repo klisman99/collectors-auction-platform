@@ -13,6 +13,7 @@ import { ModerationWorkspace } from '../moderation/ModerationWorkspace';
 import { applyApiError, type FieldErrors, validEmail } from '../shared/forms';
 import { Failure, FormHeading, Notice, PageFrame, SubmitButton, TextField } from '../shared/ui';
 import { AuctionOperationsWorkspace } from './AuctionOperationsWorkspace';
+import { RegularAccountAdministrationWorkspace } from './RegularAccountAdministrationWorkspace';
 
 export function OperationalModeratorHome({
   onRevokeAllSessions,
@@ -208,6 +209,7 @@ export function OperationalHome({
         </div>
       </header>
       <AuctionOperationsWorkspace administrator />
+      <RegularAccountAdministrationWorkspace />
       {notice !== null && <Notice>{notice}</Notice>}
       {failure !== null && <Failure>{failure}</Failure>}
       {failureMessage !== null && <Failure>{failureMessage}</Failure>}

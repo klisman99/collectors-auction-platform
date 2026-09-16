@@ -54,6 +54,9 @@ class Auction {
   @Column(name = "accepted_bid_count", nullable = false)
   private long acceptedBidCount;
 
+  @Column(name = "eligible_bid_count", nullable = false)
+  private long eligibleBidCount;
+
   @Column(name = "reserve_amount_cents")
   private Long reserveAmountCents;
 
@@ -118,6 +121,7 @@ class Auction {
     auction.minimumIncrementCents = command.minimumIncrementCents();
     auction.currentAmountCents = command.openingAmountCents();
     auction.acceptedBidCount = 0;
+    auction.eligibleBidCount = 0;
     auction.reserveAmountCents = command.reserveAmountCents();
     auction.startsAt = command.startsAt();
     auction.endsAt = command.endsAt();
@@ -181,6 +185,21 @@ class Auction {
         || (state == State.LIVE && !now.isBefore(endsAt))) {
       throw AuctionApiException.notSuspendable();
     }
+    applySuspension(reasonCategory, publicReason, internalNote, now);
+  }
+
+  void suspendForSellerAccount(String publicReason, String internalNote, Instant now) {
+    if (state != State.SCHEDULED && state != State.LIVE) {
+      throw AuctionApiException.notSuspendable();
+    }
+    applySuspension(SuspensionReasonCategory.ACCOUNT_SUSPENSION, publicReason, internalNote, now);
+  }
+
+  private void applySuspension(
+      SuspensionReasonCategory reasonCategory,
+      String publicReason,
+      String internalNote,
+      Instant now) {
     validateAdministrativeReason(publicReason, internalNote);
     suspensionSourceState = state;
     suspendedAt = now;
@@ -294,19 +313,41 @@ class Auction {
     return currentAmountCents;
   }
 
+  long eligibleBidCount() {
+    return eligibleBidCount;
+  }
+
   boolean reserveMet() {
-    return acceptedBidCount > 0
+    return eligibleBidCount > 0
         && (reserveAmountCents == null || currentAmountCents >= reserveAmountCents);
   }
 
   void recordAcceptedBid(long amountCents, Instant acceptedAt) {
     currentAmountCents = amountCents;
     acceptedBidCount++;
+    eligibleBidCount++;
     Instant extendedEndAt = acceptedAt.plusSeconds(policySnapshot.protectionWindowSeconds());
     if (!acceptedAt.isBefore(endsAt.minusSeconds(policySnapshot.protectionWindowSeconds()))
         && extendedEndAt.isAfter(endsAt)) {
       endsAt = extendedEndAt;
     }
+  }
+
+  void recalculateEligibleBidProjection(long eligibleBidCount, long currentAmountCents) {
+    if (eligibleBidCount < 0
+        || currentAmountCents < openingAmountCents
+        || currentAmountCents > 100_000_000L) {
+      throw new IllegalArgumentException("The eligible bid projection is invalid.");
+    }
+    this.eligibleBidCount = eligibleBidCount;
+    this.currentAmountCents = currentAmountCents;
+  }
+
+  long nextMinimumAmountCents() {
+    if (eligibleBidCount == 0) {
+      return openingAmountCents;
+    }
+    return Math.min(100_000_001L, Math.addExact(currentAmountCents, minimumIncrementCents));
   }
 
   Instant effectiveEndAt() {

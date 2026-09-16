@@ -46,7 +46,7 @@ class AuctionService {
         command.endsAt(),
         now);
 
-    AccountDirectory.TradingAccount seller = accounts.tradingAccount(sellerId);
+    AccountDirectory.TradingAccount seller = accounts.lockTradingAccount(sellerId);
     if (!seller.eligible()) {
       throw AuctionApiException.accountIneligible();
     }
@@ -218,7 +218,7 @@ class AuctionService {
   @Transactional
   Auction updateEditableTerms(
       UUID sellerId, UUID auctionId, Long reserveAmountCents, Instant startsAt, Instant endsAt) {
-    AccountDirectory.TradingAccount seller = accounts.tradingAccount(sellerId);
+    AccountDirectory.TradingAccount seller = accounts.lockTradingAccount(sellerId);
     if (!seller.eligible()) {
       throw AuctionApiException.accountIneligible();
     }
@@ -249,7 +249,7 @@ class AuctionService {
 
   @Transactional
   Auction cancel(UUID sellerId, UUID auctionId, String publicReason) {
-    AccountDirectory.TradingAccount seller = accounts.tradingAccount(sellerId);
+    AccountDirectory.TradingAccount seller = accounts.lockTradingAccount(sellerId);
     if (!seller.eligible()) {
       throw AuctionApiException.accountIneligible();
     }

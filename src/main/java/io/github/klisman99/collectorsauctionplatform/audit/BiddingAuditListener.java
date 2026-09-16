@@ -1,6 +1,7 @@
 package io.github.klisman99.collectorsauctionplatform.audit;
 
 import io.github.klisman99.collectorsauctionplatform.bidding.BidAccepted;
+import io.github.klisman99.collectorsauctionplatform.bidding.BidDisqualified;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
@@ -27,5 +28,25 @@ class BiddingAuditListener {
                 + event.sequence()
                 + ";bidderPseudonym="
                 + event.bidderPseudonym()));
+  }
+
+  @ApplicationModuleListener
+  void auditBidDisqualification(BidDisqualified event) {
+    auditRecords.save(
+        AuditRecord.operationalAcceptedBidAction(
+            AuditRecord.AuditAction.BID_DISQUALIFIED,
+            event.actorId(),
+            event.acceptedBidId(),
+            event.disqualifiedAt(),
+            "auctionId="
+                + event.auctionId()
+                + ";bidderId="
+                + event.bidderId()
+                + ";reasonCategory="
+                + event.reasonCategory()
+                + ";publicReason="
+                + event.publicReason()
+                + ";internalNote="
+                + event.internalNote()));
   }
 }
