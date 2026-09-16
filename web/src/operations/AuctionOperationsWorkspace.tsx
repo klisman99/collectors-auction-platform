@@ -4,7 +4,9 @@ import {
   type Auction,
   administrativelyCancelAuction,
   listAuctions,
+  listOperationalBidHistory,
   listSuspendedAuctions,
+  type OperationalBid,
   releaseSuspendedAuction,
   resumeSuspendedAuction,
   type SuspendedAuction,
@@ -17,6 +19,8 @@ type Props = { administrator: boolean };
 export function AuctionOperationsWorkspace({ administrator }: Props) {
   const [candidates, setCandidates] = useState<Auction[]>([]);
   const [queue, setQueue] = useState<SuspendedAuction[]>([]);
+  const [operationalBids, setOperationalBids] = useState<OperationalBid[] | null>(null);
+  const [operationalBidAuctionId, setOperationalBidAuctionId] = useState('');
   const [auctionId, setAuctionId] = useState('');
   const [reasonCategory, setReasonCategory] = useState('POLICY_REVIEW');
   const [publicReason, setPublicReason] = useState('');
@@ -95,6 +99,24 @@ export function AuctionOperationsWorkspace({ administrator }: Props) {
       await load();
     } catch (error) {
       setFailure(error instanceof Error ? error.message : 'The auction operation failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reviewBids() {
+    if (operationalBidAuctionId === '') {
+      setFailure('Select an auction to review its private bid history.');
+      return;
+    }
+    setBusy(true);
+    setFailure(null);
+    try {
+      setOperationalBids(await listOperationalBidHistory(operationalBidAuctionId));
+    } catch (error) {
+      setFailure(
+        error instanceof Error ? error.message : 'Private bid history could not be loaded.',
+      );
     } finally {
       setBusy(false);
     }
@@ -258,6 +280,65 @@ export function AuctionOperationsWorkspace({ administrator }: Props) {
           )}
         </div>
       </div>
+      <section
+        className="mt-6 rounded-xl border border-slate-700 bg-slate-950/60 p-5"
+        aria-labelledby="private-bids-heading"
+      >
+        <h3 className="text-xl font-semibold text-white" id="private-bids-heading">
+          Private bid history
+        </h3>
+        <p className="mt-1 text-sm text-slate-400">
+          Operational attribution and disqualification reasons are never part of the public auction
+          view.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <label className="sr-only" htmlFor="private-bid-auction">
+            Auction for private bid history
+          </label>
+          <select
+            className="min-w-64 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2.5 text-slate-100"
+            id="private-bid-auction"
+            onChange={(event) => setOperationalBidAuctionId(event.target.value)}
+            value={operationalBidAuctionId}
+          >
+            <option value="">Select an auction</option>
+            {candidates.map((auction) => (
+              <option key={auction.id} value={auction.id}>
+                {auction.item.title} — {auction.state}
+              </option>
+            ))}
+            {queue.map((auction) => (
+              <option key={auction.id} value={auction.id}>
+                {auction.itemTitle} — suspended
+              </option>
+            ))}
+          </select>
+          <button
+            className="rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-100"
+            disabled={busy}
+            onClick={() => void reviewBids()}
+            type="button"
+          >
+            Review bid history
+          </button>
+        </div>
+        {operationalBids !== null && (
+          <ul className="mt-4 divide-y divide-slate-800 border-t border-slate-800 text-sm">
+            {operationalBids.map((bid) => (
+              <li className="py-3" key={bid.id}>
+                <p className="font-medium text-slate-100">
+                  {bid.bidderHandle} · {formatCurrency(bid.amountCents)}
+                  {bid.disqualified ? ' · Disqualified' : ''}
+                </p>
+                {bid.disqualified && <p className="mt-1 text-slate-300">{bid.publicReason}</p>}
+                {administrator && bid.internalNote !== undefined && (
+                  <p className="mt-1 text-amber-100">Administrator note: {bid.internalNote}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </section>
   );
 }
@@ -267,4 +348,8 @@ function formatRemaining(milliseconds: number | null | undefined): string {
   const seconds = Math.floor(milliseconds / 1000);
   const minutes = Math.floor(seconds / 60);
   return `${minutes}m ${seconds % 60}s remaining`;
+}
+
+function formatCurrency(cents: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 }

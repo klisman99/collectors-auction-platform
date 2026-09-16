@@ -14,7 +14,8 @@ export function AuthenticatedHome({
   onSignOut: () => void;
   session: AuthenticatedSession;
 }) {
-  const verified = session.verified === true;
+  const canTrade = session.canTrade === true;
+  const suspended = session.status === 'SUSPENDED';
   const handle = session.publicHandle ?? 'collector';
 
   return (
@@ -30,19 +31,23 @@ export function AuthenticatedHome({
         className="mt-8 rounded-xl border border-slate-700 bg-slate-950/60 p-5"
         aria-live="polite"
       >
-        <p className={`text-sm font-semibold ${verified ? 'text-emerald-300' : 'text-amber-300'}`}>
-          {verified
+        <p className={`text-sm font-semibold ${canTrade ? 'text-emerald-300' : 'text-amber-300'}`}>
+          {canTrade
             ? 'Trading access is active.'
-            : 'Email verification is still required for trading.'}
+            : suspended
+              ? 'Account access is restricted.'
+              : 'Email verification is still required for trading.'}
         </p>
         <p className="mt-2 leading-6 text-slate-300">
-          {verified
+          {canTrade
             ? 'You can now use marketplace commands when they become available.'
-            : 'You can browse the platform, but submitting items, scheduling auctions, and bidding remain unavailable.'}
+            : suspended
+              ? 'You can browse public history and complete existing settlements, but marketplace commands are unavailable while your account is suspended.'
+              : 'You can browse the platform, but submitting items, scheduling auctions, and bidding remain unavailable.'}
         </p>
       </section>
-      {verified && <DraftWorkspace />}
-      <PublicAuctionBrowser canBid={session.canTrade === true} />
+      {canTrade && <DraftWorkspace />}
+      <PublicAuctionBrowser canBid={canTrade} />
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <button
           className="rounded-lg border border-slate-600 px-4 py-2.5 font-semibold text-slate-100 transition hover:border-cyan-300 hover:text-cyan-200"

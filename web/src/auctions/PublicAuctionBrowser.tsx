@@ -184,12 +184,12 @@ function AuctionDetails({
   canBid: boolean;
   refresh: () => Promise<void>;
 }) {
-  const calculatedRequiredAmount =
-    bids.length === 0
-      ? auction.openingAmountCents
-      : auction.currentAmountCents + auction.minimumIncrementCents;
+  const calculatedRequiredAmount = bids.some((bid) => !bid.disqualified)
+    ? auction.currentAmountCents + auction.minimumIncrementCents
+    : auction.openingAmountCents;
   const [serverRequiredAmount, setServerRequiredAmount] = useState<number | null>(null);
-  const requiredAmount = serverRequiredAmount ?? calculatedRequiredAmount;
+  const requiredAmount =
+    serverRequiredAmount ?? auction.nextMinimumAmountCents ?? calculatedRequiredAmount;
   const [amount, setAmount] = useState((requiredAmount / 100).toFixed(2));
   const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
   const [submitting, setSubmitting] = useState(false);
@@ -300,9 +300,9 @@ function AuctionDetails({
           </li>
         ))}
       </ol>
-      <h4 className="mt-5 font-semibold text-white">Eligible bid history</h4>
+      <h4 className="mt-5 font-semibold text-white">Bid history</h4>
       {bids.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-300">No eligible bids.</p>
+        <p className="mt-2 text-sm text-slate-300">No accepted bids.</p>
       ) : (
         <ol className="mt-2 space-y-2 text-sm text-slate-300">
           {bids.map((bid) => (
@@ -310,6 +310,11 @@ function AuctionDetails({
               #{bid.sequence} ·{' '}
               <span className="font-medium text-white">{bid.bidderPseudonym}</span> ·{' '}
               {formatBrl(bid.amountCents)} · {formatSaoPaulo(bid.acceptedAt)}
+              {bid.disqualified && (
+                <span className="ml-2 rounded bg-rose-950 px-2 py-0.5 text-xs font-semibold text-rose-200">
+                  Disqualified
+                </span>
+              )}
             </li>
           ))}
         </ol>

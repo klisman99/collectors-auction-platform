@@ -6,7 +6,9 @@ import io.github.klisman99.collectorsauctionplatform.identity.OperationalAccount
 import io.github.klisman99.collectorsauctionplatform.identity.OperationalAccountDeactivated;
 import io.github.klisman99.collectorsauctionplatform.identity.OperationalAccountInvited;
 import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountPasswordReset;
+import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountReactivated;
 import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountRegistered;
+import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountSuspended;
 import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountVerified;
 import io.github.klisman99.collectorsauctionplatform.moderation.ModerationDecisionMade;
 import org.springframework.modulith.events.ApplicationModuleListener;
@@ -49,6 +51,36 @@ class IdentityAuditListener {
             event.accountId(),
             event.occurredAt(),
             "password=reset"));
+  }
+
+  @ApplicationModuleListener
+  void auditRegularAccountSuspension(RegularAccountSuspended event) {
+    auditRecords.save(
+        AuditRecord.operationalRegularAccountAction(
+            AuditRecord.AuditAction.REGULAR_ACCOUNT_SUSPENDED,
+            event.actorId(),
+            event.accountId(),
+            event.occurredAt(),
+            administrativeMetadata(
+                "publicHandle=" + event.publicHandle(),
+                "reasonCategory=" + event.reasonCategory(),
+                "publicReason=" + event.publicReason(),
+                "internalNote=" + event.internalNote())));
+  }
+
+  @ApplicationModuleListener
+  void auditRegularAccountReactivation(RegularAccountReactivated event) {
+    auditRecords.save(
+        AuditRecord.operationalRegularAccountAction(
+            AuditRecord.AuditAction.REGULAR_ACCOUNT_REACTIVATED,
+            event.actorId(),
+            event.accountId(),
+            event.occurredAt(),
+            administrativeMetadata(
+                "publicHandle=" + event.publicHandle(),
+                "reasonCategory=" + event.reasonCategory(),
+                "publicReason=" + event.publicReason(),
+                "internalNote=" + event.internalNote())));
   }
 
   @ApplicationModuleListener

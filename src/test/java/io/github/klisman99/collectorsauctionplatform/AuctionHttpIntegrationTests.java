@@ -51,6 +51,7 @@ class AuctionHttpIntegrationTests {
   void clearAuctionFixtures() {
     mailSender.clear();
     jdbcTemplate.update("DELETE FROM bid_attempts");
+    jdbcTemplate.update("DELETE FROM bid_disqualifications");
     jdbcTemplate.update("DELETE FROM accepted_bids");
     jdbcTemplate.update("DELETE FROM bidder_pseudonyms");
     jdbcTemplate.update("DELETE FROM auction_item_snapshot_media");
@@ -342,7 +343,9 @@ class AuctionHttpIntegrationTests {
         .andExpect(jsonPath("$.reserveAmountCents").value(15_000));
 
     mockMvc
-        .perform(get("/api/v1/auctions/mine").with(user(ownerId.toString())))
+        .perform(
+            get("/api/v1/auctions/mine")
+                .with(user(ownerId.toString()).authorities(tradingEligible())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].id").value(auctionId))
         .andExpect(jsonPath("$[0].reserveAmountCents").value(15_000));
@@ -524,7 +527,9 @@ class AuctionHttpIntegrationTests {
 
     Instant rescheduledStart = startsAt.plus(1, ChronoUnit.HOURS);
     mockMvc
-        .perform(get("/api/v1/auctions/mine").with(user(ownerId.toString())))
+        .perform(
+            get("/api/v1/auctions/mine")
+                .with(user(ownerId.toString()).authorities(tradingEligible())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].state").value("DRAFT"));
     mockMvc

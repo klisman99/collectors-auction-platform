@@ -11,16 +11,19 @@ vi.mock('./api/client', () => ({
   getAdministrativeAuditRecords: vi.fn(),
   getAuthenticatedSession: vi.fn(),
   getOperationalAccounts: vi.fn(),
+  getRegularAccounts: vi.fn(),
   inviteOperationalAccount: vi.fn(),
   registerAccount: vi.fn(),
   requestPasswordRecovery: vi.fn(),
   resetPassword: vi.fn(),
   revokeAllSessions: vi.fn(),
+  reactivateRegularAccount: vi.fn(),
   signOut: vi.fn(),
   signIn: vi.fn(),
   verifyEmail: vi.fn(),
   listDrafts: vi.fn(),
   listAuctions: vi.fn(),
+  listOperationalBidHistory: vi.fn(),
   listPublicBids: vi.fn(),
   placeBid: vi.fn(),
   listSuspendedAuctions: vi.fn(),
@@ -36,6 +39,7 @@ vi.mock('./api/client', () => ({
   submitDraft: vi.fn(),
   updateAuctionTerms: vi.fn(),
   suspendAuction: vi.fn(),
+  suspendRegularAccount: vi.fn(),
   releaseSuspendedAuction: vi.fn(),
   resumeSuspendedAuction: vi.fn(),
   administrativelyCancelAuction: vi.fn(),
@@ -51,12 +55,15 @@ import {
   getAuction,
   getAuthenticatedSession,
   getOperationalAccounts,
+  getRegularAccounts,
   inviteOperationalAccount,
   listAuctions,
   listDrafts,
   listMyScheduledAuctions,
+  listOperationalBidHistory,
   listPublicBids,
   listSuspendedAuctions,
+  reactivateRegularAccount,
   registerAccount,
   requestPasswordRecovery,
   resetPassword,
@@ -64,6 +71,7 @@ import {
   scheduleAuction,
   signIn,
   signOut,
+  suspendRegularAccount,
   verifyEmail,
 } from './api/client';
 
@@ -77,11 +85,13 @@ describe('App', () => {
     vi.mocked(deactivateOperationalAccount).mockReset();
     vi.mocked(getAdministrativeAuditRecords).mockReset();
     vi.mocked(getOperationalAccounts).mockReset();
+    vi.mocked(getRegularAccounts).mockResolvedValue([]);
     vi.mocked(inviteOperationalAccount).mockReset();
     vi.mocked(registerAccount).mockReset();
     vi.mocked(requestPasswordRecovery).mockReset();
     vi.mocked(resetPassword).mockReset();
     vi.mocked(revokeAllSessions).mockReset();
+    vi.mocked(reactivateRegularAccount).mockReset();
     vi.mocked(signOut).mockReset();
     vi.mocked(signIn).mockReset();
     vi.mocked(verifyEmail).mockReset();
@@ -93,11 +103,13 @@ describe('App', () => {
       totalElements: 0,
       totalPages: 0,
     });
+    vi.mocked(listOperationalBidHistory).mockReset();
     vi.mocked(listSuspendedAuctions).mockResolvedValue([]);
     vi.mocked(listMyScheduledAuctions).mockResolvedValue([]);
     vi.mocked(listPublicBids).mockResolvedValue([]);
     vi.mocked(getAuction).mockReset();
     vi.mocked(scheduleAuction).mockReset();
+    vi.mocked(suspendRegularAccount).mockReset();
     window.history.replaceState({}, '', '/');
   });
 
@@ -158,6 +170,26 @@ describe('App', () => {
 
     expect(await screen.findByText('Welcome back, collector_27.')).toBeInTheDocument();
     expect(screen.getByText('Trading access is active.')).toBeInTheDocument();
+  });
+
+  test('keeps a suspended account in read-only mode without marketplace workspaces', async () => {
+    vi.mocked(getAuthenticatedSession).mockResolvedValue({
+      publicHandle: 'restricted_37',
+      status: 'SUSPENDED',
+      verified: true,
+      canTrade: false,
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText('Account access is restricted.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'You can browse public history and complete existing settlements, but marketplace commands are unavailable while your account is suspended.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Your private drafts' })).toBeNull();
+    expect(screen.queryByText('Trading access is active.')).toBeNull();
   });
 
   test('publishes an approved item and previews immutable and editable auction terms', async () => {
@@ -339,7 +371,7 @@ describe('App', () => {
     expect(screen.getAllByText(/São Paulo/)).not.toHaveLength(0);
     expect(screen.getByText(/Reserve not met/)).toBeInTheDocument();
     expect(screen.getByText('Light archival wear only.')).toBeInTheDocument();
-    expect(screen.getByText('No eligible bids.')).toBeInTheDocument();
+    expect(screen.getByText('No accepted bids.')).toBeInTheDocument();
     expect(screen.getByText('No public disqualifications.')).toBeInTheDocument();
   });
 

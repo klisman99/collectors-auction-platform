@@ -143,6 +143,30 @@ class AuditRecord {
         metadata);
   }
 
+  static AuditRecord operationalRegularAccountAction(
+      AuditAction action, UUID actorId, UUID targetId, Instant occurredAt, String metadata) {
+    return new AuditRecord(
+        ActorType.OPERATIONAL_ACCOUNT,
+        actorId,
+        action,
+        TargetType.REGULAR_ACCOUNT,
+        targetId,
+        occurredAt,
+        metadata);
+  }
+
+  static AuditRecord operationalAcceptedBidAction(
+      AuditAction action, UUID actorId, UUID targetId, Instant occurredAt, String metadata) {
+    return new AuditRecord(
+        ActorType.OPERATIONAL_ACCOUNT,
+        actorId,
+        action,
+        TargetType.ACCEPTED_BID,
+        targetId,
+        occurredAt,
+        metadata);
+  }
+
   static AuditRecord systemOperationalAction(
       AuditAction action, UUID targetId, Instant occurredAt, String metadata) {
     return new AuditRecord(
@@ -197,6 +221,8 @@ class AuditRecord {
     REGULAR_ACCOUNT_REGISTERED,
     REGULAR_ACCOUNT_VERIFIED,
     REGULAR_ACCOUNT_PASSWORD_RESET,
+    REGULAR_ACCOUNT_SUSPENDED,
+    REGULAR_ACCOUNT_REACTIVATED,
     INITIAL_ADMINISTRATOR_CREATED,
     OPERATIONAL_ACCOUNT_INVITED,
     OPERATIONAL_ACCOUNT_ACTIVATED,
@@ -213,13 +239,15 @@ class AuditRecord {
     AUCTION_RELEASED,
     AUCTION_RESUMED,
     AUCTION_ADMINISTRATIVELY_CANCELLED,
-    BID_ACCEPTED
+    BID_ACCEPTED,
+    BID_DISQUALIFIED
   }
 
   enum TargetType {
     REGULAR_ACCOUNT,
     OPERATIONAL_ACCOUNT,
     COLLECTIBLE_ITEM,
-    AUCTION
+    AUCTION,
+    ACCEPTED_BID
   }
 }

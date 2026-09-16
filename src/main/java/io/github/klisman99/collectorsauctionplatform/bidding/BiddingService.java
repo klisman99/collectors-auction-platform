@@ -6,6 +6,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ class BiddingService {
   private final AuctionBidding auctions;
   private final AccountDirectory accounts;
   private final AcceptedBidRepository acceptedBids;
+  private final BidDisqualificationRepository disqualifications;
   private final BidAttemptRepository attempts;
   private final BidderPseudonymRepository pseudonyms;
   private final Clock clock;
@@ -26,6 +28,7 @@ class BiddingService {
       AuctionBidding auctions,
       AccountDirectory accounts,
       AcceptedBidRepository acceptedBids,
+      BidDisqualificationRepository disqualifications,
       BidAttemptRepository attempts,
       BidderPseudonymRepository pseudonyms,
       Clock clock,
@@ -33,6 +36,7 @@ class BiddingService {
     this.auctions = auctions;
     this.accounts = accounts;
     this.acceptedBids = acceptedBids;
+    this.disqualifications = disqualifications;
     this.attempts = attempts;
     this.pseudonyms = pseudonyms;
     this.clock = clock;
@@ -42,7 +46,6 @@ class BiddingService {
   @Transactional
   BidCommandResult place(UUID bidderId, UUID auctionId, UUID idempotencyKey, long amountCents) {
     Instant receivedAt = Instant.now(clock);
-    AuctionBidding.BidAvailability availability = auctions.inspectBidWindow(auctionId);
     var previous =
         attempts
             .findAllByAuctionIdAndBidderIdAndIdempotencyKeyOrderByReceivedAtAsc(
@@ -75,6 +78,9 @@ class BiddingService {
               null),
           receivedAt);
     }
+
+    AccountDirectory.TradingAccount bidder = accounts.lockTradingAccount(bidderId);
+    AuctionBidding.BidAvailability availability = auctions.inspectBidWindow(auctionId);
     if (!availability.exists()) {
       return record(
           auctionId,
@@ -110,7 +116,6 @@ class BiddingService {
     }
     AuctionBidding.OpenAuction auction = availability.auction();
 
-    AccountDirectory.TradingAccount bidder = accounts.tradingAccount(bidderId);
     if (auction.sellerId().equals(bidderId)) {
       return record(
           auctionId,
@@ -158,13 +163,14 @@ class BiddingService {
           receivedAt);
     }
 
-    var latest = acceptedBids.findFirstByAuctionIdOrderBySequenceDesc(auctionId);
+    var latestEligible =
+        acceptedBids.findAllEligibleByAuctionIdOrderBySequenceDesc(auctionId).stream().findFirst();
     long requiredAmount =
-        latest.isEmpty()
+        latestEligible.isEmpty()
             ? auction.currentAmountCents()
             : Math.min(
                 100_000_001L,
-                Math.addExact(latest.get().amountCents(), auction.minimumIncrementCents()));
+                Math.addExact(latestEligible.get().amountCents(), auction.minimumIncrementCents()));
     if (amountCents < requiredAmount || amountCents > 100_000_000L) {
       return record(
           auctionId,
@@ -175,7 +181,11 @@ class BiddingService {
           receivedAt);
     }
 
-    long sequence = latest.map(bid -> bid.sequence() + 1).orElse(1L);
+    long sequence =
+        acceptedBids
+            .findFirstByAuctionIdOrderBySequenceDesc(auctionId)
+            .map(bid -> bid.sequence() + 1)
+            .orElse(1L);
     BidderPseudonym pseudonym =
         pseudonyms
             .findByAuctionIdAndBidderId(auctionId, bidderId)
@@ -208,11 +218,56 @@ class BiddingService {
 
   @Transactional(readOnly = true)
   List<PublicBid> history(UUID auctionId) {
-    return acceptedBids.findAllByAuctionIdOrderBySequenceDesc(auctionId).stream()
+    List<AcceptedBid> bids = acceptedBids.findAllByAuctionIdOrderBySequenceDesc(auctionId);
+    Map<UUID, BidDisqualification> disqualificationsByBidId =
+        disqualifications
+            .findAllByAcceptedBidIdIn(bids.stream().map(AcceptedBid::id).toList())
+            .stream()
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    BidDisqualification::acceptedBidId, value -> value));
+    return bids.stream()
         .map(
             bid ->
                 new PublicBid(
-                    bid.amountCents(), bid.acceptedAt(), bid.sequence(), bid.bidderPseudonym()))
+                    bid.amountCents(),
+                    bid.acceptedAt(),
+                    bid.sequence(),
+                    bid.bidderPseudonym(),
+                    disqualificationsByBidId.containsKey(bid.id())))
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
+  List<OperationalBid> operationalHistory(UUID auctionId, boolean includeInternalNotes) {
+    List<AcceptedBid> bids = acceptedBids.findAllByAuctionIdOrderBySequenceDesc(auctionId);
+    Map<UUID, BidDisqualification> disqualificationsByBidId =
+        disqualifications
+            .findAllByAcceptedBidIdIn(bids.stream().map(AcceptedBid::id).toList())
+            .stream()
+            .collect(
+                java.util.stream.Collectors.toMap(
+                    BidDisqualification::acceptedBidId, value -> value));
+    return bids.stream()
+        .map(
+            bid -> {
+              AccountDirectory.AccountContact bidder = accounts.regularAccount(bid.bidderId());
+              BidDisqualification disqualification = disqualificationsByBidId.get(bid.id());
+              return new OperationalBid(
+                  bid.id(),
+                  bid.amountCents(),
+                  bid.acceptedAt(),
+                  bid.sequence(),
+                  bid.bidderPseudonym(),
+                  bidder.accountId(),
+                  bidder.publicHandle(),
+                  disqualification != null,
+                  disqualification == null ? null : disqualification.reasonCategory(),
+                  disqualification == null ? null : disqualification.publicReason(),
+                  disqualification == null || !includeInternalNotes
+                      ? null
+                      : disqualification.internalNote());
+            })
         .toList();
   }
 
@@ -252,5 +307,23 @@ class BiddingService {
     return result;
   }
 
-  record PublicBid(long amountCents, Instant acceptedAt, long sequence, String bidderPseudonym) {}
+  record PublicBid(
+      long amountCents,
+      Instant acceptedAt,
+      long sequence,
+      String bidderPseudonym,
+      boolean disqualified) {}
+
+  record OperationalBid(
+      UUID id,
+      long amountCents,
+      Instant acceptedAt,
+      long sequence,
+      String bidderPseudonym,
+      UUID bidderId,
+      String bidderHandle,
+      boolean disqualified,
+      String reasonCategory,
+      String publicReason,
+      String internalNote) {}
 }

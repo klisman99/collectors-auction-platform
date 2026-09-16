@@ -53,6 +53,18 @@ class AcceptedBid {
     return amountCents;
   }
 
+  UUID id() {
+    return id;
+  }
+
+  UUID bidderId() {
+    return bidderId;
+  }
+
+  UUID auctionId() {
+    return auctionId;
+  }
+
   long sequence() {
     return sequence;
   }

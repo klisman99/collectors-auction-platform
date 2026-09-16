@@ -88,6 +88,7 @@ class AuctionLifecycleIntegrationTests {
   @BeforeEach
   void clearFixtures() {
     jdbcTemplate.update("DELETE FROM bid_attempts");
+    jdbcTemplate.update("DELETE FROM bid_disqualifications");
     jdbcTemplate.update("DELETE FROM accepted_bids");
     jdbcTemplate.update("DELETE FROM bidder_pseudonyms");
     jdbcTemplate.update("DELETE FROM auction_timeline_events");

@@ -7,6 +7,7 @@ The modular monolith is organized by business capability. Each module owns its b
 ~~~mermaid
 flowchart LR
     Identity[identity]
+    AccountAdministration[account administration]
     Catalog[catalog]
     Moderation[moderation]
     Auctions[auctions]
@@ -16,6 +17,9 @@ flowchart LR
     Audit[audit]
     Platform[platform]
 
+    AccountAdministration --> Identity
+    AccountAdministration --> Auctions
+    AccountAdministration --> Bidding
     Moderation --> Identity
     Moderation --> Catalog
     Auctions --> Identity
@@ -48,6 +52,10 @@ Table ownership and the corresponding no-direct-access rule are documented in
 ### identity
 
 Owns regular and operational accounts, normalized email, public handle, credentials, verification and recovery tokens, roles, session lifecycle, invitations, account status, and rate-limit identity keys. It exposes authorization-relevant facts without exposing credential persistence.
+
+### account administration
+
+Owns the atomic administrative regular-account suspension and reactivation use case. It orchestrates deliberate identity, auctions, and bidding module interfaces without reading or writing their tables directly.
 
 ### catalog
 

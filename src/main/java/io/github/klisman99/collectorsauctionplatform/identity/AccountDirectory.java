@@ -23,6 +23,20 @@ public class AccountDirectory {
   @Transactional(readOnly = true)
   public TradingAccount tradingAccount(UUID accountId) {
     RegularAccount account = accounts.findById(accountId).orElseThrow();
+    return tradingAccount(account);
+  }
+
+  /**
+   * Locks a regular account for the duration of a command that could create or change trading
+   * state. This serializes the command with account suspension.
+   */
+  @Transactional
+  public TradingAccount lockTradingAccount(UUID accountId) {
+    RegularAccount account = accounts.findByIdForUpdate(accountId).orElseThrow();
+    return tradingAccount(account);
+  }
+
+  private TradingAccount tradingAccount(RegularAccount account) {
     return new TradingAccount(
         account.id(),
         account.publicHandle(),

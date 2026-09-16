@@ -55,12 +55,22 @@ public class AuctionBidding {
     auction.recordAcceptedBid(amountCents, acceptedAt);
   }
 
+  @Transactional
+  public void recalculateEligibleBidProjection(
+      UUID auctionId, long eligibleBidCount, long currentAmountCents) {
+    Auction auction = auctions.findById(auctionId).orElseThrow(() -> new BidUnavailable(auctionId));
+    auction.recalculateEligibleBidProjection(eligibleBidCount, currentAmountCents);
+  }
+
   public record OpenAuction(
       UUID sellerId,
       long currentAmountCents,
       long minimumIncrementCents,
       Instant effectiveEndAt,
       Instant acceptedAt) {}
+
+  public record BidDisqualificationTarget(
+      Auction.State state, long openingAmountCents, boolean acceptsDisqualification) {}
 
   public record BidAvailability(State state, OpenAuction auction) {
 

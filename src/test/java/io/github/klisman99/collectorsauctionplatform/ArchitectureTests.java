@@ -14,6 +14,7 @@ class ArchitectureTests {
     assertThat(modules.stream().map(module -> module.getIdentifier().toString()))
         .containsExactlyInAnyOrder(
             "identity",
+            "accountadministration",
             "catalog",
             "moderation",
             "auctions",

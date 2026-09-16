@@ -15,6 +15,8 @@ interface RegularAccountRepository extends JpaRepository<RegularAccount, UUID> {
 
   Optional<RegularAccount> findByNormalizedEmail(String normalizedEmail);
 
+  java.util.List<RegularAccount> findAllByOrderByRegisteredAtDesc();
+
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select account from RegularAccount account where account.normalizedEmail = ?1")
   Optional<RegularAccount> findByNormalizedEmailForUpdate(String normalizedEmail);

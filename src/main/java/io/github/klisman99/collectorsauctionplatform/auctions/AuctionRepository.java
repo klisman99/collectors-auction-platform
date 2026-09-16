@@ -38,6 +38,10 @@ interface AuctionRepository extends JpaRepository<Auction, UUID> {
   List<Auction> findAllBySellerIdAndStateInOrderByStartsAtAsc(
       UUID sellerId, List<Auction.State> states);
 
+  @Query(
+      "select auction.id from Auction auction where auction.sellerId = :sellerId and auction.state in ('SCHEDULED', 'LIVE')")
+  List<UUID> findSuspendableIdsBySellerId(@Param("sellerId") UUID sellerId);
+
   List<Auction> findAllByStateOrderBySuspendedAtAsc(Auction.State state);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
