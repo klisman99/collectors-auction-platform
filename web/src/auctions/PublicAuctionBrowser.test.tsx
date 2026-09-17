@@ -175,6 +175,27 @@ describe('PublicAuctionBrowser bidding', () => {
     expect(screen.getByText(/Required bid/)).toHaveTextContent(/R\$\s*110,00/);
   });
 
+  test('shows the public final outcome without exposing a winning bidder handle', async () => {
+    vi.mocked(getAuction).mockResolvedValue({
+      ...liveAuction,
+      state: 'SOLD',
+      finalOutcome: {
+        amountCents: 12_000,
+        bidderPseudonym: 'Bidder-WIN99',
+        recordedAt: '2026-09-13T22:00:00Z',
+      },
+    });
+
+    render(<PublicAuctionBrowser canBid={false} />);
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Live auctions' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'View Live bidding card' }));
+
+    expect(await screen.findByRole('heading', { name: 'Final outcome' })).toBeInTheDocument();
+    expect(screen.getByText(/Sold for R\$\s*120,00 to Bidder-WIN99/)).toBeInTheDocument();
+    expect(screen.queryByText(/Winning bidder:/)).not.toBeInTheDocument();
+  });
+
   test.each([
     ['BID_RATE_LIMITED', undefined, 'Bid rate limit reached'],
     ['BID_LATE_OR_UNAVAILABLE', undefined, 'bid was late'],

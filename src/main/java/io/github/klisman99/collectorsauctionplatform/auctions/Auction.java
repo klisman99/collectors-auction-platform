@@ -75,6 +75,21 @@ class Auction {
   @Column(name = "cancellation_reason")
   private String cancellationReason;
 
+  @Column(name = "final_bid_id")
+  private UUID finalBidId;
+
+  @Column(name = "final_bidder_id")
+  private UUID finalBidderId;
+
+  @Column(name = "final_bidder_pseudonym")
+  private String finalBidderPseudonym;
+
+  @Column(name = "final_amount_cents")
+  private Long finalAmountCents;
+
+  @Column(name = "final_outcome_recorded_at")
+  private Instant finalOutcomeRecordedAt;
+
   @Column(name = "suspension_source_state")
   @Enumerated(EnumType.STRING)
   private State suspensionSourceState;
@@ -271,14 +286,49 @@ class Auction {
     return (state == State.SCHEDULED || state == State.LIVE) && !now.isBefore(endsAt);
   }
 
-  void endWithoutBids() {
-    if (state != State.SCHEDULED && state != State.LIVE) {
-      return;
+  boolean claimClosing(Instant now) {
+    if (!isDueToEnd(now)) {
+      return false;
     }
-    state = State.UNSOLD;
-    activeItemId = null;
-    endedAt = endsAt;
-    timeline.add(AuctionTimelineEntry.ended(endsAt));
+    state = State.CLOSING;
+    return true;
+  }
+
+  boolean isClosing() {
+    return state == State.CLOSING;
+  }
+
+  boolean recordClosingOutcome(
+      AuctionBidding.ClosingOutcome outcome, AuctionBidding.FinalBid finalBid, Instant recordedAt) {
+    if (state != State.CLOSING) {
+      return false;
+    }
+    if (outcome == AuctionBidding.ClosingOutcome.UNSOLD && finalBid != null) {
+      throw new IllegalArgumentException("An unsold auction cannot have a final bid.");
+    }
+    if (outcome != AuctionBidding.ClosingOutcome.UNSOLD && finalBid == null) {
+      throw new IllegalArgumentException("A bid is required for this auction outcome.");
+    }
+
+    state =
+        switch (outcome) {
+          case SOLD -> State.SOLD;
+          case UNSOLD -> State.UNSOLD;
+          case AWAITING_SELLER_DECISION -> State.AWAITING_SELLER_DECISION;
+        };
+    if (finalBid != null) {
+      finalBidId = finalBid.bidId();
+      finalBidderId = finalBid.bidderId();
+      finalBidderPseudonym = finalBid.bidderPseudonym();
+      finalAmountCents = finalBid.amountCents();
+      finalOutcomeRecordedAt = recordedAt;
+    }
+    if (state == State.SOLD || state == State.UNSOLD) {
+      activeItemId = null;
+      endedAt = endsAt;
+      timeline.add(AuctionTimelineEntry.ended(endsAt));
+    }
+    return true;
   }
 
   UUID id() {
@@ -376,6 +426,26 @@ class Auction {
 
   String cancellationReason() {
     return cancellationReason;
+  }
+
+  UUID finalBidId() {
+    return finalBidId;
+  }
+
+  UUID finalBidderId() {
+    return finalBidderId;
+  }
+
+  String finalBidderPseudonym() {
+    return finalBidderPseudonym;
+  }
+
+  Long finalAmountCents() {
+    return finalAmountCents;
+  }
+
+  Instant finalOutcomeRecordedAt() {
+    return finalOutcomeRecordedAt;
   }
 
   State suspensionSourceState() {

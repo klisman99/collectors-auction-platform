@@ -290,6 +290,17 @@ function AuctionDetails({
         Starts {formatSaoPaulo(auction.startsAt)} · effective end{' '}
         {formatSaoPaulo(auction.effectiveEndAt)} (São Paulo)
       </p>
+      {auction.finalOutcome != null && (
+        <section className="mt-5 rounded-lg border border-emerald-800/70 bg-emerald-950/20 p-4">
+          <h4 className="font-semibold text-white">Final outcome</h4>
+          <p className="mt-2 text-sm text-emerald-100">{outcomeMessage(auction)}</p>
+          {auction.finalOutcome.bidderHandle !== undefined && (
+            <p className="mt-1 text-sm text-slate-300">
+              Winning bidder: {auction.finalOutcome.bidderHandle}
+            </p>
+          )}
+        </section>
+      )}
       <h4 className="mt-5 font-semibold text-white">Public timeline</h4>
       <ol className="mt-2 space-y-2 text-sm text-slate-300">
         {auction.timeline.map((event) => (
@@ -413,6 +424,19 @@ function stateLabel(value: string): string {
     .replaceAll('_', ' ')
     .toLowerCase()
     .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function outcomeMessage(auction: Auction): string {
+  if (auction.state === 'UNSOLD') {
+    return 'This auction ended without an eligible accepted bid.';
+  }
+  if (auction.finalOutcome?.amountCents === undefined) {
+    return 'The auction outcome has been recorded.';
+  }
+  if (auction.state === 'AWAITING_SELLER_DECISION') {
+    return `Highest eligible bid: ${formatBrl(auction.finalOutcome.amountCents)}. Awaiting the seller's decision.`;
+  }
+  return `Sold for ${formatBrl(auction.finalOutcome.amountCents)} to ${auction.finalOutcome.bidderPseudonym ?? 'the winning bidder'}.`;
 }
 
 function formatDuration(seconds: number): string {

@@ -69,6 +69,14 @@ export type AuctionResponse = {
     timeline?: Array<TimelineResponse>;
     eligibleBidHistory?: Array<unknown>;
     disqualifications?: Array<unknown>;
+    finalOutcome?: FinalOutcomeResponse;
+};
+
+export type FinalOutcomeResponse = {
+    amountCents?: number;
+    bidderPseudonym?: string;
+    bidderHandle?: string;
+    recordedAt?: string;
 };
 
 export type ItemResponse = {

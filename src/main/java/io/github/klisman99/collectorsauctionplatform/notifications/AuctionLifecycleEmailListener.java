@@ -22,11 +22,39 @@ class AuctionLifecycleEmailListener {
 
   @ApplicationModuleListener
   void sendLifecycleEmail(AuctionLifecycleEvent event) throws MessagingException {
+    if (event.type() == AuctionLifecycleEvent.Type.SOLD) {
+      sendSoldEmails(event);
+      return;
+    }
+    if (event.type() == AuctionLifecycleEvent.Type.UNSOLD) {
+      send(
+          event.sellerEmail(),
+          "Your auction ended unsold",
+          "Your auction for '%s' ended without an eligible bid.".formatted(event.itemTitle()));
+      return;
+    }
+    if (event.type() == AuctionLifecycleEvent.Type.AWAITING_SELLER_DECISION) {
+      send(
+          event.sellerEmail(),
+          "Reserve decision required",
+          "Your auction for '%s' has an eligible final offer of R$ %s."
+              .formatted(event.itemTitle(), amount(event.finalAmountCents())));
+      send(
+          event.winningBidderEmail(),
+          "Your final offer is awaiting a seller decision",
+          "Your offer of R$ %s for '%s' is awaiting the seller's reserve decision."
+              .formatted(amount(event.finalAmountCents()), event.itemTitle()));
+      return;
+    }
     if (event.type() != AuctionLifecycleEvent.Type.STARTED
         && event.type() != AuctionLifecycleEvent.Type.CANCELLED
         && event.type() != AuctionLifecycleEvent.Type.ADMINISTRATIVELY_CANCELLED) {
       return;
     }
+    sendLifecycleMessage(event);
+  }
+
+  private void sendLifecycleMessage(AuctionLifecycleEvent event) throws MessagingException {
     MimeMessage message = mailSender.createMimeMessage();
     MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
     helper.setFrom(properties.from());
@@ -41,5 +69,32 @@ class AuctionLifecycleEmailListener {
               .formatted(event.itemTitle(), event.publicReason()));
     }
     mailSender.send(message);
+  }
+
+  private void sendSoldEmails(AuctionLifecycleEvent event) throws MessagingException {
+    send(
+        event.sellerEmail(),
+        "Your auction sold",
+        "Your auction for '%s' sold to %s for R$ %s."
+            .formatted(
+                event.itemTitle(), event.winningBidderHandle(), amount(event.finalAmountCents())));
+    send(
+        event.winningBidderEmail(),
+        "You won an auction",
+        "You won '%s' for R$ %s.".formatted(event.itemTitle(), amount(event.finalAmountCents())));
+  }
+
+  private void send(String recipient, String subject, String body) throws MessagingException {
+    MimeMessage message = mailSender.createMimeMessage();
+    MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
+    helper.setFrom(properties.from());
+    helper.setTo(recipient);
+    helper.setSubject(subject);
+    helper.setText(body);
+    mailSender.send(message);
+  }
+
+  private String amount(Long amountCents) {
+    return String.format(java.util.Locale.ROOT, "%.2f", amountCents / 100.0);
   }
 }
