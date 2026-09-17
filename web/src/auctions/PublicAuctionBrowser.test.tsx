@@ -18,6 +18,10 @@ vi.mock('../api/client', () => ({
   placeBid: vi.fn(),
 }));
 
+vi.mock('./auctionRealtime', () => ({
+  connectAuctionRoom: vi.fn(() => () => undefined),
+}));
+
 import { type Auction, getAuction, listAuctions, listPublicBids, placeBid } from '../api/client';
 import { PublicAuctionBrowser } from './PublicAuctionBrowser';
 
@@ -25,6 +29,7 @@ const liveAuction: Auction = {
   id: 'auction-35',
   itemId: 'item-35',
   sellerHandle: 'seller_35',
+  projectionVersion: 1,
   state: 'LIVE',
   openingAmountCents: 10_000,
   currentAmountCents: 10_000,
@@ -108,7 +113,7 @@ describe('PublicAuctionBrowser bidding', () => {
         expect.objectContaining({ amountCents: 10_000, idempotencyKey: expect.any(String) }),
       ),
     );
-    expect(await screen.findByRole('status')).toHaveTextContent('Bid accepted as #1');
+    expect(await screen.findByText('Bid accepted as #1.')).toBeInTheDocument();
     expect(await screen.findByText('Bidder-A1B2C3D4')).toBeInTheDocument();
   });
 

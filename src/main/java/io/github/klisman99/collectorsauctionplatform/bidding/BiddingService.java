@@ -195,15 +195,21 @@ class BiddingService {
         acceptedBids.save(
             new AcceptedBid(
                 auctionId, bidderId, amountCents, sequence, acceptedAt, pseudonym.pseudonym()));
-    auctions.recordAcceptedBid(auctionId, amountCents, acceptedAt);
+    AuctionBidding.PublicProjection projection =
+        auctions.recordAcceptedBid(auctionId, amountCents, acceptedAt);
     events.publishEvent(
         new BidAccepted(
             auctionId,
             bidderId,
             amountCents,
             sequence,
+            projection.version(),
             pseudonym.pseudonym(),
-            accepted.acceptedAt()));
+            accepted.acceptedAt(),
+            projection.currentAmountCents(),
+            projection.nextMinimumAmountCents(),
+            projection.reserveMet(),
+            projection.effectiveEndAt()));
     BidCommandResult result =
         new BidCommandResult(
             BidCommandResult.Status.ACCEPTED,

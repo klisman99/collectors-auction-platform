@@ -8,8 +8,14 @@ public record BidDisqualified(
     UUID acceptedBidId,
     UUID auctionId,
     UUID bidderId,
+    long bidSequence,
+    long projectionVersion,
     UUID actorId,
     String reasonCategory,
     String publicReason,
     String internalNote,
-    Instant disqualifiedAt) {}
+    Instant disqualifiedAt,
+    long currentAmountCents,
+    long nextMinimumAmountCents,
+    boolean reserveMet,
+    Instant effectiveEndAt) {}

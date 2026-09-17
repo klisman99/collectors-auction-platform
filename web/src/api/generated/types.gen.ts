@@ -52,6 +52,7 @@ export type AuctionResponse = {
     id?: string;
     itemId?: string;
     sellerHandle?: string;
+    projectionVersion?: number;
     state?: string;
     openingAmountCents?: number;
     currentAmountCents?: number;

@@ -45,6 +45,10 @@ vi.mock('./api/client', () => ({
   administrativelyCancelAuction: vi.fn(),
 }));
 
+vi.mock('./auctions/auctionRealtime', () => ({
+  connectAuctionRoom: vi.fn(() => () => undefined),
+}));
+
 import { App } from './App';
 import {
   ApiError,
@@ -217,6 +221,7 @@ describe('App', () => {
       id: 'auction-32',
       itemId: 'item-32',
       sellerHandle: 'collector_32',
+      projectionVersion: 1,
       state: 'SCHEDULED',
       openingAmountCents: 10_000,
       currentAmountCents: 10_000,
@@ -317,6 +322,7 @@ describe('App', () => {
       id: 'auction-33',
       itemId: 'item-33',
       sellerHandle: 'clock_collector',
+      projectionVersion: 1,
       state: 'SCHEDULED' as const,
       openingAmountCents: 10_000,
       currentAmountCents: 10_000,

@@ -126,6 +126,7 @@ export type Auction = {
   id: string;
   itemId: string;
   sellerHandle: string;
+  projectionVersion: number;
   state:
     | 'DRAFT'
     | 'SCHEDULED'

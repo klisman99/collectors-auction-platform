@@ -63,16 +63,18 @@ public class AuctionBidding {
             now));
   }
 
-  public void recordAcceptedBid(UUID auctionId, long amountCents, Instant acceptedAt) {
+  public PublicProjection recordAcceptedBid(UUID auctionId, long amountCents, Instant acceptedAt) {
     Auction auction = auctions.findById(auctionId).orElseThrow(() -> new BidUnavailable(auctionId));
     auction.recordAcceptedBid(amountCents, acceptedAt);
+    return PublicProjection.from(auction);
   }
 
   @Transactional
-  public void recalculateEligibleBidProjection(
+  public PublicProjection recalculateEligibleBidProjection(
       UUID auctionId, long eligibleBidCount, long currentAmountCents) {
     Auction auction = auctions.findById(auctionId).orElseThrow(() -> new BidUnavailable(auctionId));
     auction.recalculateEligibleBidProjection(eligibleBidCount, currentAmountCents);
+    return PublicProjection.from(auction);
   }
 
   /** Locks a durably claimed auction so bidding can select its one eligible final bid. */
@@ -118,6 +120,23 @@ public class AuctionBidding {
       long minimumIncrementCents,
       Instant effectiveEndAt,
       Instant acceptedAt) {}
+
+  public record PublicProjection(
+      long version,
+      long currentAmountCents,
+      long nextMinimumAmountCents,
+      boolean reserveMet,
+      Instant effectiveEndAt) {
+
+    private static PublicProjection from(Auction auction) {
+      return new PublicProjection(
+          auction.projectionVersion(),
+          auction.currentAmountCents(),
+          auction.nextMinimumAmountCents(),
+          auction.reserveMet(),
+          auction.effectiveEndAt());
+    }
+  }
 
   public record BidDisqualificationTarget(
       Auction.State state, long openingAmountCents, boolean acceptsDisqualification) {}

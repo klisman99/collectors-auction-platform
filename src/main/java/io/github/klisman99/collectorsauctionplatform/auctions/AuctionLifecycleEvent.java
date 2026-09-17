@@ -11,6 +11,7 @@ public record AuctionLifecycleEvent(
     String sellerEmail,
     String itemTitle,
     Type type,
+    long projectionVersion,
     UUID operationalActorId,
     SuspensionReasonCategory reasonCategory,
     String publicReason,

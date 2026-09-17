@@ -82,7 +82,9 @@ public class BidDisqualifications {
           eligibleBids.isEmpty()
               ? target.openingAmountCents()
               : eligibleBids.getFirst().amountCents();
-      auctions.recalculateEligibleBidProjection(auctionId, eligibleBids.size(), currentAmountCents);
+      AuctionBidding.PublicProjection projection =
+          auctions.recalculateEligibleBidProjection(
+              auctionId, eligibleBids.size(), currentAmountCents);
 
       for (int index = 0; index < newlyDisqualified.size(); index++) {
         AcceptedBid bid = newlyDisqualified.get(index);
@@ -92,11 +94,17 @@ public class BidDisqualifications {
                 bid.id(),
                 auctionId,
                 bid.bidderId(),
+                bid.sequence(),
+                projection.version(),
                 disqualification.actorId(),
                 disqualification.reasonCategory(),
                 disqualification.publicReason(),
                 disqualification.internalNote(),
-                disqualification.disqualifiedAt()));
+                disqualification.disqualifiedAt(),
+                projection.currentAmountCents(),
+                projection.nextMinimumAmountCents(),
+                projection.reserveMet(),
+                projection.effectiveEndAt()));
       }
     }
   }

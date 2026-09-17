@@ -50,7 +50,8 @@ class SecurityConfiguration {
                         "/api/v1/auth/request-password-recovery",
                         "/api/v1/auth/reset-password",
                         "/api/v1/auth/activate-operational-account",
-                        "/api/v1/test/**")
+                        "/api/v1/test/**",
+                        "/ws/**")
                     .permitAll()
                     .requestMatchers(
                         "/api/v1/auth/session",
