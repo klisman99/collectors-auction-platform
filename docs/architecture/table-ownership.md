@@ -11,7 +11,7 @@ access happens through a deliberate public API or a durable event, never a direc
 | `collectible_items` | `catalog` | Seller-owned collectible drafts and lifecycle | Other modules use catalog commands/snapshots. |
 | `collectible_item_media` | `catalog` | Private, normalized media metadata and order | Catalog only; object storage is accessed through its storage port. |
 | `collectible_item_reviews` | `moderation` | Durable moderation decision attached to a collectible lifecycle | Moderation only; it invokes catalog's deliberate lifecycle commands. |
-| `auctions` | `auctions` | Published terms, lifecycle and suspension timing state, and immutable item/policy snapshots | Auctions only; other modules use deliberate auction contracts. |
+| `auctions` | `auctions` | Published terms, lifecycle and suspension timing state, monotonic realtime projection version, and immutable item/policy snapshots | Auctions only; other modules use deliberate auction contracts. |
 | `auction_item_snapshot_media` | `auctions` | Ordered media metadata and binary content frozen when an auction is published | Auctions only. |
 | `auction_timeline_events` | `auctions` | Ordered lifecycle events with public reasons and restricted administrative detail | Auctions only. |
 | `bidder_pseudonyms` | `bidding` | Stable auction-local public names for bidders | Bidding only. |

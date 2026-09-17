@@ -11,6 +11,7 @@ import {
   type PublicBid,
   placeBid,
 } from '../api/client';
+import { connectAuctionRoom, loadConsistentAuctionRoomSnapshot } from './auctionRealtime';
 import { formatBrl, formatSaoPaulo } from './presentation';
 
 const emptyPage: AuctionPage = {
@@ -29,6 +30,10 @@ export function PublicAuctionBrowser({ canBid = false }: { canBid?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<string | null>(null);
   const [publicBids, setPublicBids] = useState<PublicBid[]>([]);
+  const [realtimeState, setRealtimeState] = useState<
+    'CONNECTING' | 'CONNECTED' | 'RECONNECTING' | 'FAILED'
+  >('CONNECTING');
+  const selectedAuctionId = selected?.id ?? null;
 
   useEffect(() => {
     let active = true;
@@ -50,6 +55,27 @@ export function PublicAuctionBrowser({ canBid = false }: { canBid?: boolean }) {
       active = false;
     };
   }, [view, pageNumber]);
+
+  useEffect(() => {
+    if (selectedAuctionId === null) return;
+    const auctionId = selectedAuctionId;
+    return connectAuctionRoom({
+      auctionId,
+      loadSnapshot: () => loadConsistentAuctionRoomSnapshot(auctionId),
+      onSnapshot: ({ auction, bids }) => {
+        setSelected(auction);
+        setPage((current) => ({
+          ...current,
+          content: current.content.map((candidate) =>
+            candidate.id === auction.id ? auction : candidate,
+          ),
+        }));
+        setPublicBids(bids);
+      },
+      onConnectionState: setRealtimeState,
+      onError: () => setRealtimeState('FAILED'),
+    });
+  }, [selectedAuctionId]);
 
   async function showDetails(auctionId: string) {
     setFailure(null);
@@ -162,12 +188,17 @@ export function PublicAuctionBrowser({ canBid = false }: { canBid?: boolean }) {
         </div>
       )}
       {selected !== null && (
-        <AuctionDetails
-          auction={selected}
-          bids={publicBids}
-          canBid={canBid}
-          refresh={() => refreshDetails(selected.id)}
-        />
+        <>
+          <p className="mt-4 text-sm text-slate-300" role="status">
+            {realtimeStatus(realtimeState)}
+          </p>
+          <AuctionDetails
+            auction={selected}
+            bids={publicBids}
+            canBid={canBid}
+            refresh={() => refreshDetails(selected.id)}
+          />
+        </>
       )}
     </section>
   );
@@ -445,4 +476,17 @@ function formatDuration(seconds: number): string {
   const minutes = Math.floor((seconds % 3600) / 60);
   const remainder = seconds % 60;
   return days > 0 ? `${days}d ${hours}h` : `${hours}h ${minutes}m ${remainder}s`;
+}
+
+function realtimeStatus(state: 'CONNECTING' | 'CONNECTED' | 'RECONNECTING' | 'FAILED'): string {
+  switch (state) {
+    case 'CONNECTED':
+      return 'Live updates connected.';
+    case 'RECONNECTING':
+      return 'Live updates reconnecting; the latest snapshot will be restored.';
+    case 'FAILED':
+      return 'Live snapshot refresh failed. Reconnecting…';
+    default:
+      return 'Connecting to live updates…';
+  }
 }

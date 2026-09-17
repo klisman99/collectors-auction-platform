@@ -8,5 +8,10 @@ public record BidAccepted(
     UUID bidderId,
     long amountCents,
     long sequence,
+    long projectionVersion,
     String bidderPseudonym,
-    Instant acceptedAt) {}
+    Instant acceptedAt,
+    long currentAmountCents,
+    long nextMinimumAmountCents,
+    boolean reserveMet,
+    Instant effectiveEndAt) {}

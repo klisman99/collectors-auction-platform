@@ -43,13 +43,22 @@ class PostgreSqlMigrationIntegrationTests {
 
   @Test
   void appliesTheForwardOnlyMigrationsAgainstPostgreSql() {
-    assertThat(flyway.info().applied()).hasSize(14);
+    assertThat(flyway.info().applied()).hasSize(15);
     assertThat(
             jdbcTemplate.queryForObject(
                 """
                 SELECT count(*)
                 FROM information_schema.columns
                 WHERE table_name = 'auctions' AND column_name = 'eligible_bid_count'
+                """,
+                Integer.class))
+        .isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                """
+                SELECT count(*)
+                FROM information_schema.columns
+                WHERE table_name = 'auctions' AND column_name = 'projection_version'
                 """,
                 Integer.class))
         .isEqualTo(1);

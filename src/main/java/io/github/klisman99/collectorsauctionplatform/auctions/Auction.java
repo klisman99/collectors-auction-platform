@@ -57,6 +57,9 @@ class Auction {
   @Column(name = "eligible_bid_count", nullable = false)
   private long eligibleBidCount;
 
+  @Column(name = "projection_version", nullable = false)
+  private long projectionVersion;
+
   @Column(name = "reserve_amount_cents")
   private Long reserveAmountCents;
 
@@ -137,6 +140,7 @@ class Auction {
     auction.currentAmountCents = command.openingAmountCents();
     auction.acceptedBidCount = 0;
     auction.eligibleBidCount = 0;
+    auction.projectionVersion = 1;
     auction.reserveAmountCents = command.reserveAmountCents();
     auction.startsAt = command.startsAt();
     auction.endsAt = command.endsAt();
@@ -167,6 +171,7 @@ class Auction {
       activeItemId = itemId;
     }
     this.timeline.add(AuctionTimelineEntry.rescheduled(now));
+    projectionVersion++;
   }
 
   void cancel(String publicReason, Instant now) {
@@ -181,12 +186,14 @@ class Auction {
     endedAt = now;
     cancellationReason = publicReason.trim();
     timeline.add(AuctionTimelineEntry.cancelled(now, cancellationReason));
+    projectionVersion++;
   }
 
   void start(Instant now) {
     if (state == State.SCHEDULED && !now.isBefore(startsAt) && now.isBefore(endsAt)) {
       state = State.LIVE;
       timeline.add(AuctionTimelineEntry.started(now));
+      projectionVersion++;
     }
   }
 
@@ -223,6 +230,7 @@ class Auction {
     state = State.SUSPENDED;
     timeline.add(
         AuctionTimelineEntry.suspended(now, reasonCategory, publicReason.trim(), internalNote));
+    projectionVersion++;
   }
 
   void release(Instant now) {
@@ -231,6 +239,7 @@ class Auction {
     activeItemId = null;
     clearSuspension();
     timeline.add(AuctionTimelineEntry.released(now));
+    projectionVersion++;
   }
 
   void resume(Instant now) {
@@ -239,6 +248,7 @@ class Auction {
     state = State.LIVE;
     clearSuspension();
     timeline.add(AuctionTimelineEntry.resumed(now));
+    projectionVersion++;
   }
 
   void administrativelyCancel(
@@ -259,6 +269,7 @@ class Auction {
     timeline.add(
         AuctionTimelineEntry.administrativelyCancelled(
             now, reasonCategory, cancellationReason, internalNote, disposition));
+    projectionVersion++;
   }
 
   private void requireSuspendedFrom(State expectedSource) {
@@ -291,6 +302,7 @@ class Auction {
       return false;
     }
     state = State.CLOSING;
+    projectionVersion++;
     return true;
   }
 
@@ -328,6 +340,7 @@ class Auction {
       endedAt = endsAt;
       timeline.add(AuctionTimelineEntry.ended(endsAt));
     }
+    projectionVersion++;
     return true;
   }
 
@@ -367,6 +380,10 @@ class Auction {
     return eligibleBidCount;
   }
 
+  long projectionVersion() {
+    return projectionVersion;
+  }
+
   boolean reserveMet() {
     return eligibleBidCount > 0
         && (reserveAmountCents == null || currentAmountCents >= reserveAmountCents);
@@ -381,6 +398,7 @@ class Auction {
         && extendedEndAt.isAfter(endsAt)) {
       endsAt = extendedEndAt;
     }
+    projectionVersion++;
   }
 
   void recalculateEligibleBidProjection(long eligibleBidCount, long currentAmountCents) {
@@ -391,6 +409,7 @@ class Auction {
     }
     this.eligibleBidCount = eligibleBidCount;
     this.currentAmountCents = currentAmountCents;
+    projectionVersion++;
   }
 
   long nextMinimumAmountCents() {
