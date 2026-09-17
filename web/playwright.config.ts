@@ -3,6 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  // The scenarios share the single bootstrapped administrator account, whose
+  // production sign-in rate limit intentionally rejects concurrent attempts.
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   reporter: process.env.CI ? 'github' : 'list',
   retries: process.env.CI ? 2 : 0,

@@ -48,13 +48,17 @@ test('administrator can invite, activate, and deactivate a non-trading moderator
     const deactivationForm = administratorPage
       .locator('form')
       .filter({ has: administratorPage.getByRole('heading', { name: 'Deactivate an account' }) });
-    await deactivationForm
-      .getByLabel('Account', { exact: true })
-      .selectOption({ label: `${email} · MODERATOR · ACTIVE` });
+    const accountSelect = deactivationForm.getByLabel('Account', { exact: true });
+    await accountSelect.selectOption({ label: `${email} · MODERATOR · ACTIVE` });
+    const accountId = await accountSelect.inputValue();
     await deactivationForm.getByLabel('Public reason').fill('End of operational assignment');
     await deactivationForm.getByRole('button', { name: 'Deactivate account' }).click();
+    const auditRecord = administratorPage
+      .getByRole('region', { name: 'Audit summary' })
+      .getByRole('listitem')
+      .filter({ hasText: `Target: OPERATIONAL_ACCOUNT ${accountId}` });
     await expect(
-      administratorPage.getByText('OPERATIONAL_ACCOUNT_DEACTIVATED', { exact: true }),
+      auditRecord.getByText('OPERATIONAL_ACCOUNT_DEACTIVATED', { exact: true }),
     ).toBeVisible();
   } finally {
     await administratorContext.close();

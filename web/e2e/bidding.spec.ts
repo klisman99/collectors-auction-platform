@@ -79,9 +79,10 @@ test('a verified non-seller places a durable pseudonymous bid from the live auct
     await bidderPage.getByRole('tab', { name: 'Live auctions' }).click();
     await expect(bidderPage.getByText(title, { exact: true })).toBeVisible();
     await bidderPage.getByRole('button', { name: `View ${title}` }).click();
+    await expect(bidderPage.getByText('Live updates connected.')).toBeVisible();
     await expect(bidderPage.getByText(/Required bid/)).toContainText('R$ 100,00');
     await bidderPage.getByRole('button', { name: 'Place bid' }).click();
-    await expect(bidderPage.getByRole('status')).toContainText('Bid accepted as #1');
+    await expect(bidderPage.getByText('Bid accepted as #1.')).toBeVisible();
 
     const auctionsResponse = await request.get('/api/v1/auctions?state=LIVE');
     expect(auctionsResponse.ok()).toBeTruthy();
