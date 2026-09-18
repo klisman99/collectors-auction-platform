@@ -36,6 +36,13 @@ public class AccountDirectory {
     return tradingAccount(account);
   }
 
+  /** Locks an existing participant without requiring active trading eligibility. */
+  @Transactional
+  public AccountContact lockRegularAccount(UUID accountId) {
+    RegularAccount account = accounts.findByIdForUpdate(accountId).orElseThrow();
+    return new AccountContact(account.id(), account.normalizedEmail(), account.publicHandle());
+  }
+
   private TradingAccount tradingAccount(RegularAccount account) {
     return new TradingAccount(
         account.id(),

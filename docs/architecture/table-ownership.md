@@ -18,7 +18,7 @@ access happens through a deliberate public API or a durable event, never a direc
 | `accepted_bids` | `bidding` | Immutable sequenced bids accepted under the auction lock | Bidding only. |
 | `bid_disqualifications` | `bidding` | Permanent administrative disqualification attached to an accepted bid | Bidding only; it adjusts auction eligibility only through the auctions public contract. |
 | `bid_attempts` | `bidding` | Accepted, rejected, duplicate, conflicting, and rate-limited command outcomes | Bidding only. |
-| `sales` | `settlement` | Exactly-one immutable sale created for a sold auction | Settlement only; creation consumes the auctions outcome event in the closing transaction. |
+| `sales` | `settlement` | Exactly-one immutable sale, its payment and shipment deadlines, and simulated settlement state | Settlement only; creation consumes the auctions outcome event in the closing transaction. |
 | `audit_records` | `audit` | Append-only auditable facts | Product modules publish facts; audit persists projections. |
 | `spring_session` | `platform` | Server-side HTTP session metadata | Only Spring Session through platform configuration. |
 | `spring_session_attributes` | `platform` | Server-side HTTP session attributes | Only Spring Session through platform configuration. |

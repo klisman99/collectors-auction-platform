@@ -3,8 +3,11 @@ package io.github.klisman99.collectorsauctionplatform.settlement;
 import io.github.klisman99.collectorsauctionplatform.auctions.AuctionSold;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -20,11 +23,20 @@ class Sale {
   @Column(name = "item_id", nullable = false, updatable = false)
   private UUID itemId;
 
+  @Column(name = "item_title", nullable = false, updatable = false)
+  private String itemTitle;
+
   @Column(name = "seller_id", nullable = false, updatable = false)
   private UUID sellerId;
 
+  @Column(name = "seller_handle", nullable = false, updatable = false)
+  private String sellerHandle;
+
   @Column(name = "buyer_id", nullable = false, updatable = false)
   private UUID buyerId;
+
+  @Column(name = "buyer_handle", nullable = false, updatable = false)
+  private String buyerHandle;
 
   @Column(name = "amount_cents", nullable = false, updatable = false)
   private long amountCents;
@@ -32,19 +44,202 @@ class Sale {
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
 
+  @Column(nullable = false)
+  @Enumerated(EnumType.STRING)
+  private State state;
+
+  @Column(name = "payment_deadline_at", nullable = false, updatable = false)
+  private Instant paymentDeadlineAt;
+
+  @Column(name = "shipment_deadline_at")
+  private Instant shipmentDeadlineAt;
+
+  @Column(name = "paid_at")
+  private Instant paidAt;
+
+  @Column(name = "shipped_at")
+  private Instant shippedAt;
+
+  @Column(name = "failed_at")
+  private Instant failedAt;
+
+  @Column(length = 120)
+  private String carrier;
+
+  @Column(name = "tracking_reference", length = 160)
+  private String trackingReference;
+
   protected Sale() {}
 
-  private Sale(AuctionSold auction) {
+  private Sale(AuctionSold auction, String sellerHandle, String buyerHandle) {
     this.id = UUID.randomUUID();
     this.auctionId = auction.auctionId();
     this.itemId = auction.itemId();
+    this.itemTitle = auction.itemTitle();
     this.sellerId = auction.sellerId();
+    this.sellerHandle = sellerHandle;
     this.buyerId = auction.buyerId();
+    this.buyerHandle = buyerHandle;
     this.amountCents = auction.amountCents();
     this.createdAt = auction.occurredAt();
+    this.state = State.PAYMENT_PENDING;
+    this.paymentDeadlineAt = auction.occurredAt().plus(Duration.ofHours(24));
   }
 
-  static Sale from(AuctionSold auction) {
-    return new Sale(auction);
+  static Sale from(AuctionSold auction, String sellerHandle, String buyerHandle) {
+    return new Sale(auction, sellerHandle, buyerHandle);
+  }
+
+  Transition payment(Instant now) {
+    if (paidAt != null) {
+      return Transition.IDEMPOTENT;
+    }
+    if (state != State.PAYMENT_PENDING) {
+      return Transition.UNAVAILABLE;
+    }
+    if (!now.isBefore(paymentDeadlineAt)) {
+      fail(now);
+      return Transition.EXPIRED;
+    }
+    state = State.SHIPMENT_PENDING;
+    paidAt = now;
+    shipmentDeadlineAt = now.plus(Duration.ofDays(3));
+    return Transition.APPLIED;
+  }
+
+  Transition shipment(String carrier, String trackingReference, Instant now) {
+    if (shippedAt != null) {
+      return this.carrier.equals(carrier) && this.trackingReference.equals(trackingReference)
+          ? Transition.IDEMPOTENT
+          : Transition.UNAVAILABLE;
+    }
+    if (state != State.SHIPMENT_PENDING) {
+      return Transition.UNAVAILABLE;
+    }
+    if (!now.isBefore(shipmentDeadlineAt)) {
+      fail(now);
+      return Transition.EXPIRED;
+    }
+    this.carrier = carrier;
+    this.trackingReference = trackingReference;
+    this.shippedAt = now;
+    this.state = State.SHIPPED;
+    return Transition.APPLIED;
+  }
+
+  boolean expirePaymentIfDue(Instant now) {
+    if (state != State.PAYMENT_PENDING || now.isBefore(paymentDeadlineAt)) {
+      return false;
+    }
+    fail(now);
+    return true;
+  }
+
+  boolean expireShipmentIfDue(Instant now) {
+    if (state != State.SHIPMENT_PENDING || now.isBefore(shipmentDeadlineAt)) {
+      return false;
+    }
+    fail(now);
+    return true;
+  }
+
+  boolean isBuyer(UUID accountId) {
+    return buyerId.equals(accountId);
+  }
+
+  boolean isSeller(UUID accountId) {
+    return sellerId.equals(accountId);
+  }
+
+  UUID id() {
+    return id;
+  }
+
+  UUID auctionId() {
+    return auctionId;
+  }
+
+  UUID itemId() {
+    return itemId;
+  }
+
+  String itemTitle() {
+    return itemTitle;
+  }
+
+  UUID sellerId() {
+    return sellerId;
+  }
+
+  String sellerHandle() {
+    return sellerHandle;
+  }
+
+  UUID buyerId() {
+    return buyerId;
+  }
+
+  String buyerHandle() {
+    return buyerHandle;
+  }
+
+  long amountCents() {
+    return amountCents;
+  }
+
+  Instant createdAt() {
+    return createdAt;
+  }
+
+  State state() {
+    return state;
+  }
+
+  Instant paymentDeadlineAt() {
+    return paymentDeadlineAt;
+  }
+
+  Instant shipmentDeadlineAt() {
+    return shipmentDeadlineAt;
+  }
+
+  Instant paidAt() {
+    return paidAt;
+  }
+
+  Instant shippedAt() {
+    return shippedAt;
+  }
+
+  Instant failedAt() {
+    return failedAt;
+  }
+
+  String carrier() {
+    return carrier;
+  }
+
+  String trackingReference() {
+    return trackingReference;
+  }
+
+  private void fail(Instant now) {
+    state = State.FAILED;
+    failedAt = now;
+  }
+
+  enum State {
+    PAYMENT_PENDING,
+    SHIPMENT_PENDING,
+    SHIPPED,
+    COMPLETED,
+    FAILED
+  }
+
+  enum Transition {
+    APPLIED,
+    IDEMPOTENT,
+    EXPIRED,
+    UNAVAILABLE
   }
 }

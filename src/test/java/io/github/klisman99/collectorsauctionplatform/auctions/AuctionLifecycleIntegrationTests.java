@@ -182,6 +182,19 @@ class AuctionLifecycleIntegrationTests {
             jdbcTemplate.queryForObject(
                 "SELECT amount_cents FROM sales WHERE auction_id = ?", Long.class, auction.id()))
         .isEqualTo(10_000L);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT state FROM sales WHERE auction_id = ?", String.class, auction.id()))
+        .isEqualTo("PAYMENT_PENDING");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT payment_deadline_at FROM sales WHERE auction_id = ?",
+                Instant.class,
+                auction.id()))
+        .isEqualTo(auction.endsAt().plusSeconds(24 * 60 * 60));
+    UUID saleId =
+        jdbcTemplate.queryForObject(
+            "SELECT id FROM sales WHERE auction_id = ?", UUID.class, auction.id());
     String bidderHandle =
         jdbcTemplate.queryForObject(
             "SELECT public_handle FROM regular_accounts WHERE id = ?", String.class, bidderId);
@@ -201,6 +214,7 @@ class AuctionLifecycleIntegrationTests {
         .extracting(message -> message.getSubject())
         .contains("Your auction sold", "You won an auction");
     awaitAudit("AUCTION_SOLD", auction.id());
+    awaitAudit("SALE_CREATED", saleId);
 
     lifecycle.reconcileDueAuctions();
 
@@ -208,6 +222,74 @@ class AuctionLifecycleIntegrationTests {
             jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM sales WHERE auction_id = ?", Integer.class, auction.id()))
         .isEqualTo(1);
+  }
+
+  @Test
+  void concurrentPaymentRetriesPersistOneSaleTransition() throws Exception {
+    UUID sellerId = activeAccount("settlement_seller");
+    UUID buyerId = activeAccount("settlement_buyer");
+    UUID saleId = paymentPendingSale(sellerId, buyerId, INITIAL_TIME.plusSeconds(24 * 60 * 60));
+
+    ExecutorService workers = Executors.newFixedThreadPool(2);
+    CountDownLatch ready = new CountDownLatch(2);
+    CountDownLatch start = new CountDownLatch(1);
+    try {
+      List<Future<org.springframework.test.web.servlet.MvcResult>> completions =
+          List.of(
+              workers.submit(() -> paymentWhenReleased(ready, start, buyerId, saleId)),
+              workers.submit(() -> paymentWhenReleased(ready, start, buyerId, saleId)));
+      assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+      start.countDown();
+      for (Future<org.springframework.test.web.servlet.MvcResult> completion : completions) {
+        assertThat(completion.get(5, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(200);
+      }
+    } finally {
+      workers.shutdownNow();
+      workers.awaitTermination(5, TimeUnit.SECONDS);
+    }
+
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT state FROM sales WHERE id = ?", String.class, saleId))
+        .isEqualTo("SHIPMENT_PENDING");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT paid_at FROM sales WHERE id = ?", Instant.class, saleId))
+        .isEqualTo(INITIAL_TIME);
+    awaitSaleAuditCount("SALE_PAYMENT_RECORDED", saleId, 1);
+  }
+
+  @Test
+  void restartReconcilesOverdueSettlementDeadlinesFromPersistedSaleState() throws Exception {
+    UUID sellerId = activeAccount("restart_seller");
+    UUID buyerId = activeAccount("restart_buyer");
+    Instant paymentDeadline = INITIAL_TIME.plusSeconds(24 * 60 * 60);
+    UUID paymentSaleId = paymentPendingSale(sellerId, buyerId, paymentDeadline);
+    UUID shipmentSaleId = shipmentPendingSale(sellerId, buyerId, paymentDeadline);
+
+    NEW_CONTEXT_TIME.set(paymentDeadline);
+    try (ConfigurableApplicationContext ignored = restartApplication()) {
+      // ApplicationReadyEvent reconciles expired settlement deadlines before run() returns.
+    }
+
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT state FROM sales WHERE id = ?", String.class, paymentSaleId))
+        .isEqualTo("FAILED");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT failed_at FROM sales WHERE id = ?", Instant.class, paymentSaleId))
+        .isEqualTo(paymentDeadline);
+    awaitSaleAuditCount("SALE_PAYMENT_EXPIRED", paymentSaleId, 1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT state FROM sales WHERE id = ?", String.class, shipmentSaleId))
+        .isEqualTo("FAILED");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT failed_at FROM sales WHERE id = ?", Instant.class, shipmentSaleId))
+        .isEqualTo(paymentDeadline);
+    awaitSaleAuditCount("SALE_SHIPMENT_EXPIRED", shipmentSaleId, 1);
   }
 
   @Test
@@ -868,6 +950,15 @@ class AuctionLifecycleIntegrationTests {
                 + "\"}");
   }
 
+  private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder paymentRequest(
+      UUID buyerId, UUID saleId) {
+    return post("/api/v1/sales/{id}/payment", saleId)
+        .with(
+            user(buyerId.toString())
+                .authorities(new SimpleGrantedAuthority("ROLE_REGULAR_ACCOUNT")))
+        .with(csrf());
+  }
+
   private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
       sellerDecisionRequest(UUID sellerId, UUID auctionId, String decision) {
     return post("/api/v1/auctions/{id}/seller-decision", auctionId)
@@ -888,6 +979,15 @@ class AuctionLifecycleIntegrationTests {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("Concurrent closing worker was interrupted.", exception);
     }
+  }
+
+  private org.springframework.test.web.servlet.MvcResult paymentWhenReleased(
+      CountDownLatch ready, CountDownLatch start, UUID buyerId, UUID saleId) throws Exception {
+    ready.countDown();
+    if (!start.await(5, TimeUnit.SECONDS)) {
+      throw new IllegalStateException("Concurrent payment workers were not released.");
+    }
+    return mockMvc.perform(paymentRequest(buyerId, saleId)).andReturn();
   }
 
   private org.springframework.test.web.servlet.MvcResult bidWhenReleased(
@@ -975,6 +1075,25 @@ class AuctionLifecycleIntegrationTests {
     assertThat(count).isEqualTo(expectedCount);
   }
 
+  private void awaitSaleAuditCount(String action, UUID saleId, int expectedCount)
+      throws InterruptedException {
+    long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+    Integer count = 0;
+    while (System.nanoTime() < deadline) {
+      count =
+          jdbcTemplate.queryForObject(
+              "SELECT COUNT(*) FROM audit_records WHERE action = ? AND target_id = ?",
+              Integer.class,
+              action,
+              saleId);
+      if (count != null && count == expectedCount) {
+        return;
+      }
+      Thread.sleep(25);
+    }
+    assertThat(count).isEqualTo(expectedCount);
+  }
+
   private Auction scheduleAt(Instant startsAt, Instant endsAt) {
     return scheduleAt(startsAt, endsAt, null);
   }
@@ -1023,6 +1142,48 @@ class AuctionLifecycleIntegrationTests {
         Timestamp.from(INITIAL_TIME),
         Timestamp.from(INITIAL_TIME));
     return accountId;
+  }
+
+  private UUID paymentPendingSale(UUID sellerId, UUID buyerId, Instant paymentDeadline) {
+    UUID saleId = UUID.randomUUID();
+    jdbcTemplate.update(
+        """
+        INSERT INTO sales
+            (id, auction_id, item_id, item_title, seller_id, seller_handle, buyer_id, buyer_handle,
+             amount_cents, state, created_at, payment_deadline_at)
+        VALUES (?, ?, ?, 'Settlement lock test', ?, 'settlement_seller', ?, 'settlement_buyer',
+                10000, 'PAYMENT_PENDING', ?, ?)
+        """,
+        saleId,
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        sellerId,
+        buyerId,
+        Timestamp.from(INITIAL_TIME),
+        Timestamp.from(paymentDeadline));
+    return saleId;
+  }
+
+  private UUID shipmentPendingSale(UUID sellerId, UUID buyerId, Instant shipmentDeadline) {
+    UUID saleId = UUID.randomUUID();
+    jdbcTemplate.update(
+        """
+        INSERT INTO sales
+            (id, auction_id, item_id, item_title, seller_id, seller_handle, buyer_id, buyer_handle,
+             amount_cents, state, created_at, payment_deadline_at, paid_at, shipment_deadline_at)
+        VALUES (?, ?, ?, 'Settlement restart test', ?, 'settlement_seller', ?, 'settlement_buyer',
+                10000, 'SHIPMENT_PENDING', ?, ?, ?, ?)
+        """,
+        saleId,
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        sellerId,
+        buyerId,
+        Timestamp.from(INITIAL_TIME),
+        Timestamp.from(INITIAL_TIME.plusSeconds(24 * 60 * 60)),
+        Timestamp.from(INITIAL_TIME),
+        Timestamp.from(shipmentDeadline));
+    return saleId;
   }
 
   @TestConfiguration
