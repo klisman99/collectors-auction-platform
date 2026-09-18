@@ -33,6 +33,7 @@ vi.mock('./api/client', () => ({
   createDraft: vi.fn(),
   updateDraft: vi.fn(),
   deleteDraft: vi.fn(),
+  decideBelowReserveOffer: vi.fn(),
   uploadDraftImage: vi.fn(),
   reorderDraftImages: vi.fn(),
   scheduleAuction: vi.fn(),

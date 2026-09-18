@@ -1,5 +1,6 @@
 package io.github.klisman99.collectorsauctionplatform.auctions;
 
+import io.github.klisman99.collectorsauctionplatform.catalog.CatalogAuctioning;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.LinkedHashSet;
@@ -16,16 +17,19 @@ class AuctionLifecycle {
 
   private final AuctionRepository auctions;
   private final Clock clock;
+  private final CatalogAuctioning catalog;
   private final AuctionLifecycleEventPublisher lifecycleEvents;
   private final ApplicationEventPublisher events;
 
   AuctionLifecycle(
       AuctionRepository auctions,
       Clock clock,
+      CatalogAuctioning catalog,
       AuctionLifecycleEventPublisher lifecycleEvents,
       ApplicationEventPublisher events) {
     this.auctions = auctions;
     this.clock = clock;
+    this.catalog = catalog;
     this.lifecycleEvents = lifecycleEvents;
     this.events = events;
   }
@@ -38,8 +42,20 @@ class AuctionLifecycle {
     Set<Auction> due = new LinkedHashSet<>(auctions.findDueScheduledForUpdate(now));
     due.addAll(auctions.findDueLiveForUpdate(now));
     due.addAll(auctions.findClaimedClosingForUpdate());
+    due.addAll(auctions.findDueSellerDecisionsForUpdate(now));
     for (Auction auction : due) {
-      if (auction.isClosing()) {
+      if (auction.sellerDecisionExpired(now)) {
+        AuctionBidding.FinalBid finalBid =
+            new AuctionBidding.FinalBid(
+                auction.finalBidId(),
+                auction.finalBidderId(),
+                auction.finalBidderPseudonym(),
+                auction.finalAmountCents());
+        auction.expireSellerDecision(now);
+        catalog.releaseUnchangedItem(auction.itemId(), now);
+        lifecycleEvents.publishSellerDecision(
+            auction, AuctionLifecycleEvent.Type.SELLER_DECISION_EXPIRED, finalBid, now);
+      } else if (auction.isClosing()) {
         events.publishEvent(new AuctionClosingClaimed(auction.id(), now));
       } else if (auction.claimClosing(now)) {
         events.publishEvent(new AuctionClosingClaimed(auction.id(), now));

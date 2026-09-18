@@ -24,6 +24,8 @@ import java.util.UUID;
 @Table(name = "auctions")
 class Auction {
 
+  private static final Duration SELLER_DECISION_WINDOW = Duration.ofHours(24);
+
   @Id private UUID id;
 
   @Column(name = "item_id", nullable = false, updatable = false)
@@ -92,6 +94,9 @@ class Auction {
 
   @Column(name = "final_outcome_recorded_at")
   private Instant finalOutcomeRecordedAt;
+
+  @Column(name = "seller_decision_deadline_at")
+  private Instant sellerDecisionDeadlineAt;
 
   @Column(name = "suspension_source_state")
   @Enumerated(EnumType.STRING)
@@ -329,19 +334,98 @@ class Auction {
           case AWAITING_SELLER_DECISION -> State.AWAITING_SELLER_DECISION;
         };
     if (finalBid != null) {
-      finalBidId = finalBid.bidId();
-      finalBidderId = finalBid.bidderId();
-      finalBidderPseudonym = finalBid.bidderPseudonym();
-      finalAmountCents = finalBid.amountCents();
-      finalOutcomeRecordedAt = recordedAt;
+      replaceFinalBid(finalBid, recordedAt);
     }
     if (state == State.SOLD || state == State.UNSOLD) {
       activeItemId = null;
       endedAt = endsAt;
       timeline.add(AuctionTimelineEntry.ended(endsAt));
+    } else {
+      sellerDecisionDeadlineAt = recordedAt.plus(SELLER_DECISION_WINDOW);
+      timeline.add(AuctionTimelineEntry.awaitingSellerDecision(recordedAt));
     }
     projectionVersion++;
     return true;
+  }
+
+  boolean sellerDecisionExpired(Instant now) {
+    return state == State.AWAITING_SELLER_DECISION && !now.isBefore(sellerDecisionDeadlineAt);
+  }
+
+  boolean recordSellerDecision(SellerDecision decision, Instant decidedAt) {
+    if (state != State.AWAITING_SELLER_DECISION || sellerDecisionExpired(decidedAt)) {
+      return false;
+    }
+    if (decision == SellerDecision.ACCEPT) {
+      state = State.SOLD;
+      activeItemId = null;
+      endedAt = decidedAt;
+      sellerDecisionDeadlineAt = null;
+      timeline.add(AuctionTimelineEntry.sellerDecisionAccepted(decidedAt));
+    } else {
+      endSellerDecisionUnsold(decidedAt, AuctionTimelineEntry.Type.SELLER_DECISION_REJECTED);
+    }
+    projectionVersion++;
+    return true;
+  }
+
+  boolean expireSellerDecision(Instant expiredAt) {
+    if (!sellerDecisionExpired(expiredAt)) {
+      return false;
+    }
+    endSellerDecisionUnsold(expiredAt, AuctionTimelineEntry.Type.SELLER_DECISION_EXPIRED);
+    projectionVersion++;
+    return true;
+  }
+
+  DisqualificationResult recalculateEligibleBidProjectionAfterDisqualification(
+      long eligibleBidCount,
+      long currentAmountCents,
+      AuctionBidding.FinalBid highestEligibleBid,
+      Instant recalculatedAt) {
+    validateEligibleBidProjection(eligibleBidCount, currentAmountCents);
+    this.eligibleBidCount = eligibleBidCount;
+    this.currentAmountCents = currentAmountCents;
+    DisqualificationResult result = DisqualificationResult.UNCHANGED;
+    if (state == State.AWAITING_SELLER_DECISION) {
+      if (highestEligibleBid == null) {
+        endSellerDecisionUnsold(
+            recalculatedAt, AuctionTimelineEntry.Type.SELLER_DECISION_NO_ELIGIBLE_BID);
+        result = DisqualificationResult.NO_ELIGIBLE_BID;
+      } else if (!highestEligibleBid.bidId().equals(finalBidId)) {
+        replaceFinalBid(highestEligibleBid, recalculatedAt);
+        sellerDecisionDeadlineAt = recalculatedAt.plus(SELLER_DECISION_WINDOW);
+        timeline.add(AuctionTimelineEntry.sellerDecisionReopened(recalculatedAt));
+        result = DisqualificationResult.REOPENED;
+      }
+    }
+    projectionVersion++;
+    return result;
+  }
+
+  private void replaceFinalBid(AuctionBidding.FinalBid finalBid, Instant recordedAt) {
+    finalBidId = finalBid.bidId();
+    finalBidderId = finalBid.bidderId();
+    finalBidderPseudonym = finalBid.bidderPseudonym();
+    finalAmountCents = finalBid.amountCents();
+    finalOutcomeRecordedAt = recordedAt;
+  }
+
+  private void endSellerDecisionUnsold(Instant endedAt, AuctionTimelineEntry.Type timelineType) {
+    state = State.UNSOLD;
+    activeItemId = null;
+    this.endedAt = endedAt;
+    sellerDecisionDeadlineAt = null;
+    clearFinalBid();
+    timeline.add(AuctionTimelineEntry.of(timelineType, endedAt));
+  }
+
+  private void clearFinalBid() {
+    finalBidId = null;
+    finalBidderId = null;
+    finalBidderPseudonym = null;
+    finalAmountCents = null;
+    finalOutcomeRecordedAt = null;
   }
 
   UUID id() {
@@ -402,14 +486,18 @@ class Auction {
   }
 
   void recalculateEligibleBidProjection(long eligibleBidCount, long currentAmountCents) {
+    validateEligibleBidProjection(eligibleBidCount, currentAmountCents);
+    this.eligibleBidCount = eligibleBidCount;
+    this.currentAmountCents = currentAmountCents;
+    projectionVersion++;
+  }
+
+  private void validateEligibleBidProjection(long eligibleBidCount, long currentAmountCents) {
     if (eligibleBidCount < 0
         || currentAmountCents < openingAmountCents
         || currentAmountCents > 100_000_000L) {
       throw new IllegalArgumentException("The eligible bid projection is invalid.");
     }
-    this.eligibleBidCount = eligibleBidCount;
-    this.currentAmountCents = currentAmountCents;
-    projectionVersion++;
   }
 
   long nextMinimumAmountCents() {
@@ -467,6 +555,10 @@ class Auction {
     return finalOutcomeRecordedAt;
   }
 
+  Instant sellerDecisionDeadlineAt() {
+    return sellerDecisionDeadlineAt;
+  }
+
   State suspensionSourceState() {
     return suspensionSourceState;
   }
@@ -505,5 +597,11 @@ class Auction {
     SOLD,
     UNSOLD,
     CANCELLED
+  }
+
+  enum DisqualificationResult {
+    UNCHANGED,
+    REOPENED,
+    NO_ELIGIBLE_BID
   }
 }

@@ -139,7 +139,8 @@ class AuctionRealtimeProjectionListenerTests {
         12_000L,
         BIDDER_ID,
         "winner",
-        "winner@example.com");
+        "winner@example.com",
+        null);
   }
 
   private static final class CapturingMessageChannel implements MessageChannel {

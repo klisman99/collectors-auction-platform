@@ -82,9 +82,21 @@ public class BidDisqualifications {
           eligibleBids.isEmpty()
               ? target.openingAmountCents()
               : eligibleBids.getFirst().amountCents();
+      AuctionBidding.FinalBid highestEligibleBid =
+          eligibleBids.isEmpty()
+              ? null
+              : new AuctionBidding.FinalBid(
+                  eligibleBids.getFirst().id(),
+                  eligibleBids.getFirst().bidderId(),
+                  eligibleBids.getFirst().bidderPseudonym(),
+                  eligibleBids.getFirst().amountCents());
       AuctionBidding.PublicProjection projection =
-          auctions.recalculateEligibleBidProjection(
-              auctionId, eligibleBids.size(), currentAmountCents);
+          auctions.recalculateEligibleBidProjectionAfterDisqualification(
+              auctionId,
+              eligibleBids.size(),
+              currentAmountCents,
+              highestEligibleBid,
+              suspension.occurredAt());
 
       for (int index = 0; index < newlyDisqualified.size(); index++) {
         AcceptedBid bid = newlyDisqualified.get(index);

@@ -77,6 +77,36 @@ public class AuctionBidding {
     return PublicProjection.from(auction);
   }
 
+  /** Recalculates public eligibility and safely replaces an awaiting below-reserve offer. */
+  @Transactional
+  public PublicProjection recalculateEligibleBidProjectionAfterDisqualification(
+      UUID auctionId,
+      long eligibleBidCount,
+      long currentAmountCents,
+      FinalBid highestEligibleBid,
+      Instant recalculatedAt) {
+    Auction auction =
+        auctions.findByIdForUpdate(auctionId).orElseThrow(() -> new BidUnavailable(auctionId));
+    Auction.DisqualificationResult result =
+        auction.recalculateEligibleBidProjectionAfterDisqualification(
+            eligibleBidCount, currentAmountCents, highestEligibleBid, recalculatedAt);
+    if (result == Auction.DisqualificationResult.NO_ELIGIBLE_BID) {
+      catalog.releaseUnchangedItem(auction.itemId(), recalculatedAt);
+      lifecycleEvents.publishSellerDecision(
+          auction,
+          AuctionLifecycleEvent.Type.SELLER_DECISION_NO_ELIGIBLE_BID,
+          null,
+          recalculatedAt);
+    } else if (result == Auction.DisqualificationResult.REOPENED) {
+      lifecycleEvents.publishSellerDecision(
+          auction,
+          AuctionLifecycleEvent.Type.SELLER_DECISION_REOPENED,
+          highestEligibleBid,
+          recalculatedAt);
+    }
+    return PublicProjection.from(auction);
+  }
+
   /** Locks a durably claimed auction so bidding can select its one eligible final bid. */
   @Transactional
   public ClosingAuction lockClaimedAuction(UUID auctionId) {

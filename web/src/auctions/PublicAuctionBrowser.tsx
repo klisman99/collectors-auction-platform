@@ -435,7 +435,13 @@ function ProjectedCountdown({ auction }: { auction: Auction }) {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
-  const deadline = auction.state === 'SCHEDULED' ? auction.startsAt : auction.effectiveEndAt;
+  const deadline =
+    auction.state === 'SCHEDULED'
+      ? auction.startsAt
+      : auction.state === 'AWAITING_SELLER_DECISION' &&
+          auction.sellerDecisionDeadlineAt !== undefined
+        ? auction.sellerDecisionDeadlineAt
+        : auction.effectiveEndAt;
   const remainingSeconds = Math.max(0, Math.ceil((new Date(deadline).getTime() - now) / 1000));
   return (
     <span className="shrink-0 rounded-md bg-slate-800 px-2 py-1 font-mono text-xs text-slate-200">
@@ -445,9 +451,14 @@ function ProjectedCountdown({ auction }: { auction: Auction }) {
 }
 
 function deadlineLabel(auction: Auction): string {
-  return auction.state === 'SCHEDULED'
-    ? `starts ${formatSaoPaulo(auction.startsAt)}`
-    : `ends ${formatSaoPaulo(auction.effectiveEndAt)}`;
+  if (auction.state === 'SCHEDULED') return `starts ${formatSaoPaulo(auction.startsAt)}`;
+  if (
+    auction.state === 'AWAITING_SELLER_DECISION' &&
+    auction.sellerDecisionDeadlineAt !== undefined
+  ) {
+    return `seller decision due ${formatSaoPaulo(auction.sellerDecisionDeadlineAt)}`;
+  }
+  return `ends ${formatSaoPaulo(auction.effectiveEndAt)}`;
 }
 
 function stateLabel(value: string): string {
@@ -465,7 +476,11 @@ function outcomeMessage(auction: Auction): string {
     return 'The auction outcome has been recorded.';
   }
   if (auction.state === 'AWAITING_SELLER_DECISION') {
-    return `Highest eligible bid: ${formatBrl(auction.finalOutcome.amountCents)}. Awaiting the seller's decision.`;
+    const deadline =
+      auction.sellerDecisionDeadlineAt === undefined
+        ? ''
+        : ` Decision due ${formatSaoPaulo(auction.sellerDecisionDeadlineAt)}.`;
+    return `Highest eligible bid: ${formatBrl(auction.finalOutcome.amountCents)}. Awaiting the seller's decision.${deadline}`;
   }
   return `Sold for ${formatBrl(auction.finalOutcome.amountCents)} to ${auction.finalOutcome.bidderPseudonym ?? 'the winning bidder'}.`;
 }

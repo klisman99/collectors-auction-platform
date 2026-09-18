@@ -122,6 +122,7 @@ export type EditableAuctionTerms = {
   startsAt: string;
   endsAt: string;
 };
+export type SellerDecision = 'ACCEPT' | 'REJECT';
 export type Auction = {
   id: string;
   itemId: string;
@@ -148,6 +149,7 @@ export type Auction = {
   effectiveEndAt: string;
   scheduledAt: string;
   endedAt?: string;
+  sellerDecisionDeadlineAt?: string;
   finalOutcome?: {
     amountCents?: number;
     bidderPseudonym?: string;
@@ -181,6 +183,12 @@ export type Auction = {
       | 'STARTED'
       | 'CANCELLED'
       | 'ENDED'
+      | 'AWAITING_SELLER_DECISION'
+      | 'SELLER_DECISION_ACCEPTED'
+      | 'SELLER_DECISION_REJECTED'
+      | 'SELLER_DECISION_EXPIRED'
+      | 'SELLER_DECISION_REOPENED'
+      | 'SELLER_DECISION_NO_ELIGIBLE_BID'
       | 'SUSPENDED'
       | 'RELEASED'
       | 'RESUMED';
@@ -413,6 +421,13 @@ export async function updateAuctionTerms(
 
 export async function cancelAuction(id: string, publicReason: string): Promise<Auction> {
   return auctionRequest(`/api/v1/auctions/${id}/cancellation`, 'POST', { publicReason });
+}
+
+export async function decideBelowReserveOffer(
+  id: string,
+  decision: SellerDecision,
+): Promise<Auction> {
+  return auctionRequest(`/api/v1/auctions/${id}/seller-decision`, 'POST', { decision });
 }
 
 export async function listAuctions(state: AuctionView, page = 0, size = 20): Promise<AuctionPage> {

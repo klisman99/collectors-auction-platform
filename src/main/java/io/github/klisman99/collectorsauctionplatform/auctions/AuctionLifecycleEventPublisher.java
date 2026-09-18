@@ -45,7 +45,8 @@ class AuctionLifecycleEventPublisher {
             null,
             null,
             null,
-            null));
+            null,
+            auction.sellerDecisionDeadlineAt()));
   }
 
   void publishAdministrative(
@@ -79,7 +80,8 @@ class AuctionLifecycleEventPublisher {
             null,
             null,
             null,
-            null));
+            null,
+            auction.sellerDecisionDeadlineAt()));
   }
 
   void publishOutcome(
@@ -117,6 +119,40 @@ class AuctionLifecycleEventPublisher {
             finalBid == null ? null : finalBid.amountCents(),
             winner == null ? null : winner.accountId(),
             winner == null ? null : winner.publicHandle(),
-            winner == null ? null : winner.email()));
+            winner == null ? null : winner.email(),
+            auction.sellerDecisionDeadlineAt()));
+  }
+
+  void publishSellerDecision(
+      Auction auction,
+      AuctionLifecycleEvent.Type type,
+      AuctionBidding.FinalBid finalBid,
+      Instant occurredAt) {
+    AccountDirectory.AccountContact seller = accounts.regularAccount(auction.sellerId());
+    AccountDirectory.AccountContact bidder =
+        finalBid == null ? null : accounts.regularAccount(finalBid.bidderId());
+    events.publishEvent(
+        new AuctionLifecycleEvent(
+            auction.id(),
+            auction.itemId(),
+            auction.sellerId(),
+            seller.email(),
+            auction.itemSnapshot().title(),
+            type,
+            auction.projectionVersion(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            occurredAt,
+            null,
+            new AuctionLifecycleEvent.PublishedTerms(
+                auction.reserveAmountCents(), auction.startsAt(), auction.endsAt()),
+            finalBid == null ? null : finalBid.amountCents(),
+            bidder == null ? null : bidder.accountId(),
+            bidder == null ? null : bidder.publicHandle(),
+            bidder == null ? null : bidder.email(),
+            auction.sellerDecisionDeadlineAt()));
   }
 }

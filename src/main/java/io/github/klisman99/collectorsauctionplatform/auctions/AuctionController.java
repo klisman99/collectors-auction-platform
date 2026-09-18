@@ -143,6 +143,32 @@ class AuctionController {
         false);
   }
 
+  @PostMapping(path = "/{id}/seller-decision", consumes = MediaType.APPLICATION_JSON_VALUE)
+  @Operation(
+      operationId = "decideBelowReserveOffer",
+      summary = "Accept or reject the seller's below-reserve final offer")
+  AuctionResponse decideBelowReserveOffer(
+      Principal principal,
+      @PathVariable UUID id,
+      @Valid @RequestBody SellerDecisionRequest request) {
+    UUID sellerId = UUID.fromString(principal.getName());
+    auctions.decideBelowReserveOffer(sellerId, id, sellerDecision(request.decision()));
+    AuctionAccess access = auctions.getVisible(id, sellerId, false);
+    return response(
+        access.auction(),
+        access.exactReserveVisible(),
+        access.internalNotesVisible(),
+        access.winningBidderHandle());
+  }
+
+  private SellerDecision sellerDecision(String value) {
+    try {
+      return SellerDecision.valueOf(value);
+    } catch (IllegalArgumentException exception) {
+      throw AuctionApiException.invalidSellerDecision();
+    }
+  }
+
   private AuctionResponse response(
       Auction auction, boolean includeReserve, boolean includeInternalNotes) {
     return response(auction, includeReserve, includeInternalNotes, null);
@@ -171,6 +197,7 @@ class AuctionController {
         auction.effectiveEndAt(),
         auction.scheduledAt(),
         auction.endedAt(),
+        auction.sellerDecisionDeadlineAt(),
         new ItemResponse(
             item.category(),
             item.otherCategoryLabel(),
@@ -246,6 +273,8 @@ class AuctionController {
 
   record CancellationRequest(@NotNull String publicReason) {}
 
+  record SellerDecisionRequest(@NotNull String decision) {}
+
   record AuctionResponse(
       UUID id,
       UUID itemId,
@@ -263,6 +292,7 @@ class AuctionController {
       Instant effectiveEndAt,
       Instant scheduledAt,
       Instant endedAt,
+      Instant sellerDecisionDeadlineAt,
       ItemResponse item,
       PolicyResponse policy,
       List<TimelineResponse> timeline,

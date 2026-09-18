@@ -22,27 +22,30 @@ class AuctionLifecycleEmailListener {
 
   @ApplicationModuleListener
   void sendLifecycleEmail(AuctionLifecycleEvent event) throws MessagingException {
-    if (event.type() == AuctionLifecycleEvent.Type.SOLD) {
+    if (event.type() == AuctionLifecycleEvent.Type.SOLD
+        || event.type() == AuctionLifecycleEvent.Type.SELLER_DECISION_ACCEPTED) {
       sendSoldEmails(event);
       return;
     }
-    if (event.type() == AuctionLifecycleEvent.Type.UNSOLD) {
+    if (event.type() == AuctionLifecycleEvent.Type.UNSOLD
+        || event.type() == AuctionLifecycleEvent.Type.SELLER_DECISION_NO_ELIGIBLE_BID) {
       send(
           event.sellerEmail(),
           "Your auction ended unsold",
           "Your auction for '%s' ended without an eligible bid.".formatted(event.itemTitle()));
       return;
     }
-    if (event.type() == AuctionLifecycleEvent.Type.AWAITING_SELLER_DECISION) {
-      send(
-          event.sellerEmail(),
-          "Reserve decision required",
-          "Your auction for '%s' has an eligible final offer of R$ %s."
-              .formatted(event.itemTitle(), amount(event.finalAmountCents())));
+    if (event.type() == AuctionLifecycleEvent.Type.AWAITING_SELLER_DECISION
+        || event.type() == AuctionLifecycleEvent.Type.SELLER_DECISION_REOPENED) {
+      sendBelowReserveDecisionEmails(event);
+      return;
+    }
+    if (event.type() == AuctionLifecycleEvent.Type.SELLER_DECISION_REJECTED
+        || event.type() == AuctionLifecycleEvent.Type.SELLER_DECISION_EXPIRED) {
       send(
           event.winningBidderEmail(),
-          "Your final offer is awaiting a seller decision",
-          "Your offer of R$ %s for '%s' is awaiting the seller's reserve decision."
+          "Your final offer was not accepted",
+          "Your offer of R$ %s for '%s' was not accepted."
               .formatted(amount(event.finalAmountCents()), event.itemTitle()));
       return;
     }
@@ -82,6 +85,23 @@ class AuctionLifecycleEmailListener {
         event.winningBidderEmail(),
         "You won an auction",
         "You won '%s' for R$ %s.".formatted(event.itemTitle(), amount(event.finalAmountCents())));
+  }
+
+  private void sendBelowReserveDecisionEmails(AuctionLifecycleEvent event)
+      throws MessagingException {
+    send(
+        event.sellerEmail(),
+        "Reserve decision required",
+        "Your auction for '%s' has an eligible final offer of R$ %s. Decide by %s."
+            .formatted(
+                event.itemTitle(),
+                amount(event.finalAmountCents()),
+                event.sellerDecisionDeadlineAt()));
+    send(
+        event.winningBidderEmail(),
+        "Your final offer is awaiting a seller decision",
+        "Your offer of R$ %s for '%s' is awaiting the seller's reserve decision."
+            .formatted(amount(event.finalAmountCents()), event.itemTitle()));
   }
 
   private void send(String recipient, String subject, String body) throws MessagingException {
