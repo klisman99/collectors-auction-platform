@@ -126,6 +126,30 @@ class AuctionApiException extends ErrorResponseException {
         "The requested resolution is not valid for this suspended auction.");
   }
 
+  static AuctionApiException sellerDecisionForbidden() {
+    return new AuctionApiException(
+        HttpStatus.FORBIDDEN,
+        "SELLER_DECISION_FORBIDDEN",
+        "BR-OUT-006",
+        "Only the active seller may decide the below-reserve offer.");
+  }
+
+  static AuctionApiException notAwaitingSellerDecision() {
+    return new AuctionApiException(
+        HttpStatus.CONFLICT,
+        "SELLER_DECISION_UNAVAILABLE",
+        "BR-OUT-004",
+        "This auction is not awaiting a seller decision.");
+  }
+
+  static AuctionApiException invalidSellerDecision() {
+    return new AuctionApiException(
+        HttpStatus.BAD_REQUEST,
+        "SELLER_DECISION_INVALID",
+        "BR-OUT-005",
+        "Decision must be ACCEPT or REJECT.");
+  }
+
   private static ProblemDetail problem(
       HttpStatus status, String code, String ruleId, String detail) {
     ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);

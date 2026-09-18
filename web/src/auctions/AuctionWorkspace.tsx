@@ -4,6 +4,7 @@ import {
   type Auction,
   cancelAuction,
   type Draft,
+  decideBelowReserveOffer,
   listMyScheduledAuctions,
   scheduleAuction,
   updateAuctionTerms,
@@ -19,6 +20,7 @@ export function AuctionWorkspace({ approvedItems }: { approvedItems: Draft[] }) 
   const [scheduled, setScheduled] = useState<Auction[]>([]);
   const [scheduledLoading, setScheduledLoading] = useState(true);
   const [scheduledFailure, setScheduledFailure] = useState(false);
+  const [decisionSubmitting, setDecisionSubmitting] = useState(false);
   const [terms, setTerms] = useState({
     opening: '',
     increment: '',
@@ -107,6 +109,29 @@ export function AuctionWorkspace({ approvedItems }: { approvedItems: Draft[] }) 
     }
   }
 
+  async function decideFinalOffer(decision: 'ACCEPT' | 'REJECT') {
+    if (published === null) return;
+    setDecisionSubmitting(true);
+    setFailure(null);
+    setNotice(null);
+    try {
+      const decided = await decideBelowReserveOffer(published.id, decision);
+      setPublished(decided);
+      setScheduled((current) => current.filter((auction) => auction.id !== decided.id));
+      setNotice(
+        decided.state === 'SOLD'
+          ? 'Below-reserve offer accepted. A sale was created.'
+          : 'Below-reserve offer rejected. The unchanged item is available again.',
+      );
+    } catch (error) {
+      setFailure(
+        error instanceof Error ? error.message : 'The seller decision could not be saved.',
+      );
+    } finally {
+      setDecisionSubmitting(false);
+    }
+  }
+
   return (
     <section
       className="mt-8 border-t border-slate-700 pt-7"
@@ -147,7 +172,9 @@ export function AuctionWorkspace({ approvedItems }: { approvedItems: Draft[] }) 
       </div>
       {scheduled.length > 0 && (
         <div className="mt-5">
-          <p className="text-sm font-semibold text-amber-300">Your editable auctions</p>
+          <p className="text-sm font-semibold text-amber-300">
+            Your editable auctions and decisions
+          </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {scheduled.map((auction) => (
               <button
@@ -278,6 +305,52 @@ export function AuctionWorkspace({ approvedItems }: { approvedItems: Draft[] }) 
                   <p className="text-sm font-semibold text-slate-200">
                     Auction {published.state.toLowerCase().replaceAll('_', ' ')}.
                   </p>
+                  {published.state === 'AWAITING_SELLER_DECISION' && (
+                    <section className="mt-4 rounded-lg border border-amber-700/70 bg-amber-950/20 p-4">
+                      <h3 className="font-semibold text-amber-100">Below-reserve final offer</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">
+                        The highest eligible offer is{' '}
+                        {published.finalOutcome?.amountCents === undefined
+                          ? 'being refreshed'
+                          : formatBrl(published.finalOutcome.amountCents)}
+                        . The bidder remains pseudonymous until you accept and a sale is created.
+                      </p>
+                      {published.sellerDecisionDeadlineAt !== undefined && (
+                        <p className="mt-2 text-sm text-amber-200">
+                          Decide by {formatSaoPaulo(published.sellerDecisionDeadlineAt)}.
+                        </p>
+                      )}
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          className="rounded-lg bg-emerald-300 px-4 py-2 font-semibold text-slate-950 disabled:cursor-wait disabled:opacity-70"
+                          disabled={decisionSubmitting}
+                          onClick={() => decideFinalOffer('ACCEPT')}
+                          type="button"
+                        >
+                          {decisionSubmitting ? 'Saving decision…' : 'Accept final offer'}
+                        </button>
+                        <button
+                          className="rounded-lg border border-rose-600 px-4 py-2 font-semibold text-rose-100 disabled:cursor-wait disabled:opacity-70"
+                          disabled={decisionSubmitting}
+                          onClick={() => decideFinalOffer('REJECT')}
+                          type="button"
+                        >
+                          Reject final offer
+                        </button>
+                      </div>
+                    </section>
+                  )}
+                  {published.state === 'SOLD' &&
+                    published.finalOutcome?.bidderHandle !== undefined && (
+                      <p className="mt-4 text-sm text-emerald-200">
+                        Buyer: {published.finalOutcome.bidderHandle}
+                      </p>
+                    )}
+                  {failure !== null && (
+                    <p className="mt-4 text-sm text-rose-300" role="alert">
+                      {failure}
+                    </p>
+                  )}
                 </div>
               )}
           </div>

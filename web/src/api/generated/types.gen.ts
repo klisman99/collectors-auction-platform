@@ -65,6 +65,7 @@ export type AuctionResponse = {
     effectiveEndAt?: string;
     scheduledAt?: string;
     endedAt?: string;
+    sellerDecisionDeadlineAt?: string;
     item?: ItemResponse;
     policy?: PolicyResponse;
     timeline?: Array<TimelineResponse>;
@@ -266,6 +267,10 @@ export type ScheduleRequest = {
     reserveAmountCents?: number;
     startsAt: string;
     endsAt: string;
+};
+
+export type SellerDecisionRequest = {
+    decision: string;
 };
 
 export type BidRequest = {
@@ -821,6 +826,24 @@ export type ScheduleAuctionResponses = {
 };
 
 export type ScheduleAuctionResponse = ScheduleAuctionResponses[keyof ScheduleAuctionResponses];
+
+export type DecideBelowReserveOfferData = {
+    body: SellerDecisionRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/auctions/{id}/seller-decision';
+};
+
+export type DecideBelowReserveOfferResponses = {
+    /**
+     * OK
+     */
+    200: AuctionResponse;
+};
+
+export type DecideBelowReserveOfferResponse = DecideBelowReserveOfferResponses[keyof DecideBelowReserveOfferResponses];
 
 export type CancelAuctionData = {
     body: CancellationRequest;

@@ -23,7 +23,8 @@ public record AuctionLifecycleEvent(
     Long finalAmountCents,
     UUID winningBidderId,
     String winningBidderHandle,
-    String winningBidderEmail) {
+    String winningBidderEmail,
+    Instant sellerDecisionDeadlineAt) {
 
   public record PublishedTerms(Long reserveAmountCents, Instant startsAt, Instant endsAt) {}
 
@@ -36,6 +37,11 @@ public record AuctionLifecycleEvent(
     SOLD,
     UNSOLD,
     AWAITING_SELLER_DECISION,
+    SELLER_DECISION_ACCEPTED,
+    SELLER_DECISION_REJECTED,
+    SELLER_DECISION_EXPIRED,
+    SELLER_DECISION_REOPENED,
+    SELLER_DECISION_NO_ELIGIBLE_BID,
     SUSPENDED,
     RELEASED,
     RESUMED,

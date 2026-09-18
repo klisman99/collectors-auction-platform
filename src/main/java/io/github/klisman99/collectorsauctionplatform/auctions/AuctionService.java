@@ -6,6 +6,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -20,18 +21,21 @@ class AuctionService {
   private final AccountDirectory accounts;
   private final Clock clock;
   private final AuctionLifecycleEventPublisher lifecycleEvents;
+  private final ApplicationEventPublisher events;
 
   AuctionService(
       AuctionRepository auctions,
       CatalogAuctioning catalog,
       AccountDirectory accounts,
       Clock clock,
-      AuctionLifecycleEventPublisher lifecycleEvents) {
+      AuctionLifecycleEventPublisher lifecycleEvents,
+      ApplicationEventPublisher events) {
     this.auctions = auctions;
     this.catalog = catalog;
     this.accounts = accounts;
     this.clock = clock;
     this.lifecycleEvents = lifecycleEvents;
+    this.events = events;
   }
 
   @Transactional
@@ -112,7 +116,9 @@ class AuctionService {
   @Transactional(readOnly = true)
   List<Auction> scheduledForSeller(UUID sellerId) {
     return auctions.findAllBySellerIdAndStateInOrderByStartsAtAsc(
-        sellerId, List.of(Auction.State.DRAFT, Auction.State.SCHEDULED));
+        sellerId,
+        List.of(
+            Auction.State.DRAFT, Auction.State.SCHEDULED, Auction.State.AWAITING_SELLER_DECISION));
   }
 
   @Transactional(readOnly = true)
@@ -267,6 +273,63 @@ class AuctionService {
     lifecycleEvents.publish(
         auction, AuctionLifecycleEvent.Type.CANCELLED, auction.cancellationReason(), now, null);
     return auction;
+  }
+
+  @Transactional
+  Auction decideBelowReserveOffer(UUID sellerId, UUID auctionId, SellerDecision decision) {
+    AccountDirectory.TradingAccount seller = accounts.lockTradingAccount(sellerId);
+    if (!seller.eligible()) {
+      throw AuctionApiException.sellerDecisionForbidden();
+    }
+    Auction auction =
+        auctions
+            .findByIdAndSellerId(auctionId, sellerId)
+            .orElseThrow(AuctionApiException::notFound);
+    if (auction.state() != Auction.State.AWAITING_SELLER_DECISION
+        && auction.state() != Auction.State.SOLD
+        && auction.state() != Auction.State.UNSOLD) {
+      throw AuctionApiException.notAwaitingSellerDecision();
+    }
+    if (auction.state() != Auction.State.AWAITING_SELLER_DECISION) {
+      return auction;
+    }
+
+    Instant now = Instant.now(clock);
+    AuctionBidding.FinalBid finalBid = finalBid(auction);
+    if (auction.expireSellerDecision(now)) {
+      catalog.releaseUnchangedItem(auction.itemId(), now);
+      lifecycleEvents.publishSellerDecision(
+          auction, AuctionLifecycleEvent.Type.SELLER_DECISION_EXPIRED, finalBid, now);
+      return auction;
+    }
+    if (!auction.recordSellerDecision(decision, now)) {
+      return auction;
+    }
+    if (decision == SellerDecision.ACCEPT) {
+      events.publishEvent(
+          new AuctionSold(
+              auction.id(),
+              auction.itemId(),
+              auction.sellerId(),
+              finalBid.bidderId(),
+              finalBid.amountCents(),
+              now));
+      lifecycleEvents.publishSellerDecision(
+          auction, AuctionLifecycleEvent.Type.SELLER_DECISION_ACCEPTED, finalBid, now);
+    } else {
+      catalog.releaseUnchangedItem(auction.itemId(), now);
+      lifecycleEvents.publishSellerDecision(
+          auction, AuctionLifecycleEvent.Type.SELLER_DECISION_REJECTED, finalBid, now);
+    }
+    return auction;
+  }
+
+  private AuctionBidding.FinalBid finalBid(Auction auction) {
+    return new AuctionBidding.FinalBid(
+        auction.finalBidId(),
+        auction.finalBidderId(),
+        auction.finalBidderPseudonym(),
+        auction.finalAmountCents());
   }
 
   private AuctionAccess withAccess(Auction auction, UUID viewerId, boolean administrator) {

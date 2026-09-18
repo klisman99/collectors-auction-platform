@@ -67,6 +67,22 @@ class AuctionTimelineEntry {
     return simple(Type.ENDED, occurredAt);
   }
 
+  static AuctionTimelineEntry awaitingSellerDecision(Instant occurredAt) {
+    return simple(Type.AWAITING_SELLER_DECISION, occurredAt);
+  }
+
+  static AuctionTimelineEntry sellerDecisionAccepted(Instant occurredAt) {
+    return simple(Type.SELLER_DECISION_ACCEPTED, occurredAt);
+  }
+
+  static AuctionTimelineEntry sellerDecisionReopened(Instant occurredAt) {
+    return simple(Type.SELLER_DECISION_REOPENED, occurredAt);
+  }
+
+  static AuctionTimelineEntry of(Type type, Instant occurredAt) {
+    return simple(type, occurredAt);
+  }
+
   static AuctionTimelineEntry suspended(
       Instant occurredAt,
       SuspensionReasonCategory reasonCategory,
@@ -128,6 +144,12 @@ class AuctionTimelineEntry {
     STARTED,
     CANCELLED,
     ENDED,
+    AWAITING_SELLER_DECISION,
+    SELLER_DECISION_ACCEPTED,
+    SELLER_DECISION_REJECTED,
+    SELLER_DECISION_EXPIRED,
+    SELLER_DECISION_REOPENED,
+    SELLER_DECISION_NO_ELIGIBLE_BID,
     SUSPENDED,
     RELEASED,
     RESUMED

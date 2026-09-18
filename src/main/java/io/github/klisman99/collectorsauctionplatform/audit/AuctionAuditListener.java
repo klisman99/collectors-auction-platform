@@ -25,6 +25,12 @@ class AuctionAuditListener {
           case SOLD -> AuditRecord.AuditAction.AUCTION_SOLD;
           case UNSOLD -> AuditRecord.AuditAction.AUCTION_UNSOLD;
           case AWAITING_SELLER_DECISION -> AuditRecord.AuditAction.AUCTION_AWAITING_SELLER_DECISION;
+          case SELLER_DECISION_ACCEPTED -> AuditRecord.AuditAction.AUCTION_SELLER_DECISION_ACCEPTED;
+          case SELLER_DECISION_REJECTED -> AuditRecord.AuditAction.AUCTION_SELLER_DECISION_REJECTED;
+          case SELLER_DECISION_EXPIRED -> AuditRecord.AuditAction.AUCTION_SELLER_DECISION_EXPIRED;
+          case SELLER_DECISION_REOPENED -> AuditRecord.AuditAction.AUCTION_SELLER_DECISION_REOPENED;
+          case SELLER_DECISION_NO_ELIGIBLE_BID ->
+              AuditRecord.AuditAction.AUCTION_SELLER_DECISION_NO_ELIGIBLE_BID;
           case SUSPENDED -> AuditRecord.AuditAction.AUCTION_SUSPENDED;
           case RELEASED -> AuditRecord.AuditAction.AUCTION_RELEASED;
           case RESUMED -> AuditRecord.AuditAction.AUCTION_RESUMED;
@@ -39,6 +45,7 @@ class AuctionAuditListener {
             + valueMetadata("finalAmountCents", event.finalAmountCents())
             + valueMetadata("winningBidderId", event.winningBidderId())
             + valueMetadata("winningBidderHandle", event.winningBidderHandle())
+            + valueMetadata("sellerDecisionDeadlineAt", event.sellerDecisionDeadlineAt())
             + valueMetadata("reasonCategory", event.reasonCategory())
             + valueMetadata("publicReason", event.publicReason())
             + valueMetadata("internalNote", event.internalNote())
@@ -52,6 +59,9 @@ class AuctionAuditListener {
                     || event.type() == AuctionLifecycleEvent.Type.SOLD
                     || event.type() == AuctionLifecycleEvent.Type.UNSOLD
                     || event.type() == AuctionLifecycleEvent.Type.AWAITING_SELLER_DECISION
+                    || event.type() == AuctionLifecycleEvent.Type.SELLER_DECISION_EXPIRED
+                    || event.type() == AuctionLifecycleEvent.Type.SELLER_DECISION_REOPENED
+                    || event.type() == AuctionLifecycleEvent.Type.SELLER_DECISION_NO_ELIGIBLE_BID
                 ? AuditRecord.systemAuctionAction(
                     action, event.auctionId(), event.occurredAt(), metadata)
                 : AuditRecord.accountAuctionAction(

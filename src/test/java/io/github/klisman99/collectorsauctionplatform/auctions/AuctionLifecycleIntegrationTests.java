@@ -390,6 +390,303 @@ class AuctionLifecycleIntegrationTests {
   }
 
   @Test
+  void sellerAcceptsBelowReserveOfferOnceAndTheCommittedSaleRevealsTheBidderHandle()
+      throws Exception {
+    Auction auction =
+        scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900), 11_000L);
+    UUID bidderId = activeAccount("decision_bidder");
+
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+    clock.set(auction.endsAt().minusSeconds(121));
+    mockMvc.perform(bidRequest(bidderId, auction.id(), 10_000)).andExpect(status().isCreated());
+    clock.set(auction.endsAt());
+    lifecycle.reconcileDueAuctions();
+
+    Auction awaitingDecision =
+        awaitAuctionState(auction.id(), Auction.State.AWAITING_SELLER_DECISION);
+    Instant decisionDeadline = awaitingDecision.endsAt().plusSeconds(24 * 60 * 60L);
+    String bidderHandle =
+        jdbcTemplate.queryForObject(
+            "SELECT public_handle FROM regular_accounts WHERE id = ?", String.class, bidderId);
+    mockMvc
+        .perform(get("/api/v1/auctions/{id}", auction.id()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.sellerDecisionDeadlineAt").value(decisionDeadline.toString()))
+        .andExpect(jsonPath("$.finalOutcome.bidderHandle").doesNotExist());
+    mockMvc
+        .perform(
+            get("/api/v1/auctions/{id}", auction.id())
+                .with(user(auction.sellerId().toString()).authorities(tradingEligible())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.finalOutcome.bidderHandle").doesNotExist());
+
+    UUID otherSellerId = activeAccount("decision_intruder");
+    mockMvc
+        .perform(sellerDecisionRequest(otherSellerId, auction.id(), "ACCEPT"))
+        .andExpect(status().isNotFound());
+
+    mockMvc
+        .perform(sellerDecisionRequest(auction.sellerId(), auction.id(), "ACCEPT"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("SOLD"));
+    mockMvc
+        .perform(sellerDecisionRequest(auction.sellerId(), auction.id(), "REJECT"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("SOLD"));
+
+    Auction sold = awaitAuctionState(auction.id(), Auction.State.SOLD);
+    assertThat(sold.finalBidderId()).isEqualTo(bidderId);
+    awaitSaleCount(auction.id(), 1);
+    mockMvc
+        .perform(
+            get("/api/v1/auctions/{id}", auction.id())
+                .with(user(auction.sellerId().toString()).authorities(tradingEligible())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.finalOutcome.bidderHandle").value(bidderHandle));
+    assertThat(mailSender.awaitMessages(4))
+        .extracting(message -> message.getSubject())
+        .contains(
+            "Reserve decision required",
+            "Your final offer is awaiting a seller decision",
+            "Your auction sold",
+            "You won an auction");
+    awaitAudit("AUCTION_SELLER_DECISION_ACCEPTED", auction.id());
+  }
+
+  @Test
+  void concurrentRepeatedSellerAcceptancesProduceOneOutcomeAndOneSale() throws Exception {
+    Auction auction =
+        scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900), 11_000L);
+    UUID bidderId = activeAccount("concurrent_dec_bid");
+
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+    clock.set(auction.endsAt().minusSeconds(121));
+    mockMvc.perform(bidRequest(bidderId, auction.id(), 10_000)).andExpect(status().isCreated());
+    clock.set(auction.endsAt());
+    lifecycle.reconcileDueAuctions();
+    awaitAuctionState(auction.id(), Auction.State.AWAITING_SELLER_DECISION);
+
+    ExecutorService workers = Executors.newFixedThreadPool(2);
+    CountDownLatch ready = new CountDownLatch(2);
+    CountDownLatch start = new CountDownLatch(1);
+    try {
+      List<Future<org.springframework.test.web.servlet.MvcResult>> completions =
+          List.of(
+              workers.submit(
+                  () -> sellerDecisionWhenReleased(ready, start, auction.sellerId(), auction.id())),
+              workers.submit(
+                  () ->
+                      sellerDecisionWhenReleased(ready, start, auction.sellerId(), auction.id())));
+      assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+      start.countDown();
+      for (Future<org.springframework.test.web.servlet.MvcResult> completion : completions) {
+        assertThat(completion.get(5, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(200);
+      }
+    } finally {
+      workers.shutdownNow();
+      workers.awaitTermination(5, TimeUnit.SECONDS);
+    }
+
+    assertThat(awaitAuctionState(auction.id(), Auction.State.SOLD).finalBidderId())
+        .isEqualTo(bidderId);
+    awaitSaleCount(auction.id(), 1);
+  }
+
+  @Test
+  void sellerRejectsBelowReserveOfferAndTheItemBecomesAvailableAgain() throws Exception {
+    Auction auction =
+        scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900), 11_000L);
+    UUID bidderId = activeAccount("rejection_bidder");
+
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+    clock.set(auction.endsAt().minusSeconds(121));
+    mockMvc.perform(bidRequest(bidderId, auction.id(), 10_000)).andExpect(status().isCreated());
+    clock.set(auction.endsAt());
+    lifecycle.reconcileDueAuctions();
+
+    mockMvc
+        .perform(sellerDecisionRequest(auction.sellerId(), auction.id(), "REJECT"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("UNSOLD"));
+
+    Auction unsold = awaitAuctionState(auction.id(), Auction.State.UNSOLD);
+    assertThat(unsold.finalBidId()).isNull();
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT auction_locked_at FROM collectible_items WHERE id = ?",
+                Instant.class,
+                auction.itemId()))
+        .isNull();
+    awaitAudit("AUCTION_SELLER_DECISION_REJECTED", auction.id());
+  }
+
+  @Test
+  void deadlineExpiryEndsTheBelowReserveAuctionUnsoldAndReleasesItsItem() throws Exception {
+    Auction auction =
+        scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900), 11_000L);
+    UUID bidderId = activeAccount("expiry_bidder");
+
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+    clock.set(auction.endsAt().minusSeconds(121));
+    mockMvc.perform(bidRequest(bidderId, auction.id(), 10_000)).andExpect(status().isCreated());
+    clock.set(auction.endsAt());
+    lifecycle.reconcileDueAuctions();
+
+    Auction awaitingDecision =
+        awaitAuctionState(auction.id(), Auction.State.AWAITING_SELLER_DECISION);
+    clock.set(awaitingDecision.sellerDecisionDeadlineAt());
+    lifecycle.reconcileDueAuctions();
+
+    Auction unsold = awaitAuctionState(auction.id(), Auction.State.UNSOLD);
+    assertThat(unsold.endedAt()).isEqualTo(clock.instant());
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT auction_locked_at FROM collectible_items WHERE id = ?",
+                Instant.class,
+                auction.itemId()))
+        .isNull();
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM sales WHERE auction_id = ?", Integer.class, auction.id()))
+        .isZero();
+    awaitAudit("AUCTION_SELLER_DECISION_EXPIRED", auction.id());
+  }
+
+  @Test
+  void restartExpiresAPersistedSellerDecisionAtItsOriginalDeadline() throws Exception {
+    Auction auction =
+        scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900), 11_000L);
+    UUID bidderId = activeAccount("restart_dec_bid");
+
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+    clock.set(auction.endsAt().minusSeconds(121));
+    mockMvc.perform(bidRequest(bidderId, auction.id(), 10_000)).andExpect(status().isCreated());
+    clock.set(auction.endsAt());
+    lifecycle.reconcileDueAuctions();
+    Auction awaitingDecision =
+        awaitAuctionState(auction.id(), Auction.State.AWAITING_SELLER_DECISION);
+
+    NEW_CONTEXT_TIME.set(awaitingDecision.sellerDecisionDeadlineAt());
+    try (ConfigurableApplicationContext ignored = restartApplication()) {
+      // Startup reconciliation must use the durable seller-decision deadline.
+    }
+
+    assertThat(auctions.get(auction.id()).state()).isEqualTo(Auction.State.UNSOLD);
+  }
+
+  @Test
+  void suspendedSellerCannotDecideAndTheOriginalDeadlineStillExpires() throws Exception {
+    Auction auction =
+        scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900), 11_000L);
+    UUID bidderId = activeAccount("susp_seller_bidder");
+
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+    clock.set(auction.endsAt().minusSeconds(121));
+    mockMvc.perform(bidRequest(bidderId, auction.id(), 10_000)).andExpect(status().isCreated());
+    clock.set(auction.endsAt());
+    lifecycle.reconcileDueAuctions();
+    Auction awaitingDecision =
+        awaitAuctionState(auction.id(), Auction.State.AWAITING_SELLER_DECISION);
+    accountAdministration.suspend(
+        UUID.randomUUID(),
+        auction.sellerId(),
+        RegularAccountSuspensionReasonCategory.SECURITY,
+        "The seller account requires a security review.",
+        null);
+
+    mockMvc
+        .perform(sellerDecisionRequest(auction.sellerId(), auction.id(), "ACCEPT"))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("SELLER_DECISION_FORBIDDEN"));
+
+    clock.set(awaitingDecision.sellerDecisionDeadlineAt());
+    lifecycle.reconcileDueAuctions();
+
+    assertThat(awaitAuctionState(auction.id(), Auction.State.UNSOLD).endedAt())
+        .isEqualTo(clock.instant());
+  }
+
+  @Test
+  void disqualifiedFinalBidderRestartsTheDecisionWindowForTheNextEligibleOffer() throws Exception {
+    Auction auction =
+        scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900), 12_000L);
+    UUID nextBidderId = activeAccount("next_decision_bidder");
+    UUID finalBidderId = activeAccount("dq_decision_bidder");
+
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+    clock.set(auction.endsAt().minusSeconds(121));
+    mockMvc.perform(bidRequest(nextBidderId, auction.id(), 10_000)).andExpect(status().isCreated());
+    mockMvc
+        .perform(bidRequest(finalBidderId, auction.id(), 11_000))
+        .andExpect(status().isCreated());
+    clock.set(auction.endsAt());
+    lifecycle.reconcileDueAuctions();
+    assertThat(
+            awaitAuctionState(auction.id(), Auction.State.AWAITING_SELLER_DECISION).finalBidderId())
+        .isEqualTo(finalBidderId);
+
+    clock.set(clock.instant().plusSeconds(1));
+    accountAdministration.suspend(
+        UUID.randomUUID(),
+        finalBidderId,
+        RegularAccountSuspensionReasonCategory.FRAUD,
+        "The final bidder account requires a fraud review.",
+        null);
+
+    Auction replacement = awaitAuctionState(auction.id(), Auction.State.AWAITING_SELLER_DECISION);
+    assertThat(replacement.finalBidderId()).isEqualTo(nextBidderId);
+    assertThat(replacement.finalAmountCents()).isEqualTo(10_000L);
+    mockMvc
+        .perform(get("/api/v1/auctions/{id}", auction.id()))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$.sellerDecisionDeadlineAt")
+                .value(clock.instant().plusSeconds(24 * 60 * 60L).toString()));
+    awaitAudit("AUCTION_SELLER_DECISION_REOPENED", auction.id());
+  }
+
+  @Test
+  void disqualifyingTheOnlyAwaitingBidEndsUnsoldWithoutCreatingASale() throws Exception {
+    Auction auction =
+        scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900), 11_000L);
+    UUID bidderId = activeAccount("only_decision_bidder");
+
+    clock.set(auction.startsAt());
+    lifecycle.reconcileDueAuctions();
+    clock.set(auction.endsAt().minusSeconds(121));
+    mockMvc.perform(bidRequest(bidderId, auction.id(), 10_000)).andExpect(status().isCreated());
+    clock.set(auction.endsAt());
+    lifecycle.reconcileDueAuctions();
+
+    accountAdministration.suspend(
+        UUID.randomUUID(),
+        bidderId,
+        RegularAccountSuspensionReasonCategory.FRAUD,
+        "The only final bidder account requires a fraud review.",
+        null);
+
+    assertThat(awaitAuctionState(auction.id(), Auction.State.UNSOLD).finalBidId()).isNull();
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT auction_locked_at FROM collectible_items WHERE id = ?",
+                Instant.class,
+                auction.itemId()))
+        .isNull();
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM sales WHERE auction_id = ?", Integer.class, auction.id()))
+        .isZero();
+    awaitAudit("AUCTION_SELLER_DECISION_NO_ELIGIBLE_BID", auction.id());
+  }
+
+  @Test
   void closesAsUnsoldWhenTheOnlyAcceptedBidWasDisqualifiedBeforeSelection() throws Exception {
     Auction auction = scheduleAt(INITIAL_TIME.plusSeconds(300), INITIAL_TIME.plusSeconds(900));
     UUID bidderId = activeAccount("disqualified_bidder");
@@ -571,6 +868,15 @@ class AuctionLifecycleIntegrationTests {
                 + "\"}");
   }
 
+  private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+      sellerDecisionRequest(UUID sellerId, UUID auctionId, String decision) {
+    return post("/api/v1/auctions/{id}/seller-decision", auctionId)
+        .with(user(sellerId.toString()).authorities(tradingEligible()))
+        .with(csrf())
+        .contentType(MediaType.APPLICATION_JSON)
+        .content("{\"decision\":\"" + decision + "\"}");
+  }
+
   private void reconcileWhenReleased(CountDownLatch ready, CountDownLatch start) {
     ready.countDown();
     try {
@@ -597,6 +903,23 @@ class AuctionLifecycleIntegrationTests {
       throw new IllegalStateException("Concurrent bid command was interrupted.", exception);
     } catch (Exception exception) {
       throw new IllegalStateException("Concurrent bid command failed.", exception);
+    }
+  }
+
+  private org.springframework.test.web.servlet.MvcResult sellerDecisionWhenReleased(
+      CountDownLatch ready, CountDownLatch start, UUID sellerId, UUID auctionId) {
+    ready.countDown();
+    try {
+      if (!start.await(5, TimeUnit.SECONDS)) {
+        throw new IllegalStateException("Concurrent seller decision workers were not released.");
+      }
+      return mockMvc.perform(sellerDecisionRequest(sellerId, auctionId, "ACCEPT")).andReturn();
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(
+          "Concurrent seller decision worker was interrupted.", exception);
+    } catch (Exception exception) {
+      throw new IllegalStateException("Concurrent seller decision command failed.", exception);
     }
   }
 
