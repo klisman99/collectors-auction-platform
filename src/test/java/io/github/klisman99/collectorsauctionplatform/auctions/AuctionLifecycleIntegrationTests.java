@@ -1146,6 +1146,7 @@ class AuctionLifecycleIntegrationTests {
 
   private UUID paymentPendingSale(UUID sellerId, UUID buyerId, Instant paymentDeadline) {
     UUID saleId = UUID.randomUUID();
+    UUID itemId = approvedLockedSettlementItem(sellerId);
     jdbcTemplate.update(
         """
         INSERT INTO sales
@@ -1156,7 +1157,7 @@ class AuctionLifecycleIntegrationTests {
         """,
         saleId,
         UUID.randomUUID(),
-        UUID.randomUUID(),
+        itemId,
         sellerId,
         buyerId,
         Timestamp.from(INITIAL_TIME),
@@ -1166,6 +1167,7 @@ class AuctionLifecycleIntegrationTests {
 
   private UUID shipmentPendingSale(UUID sellerId, UUID buyerId, Instant shipmentDeadline) {
     UUID saleId = UUID.randomUUID();
+    UUID itemId = approvedLockedSettlementItem(sellerId);
     jdbcTemplate.update(
         """
         INSERT INTO sales
@@ -1176,7 +1178,7 @@ class AuctionLifecycleIntegrationTests {
         """,
         saleId,
         UUID.randomUUID(),
-        UUID.randomUUID(),
+        itemId,
         sellerId,
         buyerId,
         Timestamp.from(INITIAL_TIME),
@@ -1184,6 +1186,25 @@ class AuctionLifecycleIntegrationTests {
         Timestamp.from(INITIAL_TIME),
         Timestamp.from(shipmentDeadline));
     return saleId;
+  }
+
+  private UUID approvedLockedSettlementItem(UUID sellerId) {
+    UUID itemId = UUID.randomUUID();
+    jdbcTemplate.update(
+        """
+        INSERT INTO collectible_items
+            (id, owner_id, category, title, description, condition, condition_notes,
+             ownership_declared, status, created_at, updated_at, auction_locked_at)
+        VALUES (?, ?, 'CARDS', 'Settlement fixture',
+                'An approved item locked by the fixture sale.', 'EXCELLENT',
+                'No visible wear.', TRUE, 'APPROVED', ?, ?, ?)
+        """,
+        itemId,
+        sellerId,
+        Timestamp.from(INITIAL_TIME),
+        Timestamp.from(INITIAL_TIME),
+        Timestamp.from(INITIAL_TIME));
+    return itemId;
   }
 
   @TestConfiguration

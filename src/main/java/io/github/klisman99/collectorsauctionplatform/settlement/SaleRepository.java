@@ -29,4 +29,9 @@ interface SaleRepository extends JpaRepository<Sale, UUID> {
   @Query(
       "select sale from Sale sale where sale.state = 'SHIPMENT_PENDING' and sale.shipmentDeadlineAt <= :now order by sale.shipmentDeadlineAt")
   List<Sale> findDueShipmentForUpdate(@Param("now") Instant now);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query(
+      "select sale from Sale sale where sale.state = 'SHIPPED' and sale.deliveryConfirmationDeadlineAt <= :now order by sale.deliveryConfirmationDeadlineAt")
+  List<Sale> findDueDeliveryConfirmationForUpdate(@Param("now") Instant now);
 }

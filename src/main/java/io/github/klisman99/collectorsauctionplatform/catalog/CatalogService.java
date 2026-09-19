@@ -67,6 +67,7 @@ class CatalogService {
   CollectibleItem update(UUID ownerId, UUID itemId, DraftRequest request) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
     assertNotAuctionLocked(item);
+    assertNotArchived(item);
     if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
       throw CatalogApiException.cannotSubmit(
           "A submitted item is read-only until moderation decides it.");
@@ -81,6 +82,7 @@ class CatalogService {
   void delete(UUID ownerId, UUID itemId) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
     assertNotAuctionLocked(item);
+    assertNotArchived(item);
     if (item.status() == CollectibleItem.Status.UNDER_REVIEW
         || item.status() == CollectibleItem.Status.APPROVED) {
       throw CatalogApiException.cannotSubmit("A submitted item cannot be deleted.");
@@ -95,6 +97,7 @@ class CatalogService {
   CollectibleItemMedia addImage(UUID ownerId, UUID itemId, MultipartFile file) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
     assertNotAuctionLocked(item);
+    assertNotArchived(item);
     if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
       throw CatalogApiException.cannotSubmit(
           "A submitted item is read-only until moderation decides it.");
@@ -151,6 +154,7 @@ class CatalogService {
   void reorder(UUID ownerId, UUID itemId, List<UUID> mediaIdsInOrder) {
     CollectibleItem item = ownedForUpdate(ownerId, itemId);
     assertNotAuctionLocked(item);
+    assertNotArchived(item);
     if (item.status() == CollectibleItem.Status.UNDER_REVIEW) {
       throw CatalogApiException.cannotSubmit(
           "A submitted item is read-only until moderation decides it.");
@@ -212,6 +216,12 @@ class CatalogService {
   private void assertNotAuctionLocked(CollectibleItem item) {
     if (item.isAuctionLocked()) {
       throw CatalogApiException.auctionLocked();
+    }
+  }
+
+  private void assertNotArchived(CollectibleItem item) {
+    if (item.status() == CollectibleItem.Status.ARCHIVED) {
+      throw CatalogApiException.archived();
     }
   }
 

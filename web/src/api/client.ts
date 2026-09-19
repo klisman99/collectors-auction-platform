@@ -87,7 +87,7 @@ export type DraftInput = {
 };
 export type Draft = DraftInput & {
   id: string;
-  status: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED';
+  status: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED' | 'ARCHIVED';
   submissionReason?: string;
   images: Array<{
     id: string;
@@ -277,9 +277,17 @@ export type Sale = {
   createdAt: string;
   paymentDeadlineAt: string;
   shipmentDeadlineAt?: string;
+  deliveryConfirmationDeadlineAt?: string;
   paidAt?: string;
   shippedAt?: string;
+  completedAt?: string;
   failedAt?: string;
+  terminalReason?:
+    | 'PAYMENT_DEADLINE_EXPIRED'
+    | 'SHIPMENT_DEADLINE_EXPIRED'
+    | 'BUYER_CONFIRMED_DELIVERY'
+    | 'DELIVERY_CONFIRMATION_DEADLINE_EXPIRED';
+  itemDisposition?: 'RELISTING_ELIGIBLE' | 'ARCHIVED';
   carrier?: string;
   trackingReference?: string;
 };
@@ -498,6 +506,10 @@ export async function simulateSalePayment(id: string): Promise<Sale> {
 
 export async function recordSaleShipment(id: string, input: ShipmentInput): Promise<Sale> {
   return saleRequest(`/api/v1/sales/${id}/shipment`, 'POST', input);
+}
+
+export async function confirmSaleDelivery(id: string): Promise<Sale> {
+  return saleRequest(`/api/v1/sales/${id}/delivery-confirmation`, 'POST');
 }
 
 export async function listSuspendedAuctions(): Promise<SuspendedAuction[]> {

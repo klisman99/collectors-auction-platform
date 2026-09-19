@@ -60,8 +60,22 @@ class Sale {
   @Column(name = "shipped_at")
   private Instant shippedAt;
 
+  @Column(name = "delivery_confirmation_deadline_at")
+  private Instant deliveryConfirmationDeadlineAt;
+
+  @Column(name = "completed_at")
+  private Instant completedAt;
+
   @Column(name = "failed_at")
   private Instant failedAt;
+
+  @Column(name = "terminal_reason")
+  @Enumerated(EnumType.STRING)
+  private TerminalReason terminalReason;
+
+  @Column(name = "item_disposition")
+  @Enumerated(EnumType.STRING)
+  private ItemDisposition itemDisposition;
 
   @Column(length = 120)
   private String carrier;
@@ -95,10 +109,13 @@ class Sale {
       return Transition.IDEMPOTENT;
     }
     if (state != State.PAYMENT_PENDING) {
+      if (state == State.FAILED && terminalReason == TerminalReason.PAYMENT_DEADLINE_EXPIRED) {
+        return Transition.IDEMPOTENT;
+      }
       return Transition.UNAVAILABLE;
     }
     if (!now.isBefore(paymentDeadlineAt)) {
-      fail(now);
+      fail(now, TerminalReason.PAYMENT_DEADLINE_EXPIRED);
       return Transition.EXPIRED;
     }
     state = State.SHIPMENT_PENDING;
@@ -114,16 +131,35 @@ class Sale {
           : Transition.UNAVAILABLE;
     }
     if (state != State.SHIPMENT_PENDING) {
+      if (state == State.FAILED && terminalReason == TerminalReason.SHIPMENT_DEADLINE_EXPIRED) {
+        return Transition.IDEMPOTENT;
+      }
       return Transition.UNAVAILABLE;
     }
     if (!now.isBefore(shipmentDeadlineAt)) {
-      fail(now);
+      fail(now, TerminalReason.SHIPMENT_DEADLINE_EXPIRED);
       return Transition.EXPIRED;
     }
     this.carrier = carrier;
     this.trackingReference = trackingReference;
     this.shippedAt = now;
+    this.deliveryConfirmationDeadlineAt = now.plus(Duration.ofDays(7));
     this.state = State.SHIPPED;
+    return Transition.APPLIED;
+  }
+
+  Transition confirmDelivery(Instant now) {
+    if (completedAt != null) {
+      return Transition.IDEMPOTENT;
+    }
+    if (state != State.SHIPPED) {
+      return Transition.UNAVAILABLE;
+    }
+    if (!now.isBefore(deliveryConfirmationDeadlineAt)) {
+      complete(now, TerminalReason.DELIVERY_CONFIRMATION_DEADLINE_EXPIRED);
+      return Transition.AUTO_COMPLETED;
+    }
+    complete(now, TerminalReason.BUYER_CONFIRMED_DELIVERY);
     return Transition.APPLIED;
   }
 
@@ -131,7 +167,7 @@ class Sale {
     if (state != State.PAYMENT_PENDING || now.isBefore(paymentDeadlineAt)) {
       return false;
     }
-    fail(now);
+    fail(now, TerminalReason.PAYMENT_DEADLINE_EXPIRED);
     return true;
   }
 
@@ -139,7 +175,15 @@ class Sale {
     if (state != State.SHIPMENT_PENDING || now.isBefore(shipmentDeadlineAt)) {
       return false;
     }
-    fail(now);
+    fail(now, TerminalReason.SHIPMENT_DEADLINE_EXPIRED);
+    return true;
+  }
+
+  boolean completeDeliveryIfDue(Instant now) {
+    if (state != State.SHIPPED || now.isBefore(deliveryConfirmationDeadlineAt)) {
+      return false;
+    }
+    complete(now, TerminalReason.DELIVERY_CONFIRMATION_DEADLINE_EXPIRED);
     return true;
   }
 
@@ -211,8 +255,24 @@ class Sale {
     return shippedAt;
   }
 
+  Instant deliveryConfirmationDeadlineAt() {
+    return deliveryConfirmationDeadlineAt;
+  }
+
+  Instant completedAt() {
+    return completedAt;
+  }
+
   Instant failedAt() {
     return failedAt;
+  }
+
+  TerminalReason terminalReason() {
+    return terminalReason;
+  }
+
+  ItemDisposition itemDisposition() {
+    return itemDisposition;
   }
 
   String carrier() {
@@ -223,9 +283,18 @@ class Sale {
     return trackingReference;
   }
 
-  private void fail(Instant now) {
+  private void fail(Instant now, TerminalReason reason) {
     state = State.FAILED;
     failedAt = now;
+    terminalReason = reason;
+    itemDisposition = ItemDisposition.RELISTING_ELIGIBLE;
+  }
+
+  private void complete(Instant now, TerminalReason reason) {
+    state = State.COMPLETED;
+    completedAt = now;
+    terminalReason = reason;
+    itemDisposition = ItemDisposition.ARCHIVED;
   }
 
   enum State {
@@ -240,6 +309,19 @@ class Sale {
     APPLIED,
     IDEMPOTENT,
     EXPIRED,
+    AUTO_COMPLETED,
     UNAVAILABLE
+  }
+
+  enum TerminalReason {
+    PAYMENT_DEADLINE_EXPIRED,
+    SHIPMENT_DEADLINE_EXPIRED,
+    BUYER_CONFIRMED_DELIVERY,
+    DELIVERY_CONFIRMATION_DEADLINE_EXPIRED
+  }
+
+  enum ItemDisposition {
+    RELISTING_ELIGIBLE,
+    ARCHIVED
   }
 }

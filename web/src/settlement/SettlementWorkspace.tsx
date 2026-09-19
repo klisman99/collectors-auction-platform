@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import {
   ApiError,
+  confirmSaleDelivery,
   listMySales,
   recordSaleShipment,
   type Sale,
@@ -66,6 +67,22 @@ export function SettlementWorkspace() {
       setNotice('Shipment recorded. The buyer can now see the carrier and tracking reference.');
     } catch (error) {
       setFailure(actionFailure(error, 'Shipment could not be recorded. Retry safely.'));
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  async function confirmDelivery(sale: Sale) {
+    setSubmitting(sale.id);
+    setFailure(null);
+    setNotice(null);
+    try {
+      replace(await confirmSaleDelivery(sale.id));
+      setNotice('Delivery confirmed. The settlement is complete and the collectible is archived.');
+    } catch (error) {
+      setFailure(
+        actionFailure(error, 'Delivery confirmation could not be recorded. Retry safely.'),
+      );
     } finally {
       setSubmitting(null);
     }
@@ -136,6 +153,14 @@ export function SettlementWorkspace() {
                       </dd>
                     </div>
                   )}
+                  {sale.deliveryConfirmationDeadlineAt !== undefined && (
+                    <div>
+                      <dt className="text-slate-400">Delivery confirmation deadline</dt>
+                      <dd className="mt-1 text-slate-200">
+                        {formatSaoPaulo(sale.deliveryConfirmationDeadlineAt)}
+                      </dd>
+                    </div>
+                  )}
                   {sale.carrier !== undefined && (
                     <div>
                       <dt className="text-slate-400">Carrier</dt>
@@ -146,6 +171,22 @@ export function SettlementWorkspace() {
                     <div>
                       <dt className="text-slate-400">Tracking reference</dt>
                       <dd className="mt-1 text-slate-200">{sale.trackingReference}</dd>
+                    </div>
+                  )}
+                  {sale.terminalReason !== undefined && (
+                    <div>
+                      <dt className="text-slate-400">Terminal reason</dt>
+                      <dd className="mt-1 text-slate-200">
+                        {terminalReasonLabel(sale.terminalReason)}
+                      </dd>
+                    </div>
+                  )}
+                  {sale.itemDisposition !== undefined && (
+                    <div>
+                      <dt className="text-slate-400">Item disposition</dt>
+                      <dd className="mt-1 text-slate-200">
+                        {itemDispositionLabel(sale.itemDisposition)}
+                      </dd>
                     </div>
                   )}
                 </dl>
@@ -223,16 +264,39 @@ export function SettlementWorkspace() {
                       </button>
                     </form>
                   )}
-                  {sale.state === 'SHIPPED' && (
+                  {sale.state === 'SHIPPED' && sale.participantRole === 'BUYER' && (
+                    <>
+                      <p className="text-sm leading-6 text-emerald-100">
+                        Shipment is recorded. Confirm delivery before the deadline to complete the
+                        settlement now. Without confirmation, it completes automatically.
+                      </p>
+                      <button
+                        className="mt-4 rounded-lg bg-cyan-300 px-4 py-2.5 text-sm font-semibold text-slate-950 disabled:cursor-wait disabled:opacity-60"
+                        disabled={pending}
+                        onClick={() => confirmDelivery(sale)}
+                        type="button"
+                      >
+                        {pending ? 'Confirming delivery…' : 'Confirm delivery'}
+                      </button>
+                    </>
+                  )}
+                  {sale.state === 'SHIPPED' && sale.participantRole === 'SELLER' && (
                     <p className="text-sm leading-6 text-emerald-100">
-                      Shipment is recorded. The carrier and tracking reference are visible to both
-                      participants.
+                      Shipment is recorded. The buyer may confirm delivery before the deadline;
+                      otherwise the settlement completes automatically.
+                    </p>
+                  )}
+                  {sale.state === 'COMPLETED' && (
+                    <p className="text-sm leading-6 text-emerald-100">
+                      This settlement is complete. The collectible is archived and cannot be
+                      relisted.
                     </p>
                   )}
                   {sale.state === 'FAILED' && (
                     <p className="text-sm leading-6 text-rose-200">
-                      This settlement expired before its required action was recorded. No further
-                      action is available.
+                      This settlement failed before its required action was recorded. The unchanged
+                      approved item is eligible for relisting; no further settlement action is
+                      available.
                     </p>
                   )}
                 </div>
@@ -263,4 +327,17 @@ function stateTone(state: Sale['state']): string {
     : state === 'SHIPPED' || state === 'COMPLETED'
       ? 'text-emerald-300'
       : 'text-amber-300';
+}
+
+function terminalReasonLabel(reason: NonNullable<Sale['terminalReason']>): string {
+  return {
+    PAYMENT_DEADLINE_EXPIRED: 'Payment deadline expired',
+    SHIPMENT_DEADLINE_EXPIRED: 'Shipment deadline expired',
+    BUYER_CONFIRMED_DELIVERY: 'Buyer confirmed delivery',
+    DELIVERY_CONFIRMATION_DEADLINE_EXPIRED: 'Delivery confirmation deadline expired',
+  }[reason];
+}
+
+function itemDispositionLabel(disposition: NonNullable<Sale['itemDisposition']>): string {
+  return disposition === 'ARCHIVED' ? 'Archived — cannot be relisted' : 'Eligible for relisting';
 }

@@ -23,7 +23,7 @@ export type DraftResponse = {
     condition?: 'NEW_SEALED' | 'EXCELLENT' | 'VERY_GOOD' | 'GOOD' | 'FAIR' | 'POOR' | 'NOT_APPLICABLE';
     conditionNotes?: string;
     ownershipDeclared?: boolean;
-    status?: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED';
+    status?: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED' | 'ARCHIVED';
     submissionReason?: string;
     images?: Array<ImageResponse>;
     createdAt?: string;
@@ -142,7 +142,11 @@ export type SaleResponse = {
     shipmentDeadlineAt?: string;
     paidAt?: string;
     shippedAt?: string;
+    deliveryConfirmationDeadlineAt?: string;
+    completedAt?: string;
     failedAt?: string;
+    terminalReason?: string;
+    itemDisposition?: string;
     carrier?: string;
     trackingReference?: string;
 };
@@ -548,6 +552,24 @@ export type SimulateSalePaymentResponses = {
 };
 
 export type SimulateSalePaymentResponse = SimulateSalePaymentResponses[keyof SimulateSalePaymentResponses];
+
+export type ConfirmSaleDeliveryData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/sales/{id}/delivery-confirmation';
+};
+
+export type ConfirmSaleDeliveryResponses = {
+    /**
+     * OK
+     */
+    200: SaleResponse;
+};
+
+export type ConfirmSaleDeliveryResponse = ConfirmSaleDeliveryResponses[keyof ConfirmSaleDeliveryResponses];
 
 export type SuspendAuctionData = {
     body: ReasonRequest;

@@ -6,7 +6,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Deliberate catalog interface used to publish immutable auction item snapshots. */
+/** Deliberate catalog interface used by auction and settlement lifecycle commands. */
 @Service
 public class CatalogAuctioning {
 
@@ -61,6 +61,19 @@ public class CatalogAuctioning {
     release(itemId, now);
   }
 
+  /** Releases an unchanged approved item after a terminal failed settlement. */
+  @Transactional
+  public void releaseApprovedItemAfterFailedSettlement(UUID itemId, Instant now) {
+    release(itemId, now);
+  }
+
+  /** Permanently archives the approved item after a completed settlement. */
+  @Transactional
+  public void archiveApprovedItemAfterCompletedSettlement(UUID itemId, Instant now) {
+    CollectibleItem item = approvedItem(itemId);
+    item.archiveAfterCompletedSettlement(now);
+  }
+
   @Transactional
   public void releaseApprovedItemAfterAdministrativeCancellation(UUID itemId, Instant now) {
     release(itemId, now);
@@ -73,9 +86,15 @@ public class CatalogAuctioning {
   }
 
   private CollectibleItem release(UUID itemId, Instant now) {
-    CollectibleItem item = items.findById(itemId).orElseThrow(ItemNotAuctionable::notFound);
+    CollectibleItem item = approvedItem(itemId);
     item.releaseAfterTerminalAuction(now);
     return item;
+  }
+
+  private CollectibleItem approvedItem(UUID itemId) {
+    return items
+        .findByIdAndStatus(itemId, CollectibleItem.Status.APPROVED)
+        .orElseThrow(ItemNotAuctionable::notApproved);
   }
 
   public record ItemSnapshot(

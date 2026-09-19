@@ -28,6 +28,7 @@ flowchart LR
     Bidding --> Auctions
     Settlement --> Identity
     Settlement --> Auctions
+    Settlement --> Catalog
     Notifications -. durable events .-> Identity
     Notifications -. durable events .-> Moderation
     Notifications -. durable events .-> Auctions
@@ -75,7 +76,7 @@ Owns bid attempts, idempotency results, accepted bids, auction-local sequence, p
 
 ### settlement
 
-Owns the exactly-one sale created from a sold auction and the simulated payment, shipment, delivery confirmation, expiry, completion, failure, and item-release lifecycle.
+Owns the exactly-one sale created from a sold auction and the simulated payment, shipment, delivery confirmation, expiry, completion, failure, and item-release lifecycle. It invokes Catalog's deliberate item-lifecycle contract to release an unchanged failed-settlement item or archive a completed one.
 
 ### notifications
 

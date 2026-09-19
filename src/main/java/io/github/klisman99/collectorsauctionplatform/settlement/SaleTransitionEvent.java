@@ -22,6 +22,10 @@ public record SaleTransitionEvent(
     Instant occurredAt,
     Instant paymentDeadlineAt,
     Instant shipmentDeadlineAt,
+    Instant deliveryConfirmationDeadlineAt,
+    Instant completedAt,
+    String terminalReason,
+    String itemDisposition,
     String carrier,
     String trackingReference) {
 
@@ -30,6 +34,8 @@ public record SaleTransitionEvent(
     PAYMENT_RECORDED,
     SHIPMENT_RECORDED,
     PAYMENT_EXPIRED,
-    SHIPMENT_EXPIRED
+    SHIPMENT_EXPIRED,
+    DELIVERY_CONFIRMED,
+    DELIVERY_CONFIRMATION_DEADLINE_EXPIRED
   }
 }

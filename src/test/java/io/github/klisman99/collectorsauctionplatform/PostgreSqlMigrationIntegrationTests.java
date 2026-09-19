@@ -19,7 +19,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @TestPropertySource(
     properties = {
       "platform.identity.initial-administrator.email=migration-test@example.com",
-      "platform.identity.initial-administrator.password=migration test administrator password"
+      "platform.identity.initial-administrator.password=migration test administrator password",
+      "platform.auctions.reconciliation-delay-ms=600000",
+      "platform.settlement.reconciliation-delay-ms=600000",
+      "spring.session.jdbc.cleanup-cron=0 0 0 1 1 *"
     })
 class PostgreSqlMigrationIntegrationTests {
 
@@ -43,7 +46,7 @@ class PostgreSqlMigrationIntegrationTests {
 
   @Test
   void appliesTheForwardOnlyMigrationsAgainstPostgreSql() {
-    assertThat(flyway.info().applied()).hasSize(17);
+    assertThat(flyway.info().applied()).hasSize(18);
     assertThat(
             jdbcTemplate.queryForObject(
                 """
@@ -86,6 +89,15 @@ class PostgreSqlMigrationIntegrationTests {
                 SELECT count(*)
                 FROM information_schema.columns
                 WHERE table_name = 'sales' AND column_name = 'payment_deadline_at'
+                """,
+                Integer.class))
+        .isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                """
+                SELECT count(*)
+                FROM information_schema.columns
+                WHERE table_name = 'sales' AND column_name = 'delivery_confirmation_deadline_at'
                 """,
                 Integer.class))
         .isEqualTo(1);
