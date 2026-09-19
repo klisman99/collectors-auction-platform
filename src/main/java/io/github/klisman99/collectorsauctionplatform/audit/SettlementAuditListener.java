@@ -22,6 +22,9 @@ class SettlementAuditListener {
           case SHIPMENT_RECORDED -> AuditRecord.AuditAction.SALE_SHIPMENT_RECORDED;
           case PAYMENT_EXPIRED -> AuditRecord.AuditAction.SALE_PAYMENT_EXPIRED;
           case SHIPMENT_EXPIRED -> AuditRecord.AuditAction.SALE_SHIPMENT_EXPIRED;
+          case DELIVERY_CONFIRMED -> AuditRecord.AuditAction.SALE_DELIVERY_CONFIRMED;
+          case DELIVERY_CONFIRMATION_DEADLINE_EXPIRED ->
+              AuditRecord.AuditAction.SALE_DELIVERY_CONFIRMATION_DEADLINE_EXPIRED;
         };
     String metadata =
         "auctionId="
@@ -36,6 +39,10 @@ class SettlementAuditListener {
             + event.amountCents()
             + value("paymentDeadlineAt", event.paymentDeadlineAt())
             + value("shipmentDeadlineAt", event.shipmentDeadlineAt())
+            + value("deliveryConfirmationDeadlineAt", event.deliveryConfirmationDeadlineAt())
+            + value("completedAt", event.completedAt())
+            + value("terminalReason", event.terminalReason())
+            + value("itemDisposition", event.itemDisposition())
             + value("carrier", event.carrier())
             + value("trackingReference", event.trackingReference());
     AuditRecord record =

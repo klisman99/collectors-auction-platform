@@ -54,6 +54,13 @@ class SettlementController {
         sellerId);
   }
 
+  @PostMapping("/{id}/delivery-confirmation")
+  @Operation(operationId = "confirmSaleDelivery", summary = "Confirm delivery of a shipped sale")
+  SaleResponse confirmDelivery(Principal principal, @PathVariable UUID id) {
+    UUID buyerId = UUID.fromString(principal.getName());
+    return SaleResponse.from(sales.confirmDelivery(buyerId, id), buyerId);
+  }
+
   record ShipmentRequest(
       @NotBlank @Size(max = 120) String carrier,
       @NotBlank @Size(max = 160) String trackingReference) {}
@@ -72,7 +79,11 @@ class SettlementController {
       Instant shipmentDeadlineAt,
       Instant paidAt,
       Instant shippedAt,
+      Instant deliveryConfirmationDeadlineAt,
+      Instant completedAt,
       Instant failedAt,
+      String terminalReason,
+      String itemDisposition,
       String carrier,
       String trackingReference) {
 
@@ -91,7 +102,11 @@ class SettlementController {
           sale.shipmentDeadlineAt(),
           sale.paidAt(),
           sale.shippedAt(),
+          sale.deliveryConfirmationDeadlineAt(),
+          sale.completedAt(),
           sale.failedAt(),
+          sale.terminalReason() == null ? null : sale.terminalReason().name(),
+          sale.itemDisposition() == null ? null : sale.itemDisposition().name(),
           sale.carrier(),
           sale.trackingReference());
     }

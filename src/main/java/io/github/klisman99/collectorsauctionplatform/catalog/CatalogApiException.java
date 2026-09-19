@@ -68,6 +68,14 @@ class CatalogApiException extends ErrorResponseException {
         "An item attached to a non-terminal auction cannot be changed.");
   }
 
+  static CatalogApiException archived() {
+    return new CatalogApiException(
+        HttpStatus.CONFLICT,
+        "ITEM_ARCHIVED",
+        "BR-ITEM-018",
+        "A completed-settlement item is archived and cannot be changed or relisted.");
+  }
+
   static CatalogApiException reviewConflict() {
     return new CatalogApiException(
         HttpStatus.CONFLICT,

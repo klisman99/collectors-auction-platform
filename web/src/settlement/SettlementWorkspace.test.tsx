@@ -3,12 +3,19 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('../api/client', () => ({
   ApiError: class ApiError extends Error {},
+  confirmSaleDelivery: vi.fn(),
   listMySales: vi.fn(),
   recordSaleShipment: vi.fn(),
   simulateSalePayment: vi.fn(),
 }));
 
-import { listMySales, recordSaleShipment, type Sale, simulateSalePayment } from '../api/client';
+import {
+  confirmSaleDelivery,
+  listMySales,
+  recordSaleShipment,
+  type Sale,
+  simulateSalePayment,
+} from '../api/client';
 import { SettlementWorkspace } from './SettlementWorkspace';
 
 const paymentPendingBuyerSale: Sale = {
@@ -29,6 +36,7 @@ describe('SettlementWorkspace', () => {
 
   beforeEach(() => {
     vi.mocked(listMySales).mockReset();
+    vi.mocked(confirmSaleDelivery).mockReset();
     vi.mocked(recordSaleShipment).mockReset();
     vi.mocked(simulateSalePayment).mockReset();
   });
@@ -95,5 +103,41 @@ describe('SettlementWorkspace', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Carrier')).toBeInTheDocument();
     expect(screen.getByText('BR123')).toBeInTheDocument();
+  });
+
+  test('lets the buyer confirm delivery and presents the terminal disposition', async () => {
+    const shippedBuyerSale: Sale = {
+      ...paymentPendingBuyerSale,
+      state: 'SHIPPED',
+      paidAt: '2026-09-18T12:15:00Z',
+      shippedAt: '2026-09-18T12:20:00Z',
+      shipmentDeadlineAt: '2026-09-21T12:15:00Z',
+      deliveryConfirmationDeadlineAt: '2026-09-25T12:20:00Z',
+      carrier: 'Correios',
+      trackingReference: 'BR123',
+    };
+    vi.mocked(listMySales).mockResolvedValue([shippedBuyerSale]);
+    vi.mocked(confirmSaleDelivery).mockResolvedValue({
+      ...shippedBuyerSale,
+      state: 'COMPLETED',
+      completedAt: '2026-09-18T12:30:00Z',
+      terminalReason: 'BUYER_CONFIRMED_DELIVERY',
+      itemDisposition: 'ARCHIVED',
+    });
+
+    render(<SettlementWorkspace />);
+
+    await screen.findByText('Signed settlement card');
+    expect(screen.getByText('Delivery confirmation deadline')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm delivery' }));
+
+    await waitFor(() => expect(confirmSaleDelivery).toHaveBeenCalledWith('sale-41'));
+    expect(
+      await screen.findByText(
+        'Delivery confirmed. The settlement is complete and the collectible is archived.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Buyer confirmed delivery')).toBeInTheDocument();
+    expect(screen.getByText('Archived — cannot be relisted')).toBeInTheDocument();
   });
 });

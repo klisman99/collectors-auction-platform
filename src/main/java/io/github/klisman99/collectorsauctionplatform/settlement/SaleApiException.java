@@ -34,6 +34,14 @@ final class SaleApiException extends ErrorResponseException {
         "Only the seller may record shipment for this sale.");
   }
 
+  static SaleApiException deliveryConfirmationForbidden() {
+    return new SaleApiException(
+        HttpStatus.FORBIDDEN,
+        "DELIVERY_CONFIRMATION_FORBIDDEN",
+        "BR-SALE-005",
+        "Only the buyer may confirm delivery for this sale.");
+  }
+
   static SaleApiException paymentUnavailable() {
     return new SaleApiException(
         HttpStatus.CONFLICT,
@@ -48,6 +56,14 @@ final class SaleApiException extends ErrorResponseException {
         "SHIPMENT_UNAVAILABLE",
         "BR-SALE-004",
         "Shipment can no longer be recorded for this sale.");
+  }
+
+  static SaleApiException deliveryConfirmationUnavailable() {
+    return new SaleApiException(
+        HttpStatus.CONFLICT,
+        "DELIVERY_CONFIRMATION_UNAVAILABLE",
+        "BR-SALE-005",
+        "Delivery can be confirmed only after shipment is recorded.");
   }
 
   private static ProblemDetail problem(

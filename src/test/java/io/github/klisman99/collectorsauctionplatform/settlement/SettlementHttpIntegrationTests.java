@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.klisman99.collectorsauctionplatform.catalog.CatalogAuctioning;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import java.sql.Timestamp;
@@ -55,12 +56,15 @@ class SettlementHttpIntegrationTests {
 
   @Autowired private SettlementLifecycle lifecycle;
 
+  @Autowired private CatalogAuctioning catalog;
+
   @Autowired private RecordingMailSender mailSender;
 
   @BeforeEach
   void clearFixtures() {
     jdbcTemplate.update(
         "DELETE FROM sales WHERE buyer_handle = 'buyer_settlement' OR seller_handle = 'seller_settlement'");
+    jdbcTemplate.update("DELETE FROM collectible_items WHERE title = 'Settlement clock card'");
     jdbcTemplate.update(
         "DELETE FROM regular_accounts WHERE normalized_email IN (?, ?)",
         "buyer_settlement@example.com",
@@ -182,6 +186,63 @@ class SettlementHttpIntegrationTests {
   }
 
   @Test
+  void onlyTheBuyerConfirmsDeliveryOnceAndTheCompletedItemIsArchived() throws Exception {
+    SaleFixture sale = paymentPendingSale();
+    paymentAndShipment(sale);
+
+    mockMvc
+        .perform(
+            post("/api/v1/sales/{id}/delivery-confirmation", sale.saleId())
+                .with(regularAccount(sale.sellerId()))
+                .with(csrf()))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("DELIVERY_CONFIRMATION_FORBIDDEN"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/sales/{id}/delivery-confirmation", sale.saleId())
+                .with(regularAccount(sale.buyerId()))
+                .with(csrf()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("COMPLETED"))
+        .andExpect(jsonPath("$.completedAt").value("2026-09-18T12:00:00Z"))
+        .andExpect(jsonPath("$.terminalReason").value("BUYER_CONFIRMED_DELIVERY"))
+        .andExpect(jsonPath("$.itemDisposition").value("ARCHIVED"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/sales/{id}/delivery-confirmation", sale.saleId())
+                .with(regularAccount(sale.buyerId()))
+                .with(csrf()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("COMPLETED"))
+        .andExpect(jsonPath("$.completedAt").value("2026-09-18T12:00:00Z"));
+
+    assertThat(itemStatus(sale.itemId())).isEqualTo("ARCHIVED");
+    assertThat(itemIsUnlocked(sale.itemId())).isTrue();
+    awaitAudit("SALE_DELIVERY_CONFIRMED", sale.saleId());
+    assertThat(mailSender.awaitMessages(6))
+        .extracting(message -> message.getSubject())
+        .contains("Delivery confirmed — settlement completed");
+  }
+
+  @Test
+  void suspendedBuyerCanConfirmDeliveryForTheirExistingSale() throws Exception {
+    SaleFixture sale = paymentPendingSale();
+    paymentAndShipment(sale);
+    jdbcTemplate.update(
+        "UPDATE regular_accounts SET status = 'SUSPENDED' WHERE id = ?", sale.buyerId());
+
+    mockMvc
+        .perform(
+            post("/api/v1/sales/{id}/delivery-confirmation", sale.saleId())
+                .with(suspendedRegularAccount(sale.buyerId()))
+                .with(csrf()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.state").value("COMPLETED"));
+  }
+
+  @Test
   void expiryWorkerFailsAPaymentPendingSaleAtItsStoredDeadlineAndNotifiesParticipants()
       throws Exception {
     SaleFixture sale = paymentPendingSale();
@@ -193,11 +254,66 @@ class SettlementHttpIntegrationTests {
         .perform(get("/api/v1/sales/mine").with(regularAccount(sale.buyerId())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].state").value("FAILED"))
-        .andExpect(jsonPath("$[0].failedAt").value("2026-09-19T12:00:00Z"));
+        .andExpect(jsonPath("$[0].failedAt").value("2026-09-19T12:00:00Z"))
+        .andExpect(jsonPath("$[0].terminalReason").value("PAYMENT_DEADLINE_EXPIRED"))
+        .andExpect(jsonPath("$[0].itemDisposition").value("RELISTING_ELIGIBLE"));
+    assertThat(itemStatus(sale.itemId())).isEqualTo("APPROVED");
+    assertThat(itemIsUnlocked(sale.itemId())).isTrue();
+    assertThat(catalog.lockApprovedItem(sale.sellerId(), sale.itemId(), INITIAL_TIME).itemId())
+        .isEqualTo(sale.itemId());
     awaitAudit("SALE_PAYMENT_EXPIRED", sale.saleId());
     assertThat(mailSender.awaitMessages(2))
         .extracting(message -> message.getSubject())
         .contains("Payment deadline expired", "Payment deadline expired for your sale");
+  }
+
+  @Test
+  void shipmentDeadlineExpiryReleasesTheUnchangedApprovedItem() throws Exception {
+    SaleFixture sale = paymentPendingSale();
+    mockMvc
+        .perform(
+            post("/api/v1/sales/{id}/payment", sale.saleId())
+                .with(regularAccount(sale.buyerId()))
+                .with(csrf()))
+        .andExpect(status().isOk());
+    clock.set(INITIAL_TIME.plusSeconds(3 * 24 * 60 * 60));
+
+    lifecycle.reconcileDueSales();
+    lifecycle.reconcileDueSales();
+
+    mockMvc
+        .perform(get("/api/v1/sales/mine").with(regularAccount(sale.sellerId())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].state").value("FAILED"))
+        .andExpect(jsonPath("$[0].terminalReason").value("SHIPMENT_DEADLINE_EXPIRED"))
+        .andExpect(jsonPath("$[0].itemDisposition").value("RELISTING_ELIGIBLE"));
+    assertThat(itemStatus(sale.itemId())).isEqualTo("APPROVED");
+    assertThat(itemIsUnlocked(sale.itemId())).isTrue();
+    awaitAudit("SALE_SHIPMENT_EXPIRED", sale.saleId());
+  }
+
+  @Test
+  void deliveryConfirmationDeadlineCompletesTheSaleAndArchivesTheItemOnce() throws Exception {
+    SaleFixture sale = paymentPendingSale();
+    paymentAndShipment(sale);
+    clock.set(INITIAL_TIME.plusSeconds(7 * 24 * 60 * 60));
+
+    lifecycle.reconcileDueSales();
+    lifecycle.reconcileDueSales();
+
+    mockMvc
+        .perform(get("/api/v1/sales/mine").with(regularAccount(sale.buyerId())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].state").value("COMPLETED"))
+        .andExpect(jsonPath("$[0].completedAt").value("2026-09-25T12:00:00Z"))
+        .andExpect(jsonPath("$[0].terminalReason").value("DELIVERY_CONFIRMATION_DEADLINE_EXPIRED"))
+        .andExpect(jsonPath("$[0].itemDisposition").value("ARCHIVED"));
+    assertThat(itemStatus(sale.itemId())).isEqualTo("ARCHIVED");
+    assertThat(itemIsUnlocked(sale.itemId())).isTrue();
+    awaitAudit("SALE_DELIVERY_CONFIRMATION_DEADLINE_EXPIRED", sale.saleId());
+    assertThat(mailSender.awaitMessages(6))
+        .extracting(message -> message.getSubject())
+        .contains("Delivery confirmation deadline reached — settlement completed");
   }
 
   private SaleFixture paymentPendingSale() {
@@ -205,6 +321,7 @@ class SettlementHttpIntegrationTests {
     UUID sellerId = account("seller_settlement");
     UUID saleId = UUID.randomUUID();
     UUID auctionId = UUID.randomUUID();
+    UUID itemId = approvedLockedItem(sellerId);
     jdbcTemplate.update(
         """
         INSERT INTO sales
@@ -215,12 +332,61 @@ class SettlementHttpIntegrationTests {
         """,
         saleId,
         auctionId,
-        UUID.randomUUID(),
+        itemId,
         sellerId,
         buyerId,
         Timestamp.from(INITIAL_TIME),
         Timestamp.from(INITIAL_TIME.plusSeconds(24 * 60 * 60)));
-    return new SaleFixture(saleId, auctionId, buyerId, sellerId);
+    return new SaleFixture(saleId, auctionId, itemId, buyerId, sellerId);
+  }
+
+  private void paymentAndShipment(SaleFixture sale) throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/sales/{id}/payment", sale.saleId())
+                .with(regularAccount(sale.buyerId()))
+                .with(csrf()))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(
+            post("/api/v1/sales/{id}/shipment", sale.saleId())
+                .with(regularAccount(sale.sellerId()))
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"carrier\":\"Correios\",\"trackingReference\":\"BR123\"}"))
+        .andExpect(status().isOk());
+  }
+
+  private UUID approvedLockedItem(UUID sellerId) {
+    UUID itemId = UUID.randomUUID();
+    jdbcTemplate.update(
+        """
+        INSERT INTO collectible_items
+            (id, owner_id, category, title, description, condition, condition_notes,
+             ownership_declared, status, created_at, updated_at, auction_locked_at)
+        VALUES (?, ?, 'CARDS', 'Settlement clock card', ?, 'EXCELLENT', ?, TRUE, 'APPROVED', ?, ?, ?)
+        """,
+        itemId,
+        sellerId,
+        "A durable collectible used to verify settlement terminal disposition.",
+        "Excellent condition with complete notes for settlement verification.",
+        Timestamp.from(INITIAL_TIME),
+        Timestamp.from(INITIAL_TIME),
+        Timestamp.from(INITIAL_TIME));
+    return itemId;
+  }
+
+  private String itemStatus(UUID itemId) {
+    return jdbcTemplate.queryForObject(
+        "SELECT status FROM collectible_items WHERE id = ?", String.class, itemId);
+  }
+
+  private boolean itemIsUnlocked(UUID itemId) {
+    return Boolean.TRUE.equals(
+        jdbcTemplate.queryForObject(
+            "SELECT auction_locked_at IS NULL FROM collectible_items WHERE id = ?",
+            Boolean.class,
+            itemId));
   }
 
   private UUID account(String handle) {
@@ -252,7 +418,8 @@ class SettlementHttpIntegrationTests {
     return new SimpleGrantedAuthority("ROLE_REGULAR_ACCOUNT");
   }
 
-  private record SaleFixture(UUID saleId, UUID auctionId, UUID buyerId, UUID sellerId) {}
+  private record SaleFixture(
+      UUID saleId, UUID auctionId, UUID itemId, UUID buyerId, UUID sellerId) {}
 
   private void awaitAudit(String action, UUID saleId) throws InterruptedException {
     long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);

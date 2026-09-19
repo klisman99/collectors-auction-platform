@@ -39,6 +39,10 @@ class SaleTransitionPublisher {
             occurredAt,
             sale.paymentDeadlineAt(),
             sale.shipmentDeadlineAt(),
+            sale.deliveryConfirmationDeadlineAt(),
+            sale.completedAt(),
+            sale.terminalReason() == null ? null : sale.terminalReason().name(),
+            sale.itemDisposition() == null ? null : sale.itemDisposition().name(),
             sale.carrier(),
             sale.trackingReference()));
   }

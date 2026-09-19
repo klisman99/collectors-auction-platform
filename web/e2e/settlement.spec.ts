@@ -25,14 +25,14 @@ test('buyer and seller complete the simulated payment and shipment handoff from 
     insertPaymentPendingSale({ buyerEmail, sellerEmail, title });
     await buyerPage.reload();
     await expect(buyerPage.getByRole('heading', { name: 'Settlement desk' })).toBeVisible();
-    await expect(buyerPage.getByText(title, { exact: true })).toBeVisible();
+    await expect(buyerPage.getByRole('heading', { name: title, exact: true })).toBeVisible();
     await buyerPage.getByRole('button', { name: 'Simulate payment' }).click();
     await expect(
       buyerPage.getByText('Payment recorded. The seller can now record shipment.'),
     ).toBeVisible();
 
     await page.reload();
-    await expect(page.getByText(title, { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
     await page.getByLabel('Carrier').fill('Simulated Express');
     await page.getByLabel('Tracking reference').fill('SIM-123-TRACK');
     await page.getByRole('button', { name: 'Record shipment' }).click();
@@ -45,6 +45,16 @@ test('buyer and seller complete the simulated payment and shipment handoff from 
     await buyerPage.reload();
     await expect(buyerPage.getByText('Simulated Express')).toBeVisible();
     await expect(buyerPage.getByText('SIM-123-TRACK')).toBeVisible();
+    await buyerPage.getByRole('button', { name: 'Confirm delivery' }).click();
+    await expect(
+      buyerPage.getByText(
+        'Delivery confirmed. The settlement is complete and the collectible is archived.',
+      ),
+    ).toBeVisible();
+    await expect(buyerPage.getByText('Archived — cannot be relisted')).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByText('Completed', { exact: true })).toBeVisible();
   } finally {
     await buyerContext.close();
   }
@@ -97,7 +107,19 @@ function insertPaymentPendingSale({
     '-d',
     'collectors_auction',
     '-c',
-    `INSERT INTO sales (
+    `INSERT INTO collectible_items (
+      id, owner_id, category, title, description, condition, condition_notes,
+      ownership_declared, status, created_at, updated_at, auction_locked_at
+    )
+    SELECT
+      '${itemId}'::uuid, seller.id, 'CARDS', '${title}',
+      'A durable collectible used by the simulated settlement end-to-end flow.',
+      'EXCELLENT', 'Excellent condition with complete settlement flow notes.',
+      TRUE, 'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    FROM regular_accounts seller
+    WHERE seller.normalized_email = '${sellerEmail}';
+
+    INSERT INTO sales (
       id, auction_id, item_id, seller_id, buyer_id, amount_cents, created_at,
       item_title, seller_handle, buyer_handle, state, payment_deadline_at
     )

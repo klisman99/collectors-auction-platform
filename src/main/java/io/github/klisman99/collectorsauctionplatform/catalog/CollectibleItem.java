@@ -37,7 +37,8 @@ class CollectibleItem {
   enum Status {
     DRAFT,
     UNDER_REVIEW,
-    APPROVED
+    APPROVED,
+    ARCHIVED
   }
 
   @Id private UUID id;
@@ -179,6 +180,12 @@ class CollectibleItem {
 
   void releaseAfterTerminalAuction(Instant now) {
     auctionLockedAt = null;
+    updatedAt = now;
+  }
+
+  void archiveAfterCompletedSettlement(Instant now) {
+    auctionLockedAt = null;
+    status = Status.ARCHIVED;
     updatedAt = now;
   }
 
