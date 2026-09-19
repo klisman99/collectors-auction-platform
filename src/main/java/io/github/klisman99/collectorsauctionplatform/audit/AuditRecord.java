@@ -1,12 +1,21 @@
 package io.github.klisman99.collectorsauctionplatform.audit;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -39,6 +48,40 @@ class AuditRecord {
   @Column(nullable = false, updatable = false, length = 4000)
   private String metadata;
 
+  @Column(name = "source_fingerprint", nullable = false, updatable = false, length = 64)
+  private String sourceFingerprint;
+
+  @Column(name = "auction_id", updatable = false)
+  private UUID auctionId;
+
+  @Column(name = "item_id", updatable = false)
+  private UUID itemId;
+
+  @Column(name = "sale_id", updatable = false)
+  private UUID saleId;
+
+  @Column(name = "reason_category", updatable = false, length = 64)
+  private String reasonCategory;
+
+  @Column(name = "public_reason", updatable = false, length = 1000)
+  private String publicReason;
+
+  @Column(name = "internal_note", updatable = false, length = 2000)
+  private String internalNote;
+
+  @Column(name = "amount_cents", updatable = false)
+  private Long amountCents;
+
+  @Column(name = "bidder_pseudonym", updatable = false, length = 32)
+  private String bidderPseudonym;
+
+  @ElementCollection(fetch = FetchType.LAZY)
+  @CollectionTable(
+      name = "audit_record_participants",
+      joinColumns = @JoinColumn(name = "audit_record_id"))
+  @Column(name = "account_id", nullable = false)
+  private Set<UUID> participantAccountIds = new LinkedHashSet<>();
+
   protected AuditRecord() {}
 
   private AuditRecord(
@@ -57,6 +100,8 @@ class AuditRecord {
     this.targetId = targetId;
     this.occurredAt = occurredAt;
     this.metadata = metadata;
+    this.sourceFingerprint =
+        fingerprint(actorType, actorId, action, targetType, targetId, occurredAt, metadata);
   }
 
   static AuditRecord systemAction(
@@ -227,6 +272,112 @@ class AuditRecord {
 
   String metadata() {
     return metadata;
+  }
+
+  String sourceFingerprint() {
+    return sourceFingerprint;
+  }
+
+  UUID auctionId() {
+    return auctionId;
+  }
+
+  UUID itemId() {
+    return itemId;
+  }
+
+  UUID saleId() {
+    return saleId;
+  }
+
+  String reasonCategory() {
+    return reasonCategory;
+  }
+
+  String publicReason() {
+    return publicReason;
+  }
+
+  String internalNote() {
+    return internalNote;
+  }
+
+  Long amountCents() {
+    return amountCents;
+  }
+
+  String bidderPseudonym() {
+    return bidderPseudonym;
+  }
+
+  AuditRecord participates(UUID... accountIds) {
+    for (UUID accountId : accountIds) {
+      if (accountId != null) {
+        participantAccountIds.add(accountId);
+      }
+    }
+    return this;
+  }
+
+  AuditRecord forAuction(UUID value) {
+    auctionId = value;
+    return this;
+  }
+
+  AuditRecord forItem(UUID value) {
+    itemId = value;
+    return this;
+  }
+
+  AuditRecord forSale(UUID value) {
+    saleId = value;
+    return this;
+  }
+
+  AuditRecord withPublicDetails(
+      String category, String reason, Long amount, String pseudonym, String note) {
+    reasonCategory = category;
+    publicReason = reason;
+    amountCents = amount;
+    bidderPseudonym = pseudonym;
+    internalNote = note;
+    return this;
+  }
+
+  private static String fingerprint(
+      ActorType actorType,
+      UUID actorId,
+      AuditAction action,
+      TargetType targetType,
+      UUID targetId,
+      Instant occurredAt,
+      String metadata) {
+    String source =
+        actorType
+            + "|"
+            + actorId
+            + "|"
+            + action
+            + "|"
+            + targetType
+            + "|"
+            + targetId
+            + "|"
+            + occurredAt
+            + "|"
+            + metadata;
+    try {
+      byte[] digest =
+          MessageDigest.getInstance("SHA-256").digest(source.getBytes(StandardCharsets.UTF_8));
+      StringBuilder hexadecimal = new StringBuilder(digest.length * 2);
+      for (byte value : digest) {
+        hexadecimal.append(String.format("%02x", value));
+      }
+      return hexadecimal.toString();
+    } catch (NoSuchAlgorithmException exception) {
+      throw new IllegalStateException(
+          "SHA-256 must be available to create audit records.", exception);
+    }
   }
 
   enum ActorType {

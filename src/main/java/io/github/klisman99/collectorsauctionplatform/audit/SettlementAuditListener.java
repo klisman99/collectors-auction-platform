@@ -7,9 +7,9 @@ import org.springframework.stereotype.Component;
 @Component
 class SettlementAuditListener {
 
-  private final AuditRecordRepository auditRecords;
+  private final AuditProjectionStore auditRecords;
 
-  SettlementAuditListener(AuditRecordRepository auditRecords) {
+  SettlementAuditListener(AuditProjectionStore auditRecords) {
     this.auditRecords = auditRecords;
   }
 
@@ -50,7 +50,13 @@ class SettlementAuditListener {
             ? AuditRecord.systemSaleAction(action, event.saleId(), event.occurredAt(), metadata)
             : AuditRecord.accountSaleAction(
                 action, event.actorId(), event.saleId(), event.occurredAt(), metadata);
-    auditRecords.save(record);
+    auditRecords.append(
+        record
+            .participates(event.buyerId(), event.sellerId())
+            .forAuction(event.auctionId())
+            .forItem(event.itemId())
+            .forSale(event.saleId())
+            .withPublicDetails(null, null, event.amountCents(), null, null));
   }
 
   private String value(String name, Object value) {

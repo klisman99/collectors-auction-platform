@@ -46,7 +46,7 @@ class PostgreSqlMigrationIntegrationTests {
 
   @Test
   void appliesTheForwardOnlyMigrationsAgainstPostgreSql() {
-    assertThat(flyway.info().applied()).hasSize(18);
+    assertThat(flyway.info().applied()).hasSize(19);
     assertThat(
             jdbcTemplate.queryForObject(
                 """
@@ -107,6 +107,24 @@ class PostgreSqlMigrationIntegrationTests {
                 SELECT count(*)
                 FROM information_schema.tables
                 WHERE table_name = 'sales'
+                """,
+                Integer.class))
+        .isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                """
+                SELECT count(*)
+                FROM information_schema.columns
+                WHERE table_name = 'audit_records' AND column_name = 'source_fingerprint'
+                """,
+                Integer.class))
+        .isEqualTo(1);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                """
+                SELECT count(*)
+                FROM information_schema.tables
+                WHERE table_name = 'audit_record_participants'
                 """,
                 Integer.class))
         .isEqualTo(1);
