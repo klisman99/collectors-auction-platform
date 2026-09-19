@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { ActivateOperationalAccountData, ActivateOperationalAccountResponses, AdministrativelyCancelAuctionData, AdministrativelyCancelAuctionResponses, ApproveModerationSubmissionData, ApproveModerationSubmissionResponses, CancelAuctionData, CancelAuctionResponses, ConfirmSaleDeliveryData, ConfirmSaleDeliveryResponses, CreateCatalogDraftData, CreateCatalogDraftResponses, CsrfTokenData, CsrfTokenResponses, DeactivateOperationalAccountData, DeactivateOperationalAccountResponses, DecideBelowReserveOfferData, DecideBelowReserveOfferResponses, DeleteCatalogDraftData, DeleteCatalogDraftResponses, GetAuctionData, GetAuctionImageData, GetAuctionImageResponses, GetAuctionResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetCatalogDraftData, GetCatalogDraftImageData, GetCatalogDraftImageResponses, GetCatalogDraftImageThumbnailData, GetCatalogDraftImageThumbnailResponses, GetCatalogDraftResponses, GetModerationSubmissionImageData, GetModerationSubmissionImageResponses, GetPlatformStatusData, GetPlatformStatusResponses, InviteOperationalAccountData, InviteOperationalAccountResponses, ListAdministrativeAuditRecordsData, ListAdministrativeAuditRecordsResponses, ListAuctionsData, ListAuctionsResponses, ListCatalogDraftsData, ListCatalogDraftsResponses, ListModerationSubmissionsData, ListModerationSubmissionsResponses, ListMySalesData, ListMySalesResponses, ListMyScheduledAuctionsData, ListMyScheduledAuctionsResponses, ListOperationalAccountsData, ListOperationalAccountsResponses, ListOperationalBidHistoryData, ListOperationalBidHistoryResponses, ListPublicBidsData, ListPublicBidsResponses, ListRegularAccountsData, ListRegularAccountsResponses, ListSuspendedAuctionsData, ListSuspendedAuctionsResponses, PlaceBidData, PlaceBidResponses, ReactivateRegularAccountData, ReactivateRegularAccountResponses, RecordSaleShipmentData, RecordSaleShipmentResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, RejectModerationSubmissionData, RejectModerationSubmissionResponses, ReleaseSuspendedAuctionData, ReleaseSuspendedAuctionResponses, ReorderCatalogDraftImagesData, ReorderCatalogDraftImagesResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, ResumeSuspendedAuctionData, ResumeSuspendedAuctionResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, ScheduleAuctionData, ScheduleAuctionResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, SimulateSalePaymentData, SimulateSalePaymentResponses, SubmitCatalogDraftData, SubmitCatalogDraftResponses, SuspendAuctionData, SuspendAuctionResponses, SuspendRegularAccountData, SuspendRegularAccountResponses, UpdateAuctionTermsData, UpdateAuctionTermsResponses, UpdateCatalogDraftData, UpdateCatalogDraftResponses, UploadCatalogDraftImageData, UploadCatalogDraftImageResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
+import type { ActivateOperationalAccountData, ActivateOperationalAccountResponses, AdministrativelyCancelAuctionData, AdministrativelyCancelAuctionResponses, ApproveModerationSubmissionData, ApproveModerationSubmissionResponses, CancelAuctionData, CancelAuctionResponses, ConfirmSaleDeliveryData, ConfirmSaleDeliveryResponses, CreateCatalogDraftData, CreateCatalogDraftResponses, CsrfTokenData, CsrfTokenResponses, DeactivateOperationalAccountData, DeactivateOperationalAccountResponses, DecideBelowReserveOfferData, DecideBelowReserveOfferResponses, DeleteCatalogDraftData, DeleteCatalogDraftResponses, GetAuctionData, GetAuctionImageData, GetAuctionImageResponses, GetAuctionResponses, GetAuthenticatedSessionData, GetAuthenticatedSessionResponses, GetCatalogDraftData, GetCatalogDraftImageData, GetCatalogDraftImageResponses, GetCatalogDraftImageThumbnailData, GetCatalogDraftImageThumbnailResponses, GetCatalogDraftResponses, GetModerationSubmissionImageData, GetModerationSubmissionImageResponses, GetPlatformStatusData, GetPlatformStatusResponses, InviteOperationalAccountData, InviteOperationalAccountResponses, ListAdministrativeAuditRecordsData, ListAdministrativeAuditRecordsResponses, ListAdministratorAuditHistoryData, ListAdministratorAuditHistoryResponses, ListAuctionsData, ListAuctionsResponses, ListCatalogDraftsData, ListCatalogDraftsResponses, ListModerationSubmissionsData, ListModerationSubmissionsResponses, ListMyHistoryData, ListMyHistoryResponses, ListMySalesData, ListMySalesResponses, ListMyScheduledAuctionsData, ListMyScheduledAuctionsResponses, ListOperationalAccountsData, ListOperationalAccountsResponses, ListOperationalAuditHistoryData, ListOperationalAuditHistoryResponses, ListOperationalBidHistoryData, ListOperationalBidHistoryResponses, ListPublicAuctionTimelineData, ListPublicAuctionTimelineResponses, ListPublicBidsData, ListPublicBidsResponses, ListRegularAccountsData, ListRegularAccountsResponses, ListSuspendedAuctionsData, ListSuspendedAuctionsResponses, PlaceBidData, PlaceBidResponses, ReactivateRegularAccountData, ReactivateRegularAccountResponses, RecordSaleShipmentData, RecordSaleShipmentResponses, RegisterRegularAccountData, RegisterRegularAccountResponses, RejectModerationSubmissionData, RejectModerationSubmissionResponses, ReleaseSuspendedAuctionData, ReleaseSuspendedAuctionResponses, ReorderCatalogDraftImagesData, ReorderCatalogDraftImagesResponses, RequestPasswordRecoveryData, RequestPasswordRecoveryResponses, ResetPasswordData, ResetPasswordResponses, ResumeSuspendedAuctionData, ResumeSuspendedAuctionResponses, RevokeAllSessionsData, RevokeAllSessionsResponses, ScheduleAuctionData, ScheduleAuctionResponses, SignInRegularAccountData, SignInRegularAccountResponses, SignOutData, SignOutResponses, SimulateSalePaymentData, SimulateSalePaymentResponses, SubmitCatalogDraftData, SubmitCatalogDraftResponses, SuspendAuctionData, SuspendAuctionResponses, SuspendRegularAccountData, SuspendRegularAccountResponses, UpdateAuctionTermsData, UpdateAuctionTermsResponses, UpdateCatalogDraftData, UpdateCatalogDraftResponses, UploadCatalogDraftImageData, UploadCatalogDraftImageResponses, VerifyRegularAccountEmailData, VerifyRegularAccountEmailResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -376,6 +376,11 @@ export const getPlatformStatus = <ThrowOnError extends boolean = false>(options?
 export const listMySales = <ThrowOnError extends boolean = false>(options?: Options<ListMySalesData, ThrowOnError>): RequestResult<ListMySalesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListMySalesResponses, unknown, ThrowOnError>({ url: '/api/v1/sales/mine', ...options });
 
 /**
+ * List moderation and auction-suspension history
+ */
+export const listOperationalAuditHistory = <ThrowOnError extends boolean = false>(options?: Options<ListOperationalAuditHistoryData, ThrowOnError>): RequestResult<ListOperationalAuditHistoryResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListOperationalAuditHistoryResponses, unknown, ThrowOnError>({ url: '/api/v1/operations/audit-records', ...options });
+
+/**
  * List attributed bid history for operational review
  */
 export const listOperationalBidHistory = <ThrowOnError extends boolean = false>(options: Options<ListOperationalBidHistoryData, ThrowOnError>): RequestResult<ListOperationalBidHistoryResponses, unknown, ThrowOnError> => (options.client ?? client).get<ListOperationalBidHistoryResponses, unknown, ThrowOnError>({ url: '/api/v1/operations/auctions/{auctionId}/bids', ...options });
@@ -394,6 +399,11 @@ export const listModerationSubmissions = <ThrowOnError extends boolean = false>(
  * Read a private image while reviewing a collectible
  */
 export const getModerationSubmissionImage = <ThrowOnError extends boolean = false>(options: Options<GetModerationSubmissionImageData, ThrowOnError>): RequestResult<GetModerationSubmissionImageResponses, unknown, ThrowOnError> => (options.client ?? client).get<GetModerationSubmissionImageResponses, unknown, ThrowOnError>({ url: '/api/v1/moderation/submissions/{id}/images/{mediaId}', ...options });
+
+/**
+ * List the authenticated account's history
+ */
+export const listMyHistory = <ThrowOnError extends boolean = false>(options?: Options<ListMyHistoryData, ThrowOnError>): RequestResult<ListMyHistoryResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListMyHistoryResponses, unknown, ThrowOnError>({ url: '/api/v1/history/mine', ...options });
 
 export const csrfToken = <ThrowOnError extends boolean = false>(options?: Options<CsrfTokenData, ThrowOnError>): RequestResult<CsrfTokenResponses, unknown, ThrowOnError> => (options?.client ?? client).get<CsrfTokenResponses, unknown, ThrowOnError>({ url: '/api/v1/csrf', ...options });
 
@@ -423,6 +433,11 @@ export const getAuction = <ThrowOnError extends boolean = false>(options: Option
 export const getAuctionImage = <ThrowOnError extends boolean = false>(options: Options<GetAuctionImageData, ThrowOnError>): RequestResult<GetAuctionImageResponses, unknown, ThrowOnError> => (options.client ?? client).get<GetAuctionImageResponses, unknown, ThrowOnError>({ url: '/api/v1/auctions/{id}/images/{mediaId}', ...options });
 
 /**
+ * List safe public auction facts
+ */
+export const listPublicAuctionTimeline = <ThrowOnError extends boolean = false>(options: Options<ListPublicAuctionTimelineData, ThrowOnError>): RequestResult<ListPublicAuctionTimelineResponses, unknown, ThrowOnError> => (options.client ?? client).get<ListPublicAuctionTimelineResponses, unknown, ThrowOnError>({ url: '/api/v1/auctions/{auctionId}/timeline', ...options });
+
+/**
  * List the seller's editable auctions
  */
 export const listMyScheduledAuctions = <ThrowOnError extends boolean = false>(options?: Options<ListMyScheduledAuctionsData, ThrowOnError>): RequestResult<ListMyScheduledAuctionsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListMyScheduledAuctionsResponses, unknown, ThrowOnError>({ url: '/api/v1/auctions/mine', ...options });
@@ -431,6 +446,11 @@ export const listMyScheduledAuctions = <ThrowOnError extends boolean = false>(op
  * List regular-account status for administrators
  */
 export const listRegularAccounts = <ThrowOnError extends boolean = false>(options?: Options<ListRegularAccountsData, ThrowOnError>): RequestResult<ListRegularAccountsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListRegularAccountsResponses, unknown, ThrowOnError>({ url: '/api/v1/admin/regular-accounts', ...options });
+
+/**
+ * List complete administrator-visible operational history
+ */
+export const listAdministratorAuditHistory = <ThrowOnError extends boolean = false>(options?: Options<ListAdministratorAuditHistoryData, ThrowOnError>): RequestResult<ListAdministratorAuditHistoryResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListAdministratorAuditHistoryResponses, unknown, ThrowOnError>({ url: '/api/v1/admin/history', ...options });
 
 /**
  * List the administrator audit summary

@@ -1,14 +1,13 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import {
-  type AuditRecord,
   type AuthenticatedSession,
   deactivateOperationalAccount,
-  getAdministrativeAuditRecords,
   getOperationalAccounts,
   inviteOperationalAccount,
   type OperationalAccountView,
 } from '../api/client';
+import { OperationalHistoryWorkspace } from '../history/HistoryTimelines';
 import { ModerationWorkspace } from '../moderation/ModerationWorkspace';
 import { applyApiError, type FieldErrors, validEmail } from '../shared/forms';
 import { Failure, FormHeading, Notice, PageFrame, SubmitButton, TextField } from '../shared/ui';
@@ -57,6 +56,7 @@ export function OperationalModeratorHome({
       </div>
       <ModerationWorkspace />
       <AuctionOperationsWorkspace administrator={false} />
+      <OperationalHistoryWorkspace administrator={false} />
     </PageFrame>
   );
 }
@@ -75,7 +75,6 @@ export function OperationalHome({
   session: AuthenticatedSession;
 }) {
   const [accounts, setAccounts] = useState<OperationalAccountView[]>([]);
-  const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
   const [invite, setInvite] = useState({
     email: '',
     role: 'MODERATOR',
@@ -95,12 +94,8 @@ export function OperationalHome({
 
   const loadConsole = useCallback(async () => {
     try {
-      const [loadedAccounts, loadedAuditRecords] = await Promise.all([
-        getOperationalAccounts(),
-        getAdministrativeAuditRecords(),
-      ]);
+      const loadedAccounts = await getOperationalAccounts();
       setAccounts(loadedAccounts);
-      setAuditRecords(loadedAuditRecords);
       setFailureMessage(null);
     } catch (error) {
       setFailureMessage(
@@ -398,39 +393,7 @@ export function OperationalHome({
         </div>
       </section>
 
-      <section
-        className="mt-8 rounded-xl border border-slate-700 bg-slate-950/60 p-5"
-        aria-labelledby="audit-summary-heading"
-      >
-        <h2 className="text-xl font-semibold text-white" id="audit-summary-heading">
-          Audit summary
-        </h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Complete administrator-visible identity history, including categorized reasons and
-          internal notes.
-        </p>
-        <ul className="mt-4 space-y-3 text-sm">
-          {auditRecords.length === 0 ? (
-            <li className="text-slate-400">No audit records yet.</li>
-          ) : (
-            auditRecords.map((record) => (
-              <li className="rounded-lg border border-slate-800 p-3" key={record.id}>
-                <p className="font-medium text-slate-100">{record.action}</p>
-                <p className="mt-1 text-slate-400">
-                  {formatDate(record.occurredAt)} · {record.metadata}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Actor:{' '}
-                  {record.actorType === 'SYSTEM'
-                    ? 'System'
-                    : `${record.actorType ?? 'Unknown'} ${record.actorId ?? 'unknown'}`}{' '}
-                  · Target: {record.targetType ?? 'Unknown'} {record.targetId ?? 'unknown'}
-                </p>
-              </li>
-            ))
-          )}
-        </ul>
-      </section>
+      <OperationalHistoryWorkspace administrator />
     </PageFrame>
   );
 }

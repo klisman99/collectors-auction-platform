@@ -7,9 +7,9 @@ import org.springframework.stereotype.Component;
 @Component
 class AuctionAuditListener {
 
-  private final AuditRecordRepository auditRecords;
+  private final AuditProjectionStore auditRecords;
 
-  AuctionAuditListener(AuditRecordRepository auditRecords) {
+  AuctionAuditListener(AuditProjectionStore auditRecords) {
     this.auditRecords = auditRecords;
   }
 
@@ -66,7 +66,17 @@ class AuctionAuditListener {
                     action, event.auctionId(), event.occurredAt(), metadata)
                 : AuditRecord.accountAuctionAction(
                     action, event.sellerId(), event.auctionId(), event.occurredAt(), metadata);
-    auditRecords.save(record);
+    auditRecords.append(
+        record
+            .participates(event.sellerId(), event.winningBidderId())
+            .forAuction(event.auctionId())
+            .forItem(event.itemId())
+            .withPublicDetails(
+                event.reasonCategory() == null ? null : event.reasonCategory().name(),
+                event.publicReason(),
+                event.finalAmountCents(),
+                null,
+                event.internalNote()));
   }
 
   private String valueMetadata(String name, Object value) {

@@ -198,6 +198,23 @@ class IdentityHttpIntegrationTests {
   }
 
   @Test
+  void clearsFailedLoginAttemptsAfterSuccessfulAuthentication() throws Exception {
+    Csrf csrf = csrf();
+    String password = "a correct limited password";
+    String clientIp = "203.0.113.64";
+    register(csrf, "cleared-limit@example.com", "cleared_limit", password);
+
+    for (int attempt = 0; attempt < 4; attempt++) {
+      signIn(csrf, "cleared-limit@example.com", "an incorrect password", clientIp)
+          .andExpect(status().isUnauthorized());
+    }
+
+    signIn(csrf, "cleared-limit@example.com", password, clientIp).andExpect(status().isOk());
+    signIn(csrf, "cleared-limit@example.com", "an incorrect password", clientIp)
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void rejectsExpiredOrPreviouslyConsumedVerificationTokensWithoutRevealingWhichConditionApplied()
       throws Exception {
     Csrf csrf = csrf();

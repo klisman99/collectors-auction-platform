@@ -22,6 +22,10 @@ class IdentityAttemptRateLimiter {
     recordAttempt(AttemptType.LOGIN, clientIp, normalizedEmail);
   }
 
+  void clearLoginAttempts(String clientIp, String normalizedEmail) {
+    attempts.remove(new AttemptKey(AttemptType.LOGIN, clientIp, normalizedEmail));
+  }
+
   void recordPasswordRecoveryAttempt(String clientIp, String normalizedEmail) {
     recordAttempt(AttemptType.PASSWORD_RECOVERY, clientIp, normalizedEmail);
   }

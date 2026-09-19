@@ -20,6 +20,7 @@ access happens through a deliberate public API or a durable event, never a direc
 | `bid_attempts` | `bidding` | Accepted, rejected, duplicate, conflicting, and rate-limited command outcomes | Bidding only. |
 | `sales` | `settlement` | Exactly-one immutable sale, payment, shipment, and delivery-confirmation deadlines, terminal reason, item disposition, and simulated settlement state | Settlement only; creation consumes the auctions outcome event in the closing transaction. |
 | `audit_records` | `audit` | Append-only auditable facts | Product modules publish facts; audit persists projections. |
+| `audit_record_participants` | `audit` | Participant lookup projection for layered personal history | Audit only; it is populated from immutable domain facts and never joins product-module tables. |
 | `spring_session` | `platform` | Server-side HTTP session metadata | Only Spring Session through platform configuration. |
 | `spring_session_attributes` | `platform` | Server-side HTTP session attributes | Only Spring Session through platform configuration. |
 | `event_publication` | `platform` | Spring Modulith durable event-publication registry | Only Spring Modulith infrastructure; originating modules publish events transactionally. |

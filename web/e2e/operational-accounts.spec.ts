@@ -53,33 +53,13 @@ test('administrator can invite, activate, and deactivate a non-trading moderator
     const accountId = await accountSelect.inputValue();
     await deactivationForm.getByLabel('Public reason').fill('End of operational assignment');
     await deactivationForm.getByRole('button', { name: 'Deactivate account' }).click();
-    const auditRecord = administratorPage
-      .getByRole('region', { name: 'Audit summary' })
-      .getByRole('listitem')
-      .filter({ hasText: `Target: OPERATIONAL_ACCOUNT ${accountId}` });
-    const auditAction = auditRecord.getByText('OPERATIONAL_ACCOUNT_DEACTIVATED', {
-      exact: true,
-    });
-    await expect
-      .poll(
-        async () => {
-          const auditResponse = administratorPage.waitForResponse(
-            (response) => response.url().endsWith('/api/v1/admin/audit-records') && response.ok(),
-          );
-          await administratorPage.reload();
-          const records = (await (await auditResponse).json()) as Array<{
-            action: string;
-            targetId: string;
-          }>;
-          return records.some(
-            (record) =>
-              record.action === 'OPERATIONAL_ACCOUNT_DEACTIVATED' && record.targetId === accountId,
-          );
-        },
-        { timeout: 30_000 },
-      )
-      .toBe(true);
-    await expect(auditAction).toBeVisible();
+    await administratorPage.reload();
+    await expect(
+      administratorPage
+        .getByRole('listitem')
+        .filter({ hasText: 'Operational account deactivated' })
+        .filter({ hasText: `Target: OPERATIONAL_ACCOUNT ${accountId}` }),
+    ).toBeVisible();
   } finally {
     await administratorContext.close();
   }
