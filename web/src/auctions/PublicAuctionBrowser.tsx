@@ -11,6 +11,7 @@ import {
   type PublicBid,
   placeBid,
 } from '../api/client';
+import { PublicAuctionAuditTimeline } from '../history/HistoryTimelines';
 import { connectAuctionRoom, loadConsistentAuctionRoomSnapshot } from './auctionRealtime';
 import { formatBrl, formatSaoPaulo } from './presentation';
 
@@ -342,6 +343,8 @@ function AuctionDetails({
           </li>
         ))}
       </ol>
+      <h4 className="mt-5 font-semibold text-white">Recorded auction history</h4>
+      <PublicAuctionAuditTimeline auctionId={auction.id} />
       <h4 className="mt-5 font-semibold text-white">Bid history</h4>
       {bids.length === 0 ? (
         <p className="mt-2 text-sm text-slate-300">No accepted bids.</p>

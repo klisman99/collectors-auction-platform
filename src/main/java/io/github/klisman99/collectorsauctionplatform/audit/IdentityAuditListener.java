@@ -17,75 +17,84 @@ import org.springframework.stereotype.Component;
 @Component
 class IdentityAuditListener {
 
-  private final AuditRecordRepository auditRecords;
+  private final AuditProjectionStore auditRecords;
 
-  IdentityAuditListener(AuditRecordRepository auditRecords) {
+  IdentityAuditListener(AuditProjectionStore auditRecords) {
     this.auditRecords = auditRecords;
   }
 
   @ApplicationModuleListener
   void auditRegistration(RegularAccountRegistered event) {
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.systemAction(
-            AuditRecord.AuditAction.REGULAR_ACCOUNT_REGISTERED,
-            event.accountId(),
-            event.occurredAt(),
-            "publicHandle=" + event.publicHandle()));
+                AuditRecord.AuditAction.REGULAR_ACCOUNT_REGISTERED,
+                event.accountId(),
+                event.occurredAt(),
+                "publicHandle=" + event.publicHandle())
+            .participates(event.accountId()));
   }
 
   @ApplicationModuleListener
   void auditVerification(RegularAccountVerified event) {
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.accountAction(
-            AuditRecord.AuditAction.REGULAR_ACCOUNT_VERIFIED,
-            event.accountId(),
-            event.occurredAt(),
-            "verification=completed"));
+                AuditRecord.AuditAction.REGULAR_ACCOUNT_VERIFIED,
+                event.accountId(),
+                event.occurredAt(),
+                "verification=completed")
+            .participates(event.accountId()));
   }
 
   @ApplicationModuleListener
   void auditPasswordReset(RegularAccountPasswordReset event) {
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.accountAction(
-            AuditRecord.AuditAction.REGULAR_ACCOUNT_PASSWORD_RESET,
-            event.accountId(),
-            event.occurredAt(),
-            "password=reset"));
+                AuditRecord.AuditAction.REGULAR_ACCOUNT_PASSWORD_RESET,
+                event.accountId(),
+                event.occurredAt(),
+                "password=reset")
+            .participates(event.accountId()));
   }
 
   @ApplicationModuleListener
   void auditRegularAccountSuspension(RegularAccountSuspended event) {
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.operationalRegularAccountAction(
-            AuditRecord.AuditAction.REGULAR_ACCOUNT_SUSPENDED,
-            event.actorId(),
-            event.accountId(),
-            event.occurredAt(),
-            administrativeMetadata(
-                "publicHandle=" + event.publicHandle(),
-                "reasonCategory=" + event.reasonCategory(),
-                "publicReason=" + event.publicReason(),
-                "internalNote=" + event.internalNote())));
+                AuditRecord.AuditAction.REGULAR_ACCOUNT_SUSPENDED,
+                event.actorId(),
+                event.accountId(),
+                event.occurredAt(),
+                administrativeMetadata(
+                    "publicHandle=" + event.publicHandle(),
+                    "reasonCategory=" + event.reasonCategory(),
+                    "publicReason=" + event.publicReason(),
+                    "internalNote=" + event.internalNote()))
+            .participates(event.accountId())
+            .withPublicDetails(
+                event.reasonCategory(), event.publicReason(), null, null, event.internalNote()));
   }
 
   @ApplicationModuleListener
   void auditRegularAccountReactivation(RegularAccountReactivated event) {
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.operationalRegularAccountAction(
-            AuditRecord.AuditAction.REGULAR_ACCOUNT_REACTIVATED,
-            event.actorId(),
-            event.accountId(),
-            event.occurredAt(),
-            administrativeMetadata(
-                "publicHandle=" + event.publicHandle(),
-                "reasonCategory=" + event.reasonCategory(),
-                "publicReason=" + event.publicReason(),
-                "internalNote=" + event.internalNote())));
+                AuditRecord.AuditAction.REGULAR_ACCOUNT_REACTIVATED,
+                event.actorId(),
+                event.accountId(),
+                event.occurredAt(),
+                administrativeMetadata(
+                    "publicHandle=" + event.publicHandle(),
+                    "reasonCategory=" + event.reasonCategory(),
+                    "publicReason=" + event.publicReason(),
+                    "internalNote=" + event.internalNote()))
+            .participates(event.accountId())
+            .withPublicDetails(
+                event.reasonCategory(), event.publicReason(), null, null, event.internalNote()));
   }
 
   @ApplicationModuleListener
   void auditInitialAdministrator(InitialAdministratorCreated event) {
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.systemOperationalAction(
             AuditRecord.AuditAction.INITIAL_ADMINISTRATOR_CREATED,
             event.accountId(),
@@ -95,23 +104,25 @@ class IdentityAuditListener {
 
   @ApplicationModuleListener
   void auditOperationalInvitation(OperationalAccountInvited event) {
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.operationalAction(
-            AuditRecord.AuditAction.OPERATIONAL_ACCOUNT_INVITED,
-            event.actorId(),
-            event.accountId(),
-            event.occurredAt(),
-            administrativeMetadata(
-                "email=" + event.email(),
-                "role=" + event.role(),
-                "reasonCategory=" + event.reasonCategory(),
-                "publicReason=" + event.publicReason(),
-                "internalNote=" + event.internalNote())));
+                AuditRecord.AuditAction.OPERATIONAL_ACCOUNT_INVITED,
+                event.actorId(),
+                event.accountId(),
+                event.occurredAt(),
+                administrativeMetadata(
+                    "email=" + event.email(),
+                    "role=" + event.role(),
+                    "reasonCategory=" + event.reasonCategory(),
+                    "publicReason=" + event.publicReason(),
+                    "internalNote=" + event.internalNote()))
+            .withPublicDetails(
+                event.reasonCategory(), event.publicReason(), null, null, event.internalNote()));
   }
 
   @ApplicationModuleListener
   void auditOperationalActivation(OperationalAccountActivated event) {
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.operationalAction(
             AuditRecord.AuditAction.OPERATIONAL_ACCOUNT_ACTIVATED,
             event.accountId(),
@@ -122,28 +133,32 @@ class IdentityAuditListener {
 
   @ApplicationModuleListener
   void auditOperationalDeactivation(OperationalAccountDeactivated event) {
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.operationalAction(
-            AuditRecord.AuditAction.OPERATIONAL_ACCOUNT_DEACTIVATED,
-            event.actorId(),
-            event.accountId(),
-            event.occurredAt(),
-            administrativeMetadata(
-                "role=" + event.role(),
-                "reasonCategory=" + event.reasonCategory(),
-                "publicReason=" + event.publicReason(),
-                "internalNote=" + event.internalNote())));
+                AuditRecord.AuditAction.OPERATIONAL_ACCOUNT_DEACTIVATED,
+                event.actorId(),
+                event.accountId(),
+                event.occurredAt(),
+                administrativeMetadata(
+                    "role=" + event.role(),
+                    "reasonCategory=" + event.reasonCategory(),
+                    "publicReason=" + event.publicReason(),
+                    "internalNote=" + event.internalNote()))
+            .withPublicDetails(
+                event.reasonCategory(), event.publicReason(), null, null, event.internalNote()));
   }
 
   @ApplicationModuleListener
   void auditCollectibleSubmission(CollectibleSubmitted event) {
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.accountCollectibleAction(
-            AuditRecord.AuditAction.COLLECTIBLE_SUBMITTED,
-            event.ownerId(),
-            event.itemId(),
-            event.occurredAt(),
-            "title=" + event.title()));
+                AuditRecord.AuditAction.COLLECTIBLE_SUBMITTED,
+                event.ownerId(),
+                event.itemId(),
+                event.occurredAt(),
+                "title=" + event.title())
+            .participates(event.ownerId())
+            .forItem(event.itemId()));
   }
 
   @ApplicationModuleListener
@@ -152,13 +167,16 @@ class IdentityAuditListener {
         event.decision() == ModerationDecisionMade.Decision.APPROVED
             ? AuditRecord.AuditAction.COLLECTIBLE_APPROVED
             : AuditRecord.AuditAction.COLLECTIBLE_REJECTED;
-    auditRecords.save(
+    auditRecords.append(
         AuditRecord.operationalCollectibleAction(
-            action,
-            event.reviewerId(),
-            event.itemId(),
-            event.occurredAt(),
-            "publicReason=" + (event.publicReason() == null ? "" : event.publicReason())));
+                action,
+                event.reviewerId(),
+                event.itemId(),
+                event.occurredAt(),
+                "publicReason=" + (event.publicReason() == null ? "" : event.publicReason()))
+            .participates(event.ownerId())
+            .forItem(event.itemId())
+            .withPublicDetails(null, event.publicReason(), null, null, null));
   }
 
   private String administrativeMetadata(String... fields) {

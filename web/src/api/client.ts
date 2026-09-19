@@ -292,6 +292,36 @@ export type Sale = {
   trackingReference?: string;
 };
 export type ShipmentInput = { carrier: string; trackingReference: string };
+export type AuditHistoryEvent = {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  auctionId?: string;
+  itemId?: string;
+  saleId?: string;
+  occurredAt: string;
+  reasonCategory?: string;
+  publicReason?: string;
+  amountCents?: number;
+  bidderPseudonym?: string;
+  internalNote?: string;
+};
+export type AuditHistoryPage = {
+  content: AuditHistoryEvent[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+export type AdministrativeAuditHistoryEvent = AuditHistoryEvent & {
+  actorType: string;
+  actorId?: string;
+  metadata: string;
+};
+export type AdministrativeAuditHistoryPage = Omit<AuditHistoryPage, 'content'> & {
+  content: AdministrativeAuditHistoryEvent[];
+};
 
 client.setConfig({ baseUrl: '/', credentials: 'same-origin' });
 
@@ -402,6 +432,49 @@ export async function deactivateOperationalAccount(
 export async function getAdministrativeAuditRecords(): Promise<AuditRecord[]> {
   const { data, error } = await requestAdministrativeAuditRecords();
   return required(data, error, 'Audit records could not be loaded.');
+}
+
+export async function listMyHistory(page = 0, size = 20): Promise<AuditHistoryPage> {
+  return historyRequest<AuditHistoryPage>(
+    '/api/v1/history/mine',
+    page,
+    size,
+    'Your history could not be loaded.',
+  );
+}
+
+export async function listOperationalAuditHistory(page = 0, size = 20): Promise<AuditHistoryPage> {
+  return historyRequest<AuditHistoryPage>(
+    '/api/v1/operations/audit-records',
+    page,
+    size,
+    'Operational history could not be loaded.',
+  );
+}
+
+export async function listAdministrativeAuditHistory(
+  page = 0,
+  size = 20,
+): Promise<AdministrativeAuditHistoryPage> {
+  return historyRequest<AdministrativeAuditHistoryPage>(
+    '/api/v1/admin/history',
+    page,
+    size,
+    'Administrator history could not be loaded.',
+  );
+}
+
+export async function listPublicAuctionTimeline(
+  auctionId: string,
+  page = 0,
+  size = 20,
+): Promise<AuditHistoryPage> {
+  return historyRequest<AuditHistoryPage>(
+    `/api/v1/auctions/${auctionId}/timeline`,
+    page,
+    size,
+    'Auction timeline could not be loaded.',
+  );
 }
 
 export async function signOut(): Promise<void> {
@@ -660,6 +733,18 @@ async function operationsAuctionRequest<T>(
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!response.ok) throw await apiError(response, 'The auction operation could not be completed.');
+  return response.json() as Promise<T>;
+}
+
+async function historyRequest<T>(
+  path: string,
+  page: number,
+  size: number,
+  fallback: string,
+): Promise<T> {
+  const parameters = new URLSearchParams({ page: String(page), size: String(size) });
+  const response = await fetch(`${path}?${parameters}`, { credentials: 'same-origin' });
+  if (!response.ok) throw await apiError(response, fallback);
   return response.json() as Promise<T>;
 }
 

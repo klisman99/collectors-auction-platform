@@ -9,6 +9,7 @@ vi.mock('./api/client', () => ({
   },
   deactivateOperationalAccount: vi.fn(),
   getAdministrativeAuditRecords: vi.fn(),
+  listAdministrativeAuditHistory: vi.fn(),
   getAuthenticatedSession: vi.fn(),
   getOperationalAccounts: vi.fn(),
   getRegularAccounts: vi.fn(),
@@ -29,6 +30,9 @@ vi.mock('./api/client', () => ({
   listSuspendedAuctions: vi.fn(),
   listMyScheduledAuctions: vi.fn(),
   listMySales: vi.fn(),
+  listMyHistory: vi.fn(),
+  listOperationalAuditHistory: vi.fn(),
+  listPublicAuctionTimeline: vi.fn(),
   getAuction: vi.fn(),
   cancelAuction: vi.fn(),
   createDraft: vi.fn(),
@@ -59,17 +63,20 @@ import {
   activateOperationalAccount,
   cancelAuction,
   deactivateOperationalAccount,
-  getAdministrativeAuditRecords,
   getAuction,
   getAuthenticatedSession,
   getOperationalAccounts,
   getRegularAccounts,
   inviteOperationalAccount,
+  listAdministrativeAuditHistory,
   listAuctions,
   listDrafts,
+  listMyHistory,
   listMySales,
   listMyScheduledAuctions,
+  listOperationalAuditHistory,
   listOperationalBidHistory,
+  listPublicAuctionTimeline,
   listPublicBids,
   listSuspendedAuctions,
   reactivateRegularAccount,
@@ -94,7 +101,14 @@ describe('App', () => {
     vi.mocked(activateOperationalAccount).mockReset();
     vi.mocked(cancelAuction).mockReset();
     vi.mocked(deactivateOperationalAccount).mockReset();
-    vi.mocked(getAdministrativeAuditRecords).mockReset();
+    vi.mocked(listAdministrativeAuditHistory).mockReset();
+    vi.mocked(listAdministrativeAuditHistory).mockResolvedValue({
+      content: [],
+      page: 0,
+      size: 20,
+      totalElements: 0,
+      totalPages: 0,
+    });
     vi.mocked(getOperationalAccounts).mockReset();
     vi.mocked(getRegularAccounts).mockResolvedValue([]);
     vi.mocked(inviteOperationalAccount).mockReset();
@@ -118,7 +132,28 @@ describe('App', () => {
     vi.mocked(listSuspendedAuctions).mockResolvedValue([]);
     vi.mocked(listMyScheduledAuctions).mockResolvedValue([]);
     vi.mocked(listMySales).mockResolvedValue([]);
+    vi.mocked(listMyHistory).mockResolvedValue({
+      content: [],
+      page: 0,
+      size: 20,
+      totalElements: 0,
+      totalPages: 0,
+    });
+    vi.mocked(listOperationalAuditHistory).mockResolvedValue({
+      content: [],
+      page: 0,
+      size: 20,
+      totalElements: 0,
+      totalPages: 0,
+    });
     vi.mocked(listPublicBids).mockResolvedValue([]);
+    vi.mocked(listPublicAuctionTimeline).mockResolvedValue({
+      content: [],
+      page: 0,
+      size: 20,
+      totalElements: 0,
+      totalPages: 0,
+    });
     vi.mocked(getAuction).mockReset();
     vi.mocked(scheduleAuction).mockReset();
     vi.mocked(simulateSalePayment).mockReset();
@@ -530,14 +565,24 @@ describe('App', () => {
         invitedAt: '2026-09-04T12:00:00Z',
       },
     ]);
-    vi.mocked(getAdministrativeAuditRecords).mockResolvedValue([
-      {
-        id: 'audit-29',
-        action: 'OPERATIONAL_ACCOUNT_INVITED',
-        metadata: 'reasonCategory=STAFFING',
-        occurredAt: '2026-09-04T12:00:00Z',
-      },
-    ]);
+    vi.mocked(listAdministrativeAuditHistory).mockResolvedValue({
+      content: [
+        {
+          id: 'audit-29',
+          actorType: 'OPERATIONAL_ACCOUNT',
+          actorId: 'admin-29',
+          action: 'OPERATIONAL_ACCOUNT_INVITED',
+          targetType: 'OPERATIONAL_ACCOUNT',
+          targetId: 'moderator-29',
+          occurredAt: '2026-09-04T12:00:00Z',
+          metadata: 'reasonCategory=STAFFING',
+        },
+      ],
+      page: 0,
+      size: 20,
+      totalElements: 1,
+      totalPages: 1,
+    });
     vi.mocked(inviteOperationalAccount).mockResolvedValue({
       email: 'new-moderator@example.com',
       role: 'MODERATOR',
@@ -549,7 +594,7 @@ describe('App', () => {
     expect(
       await screen.findByRole('heading', { name: 'Manage operational accounts' }),
     ).toBeInTheDocument();
-    expect(await screen.findByText('OPERATIONAL_ACCOUNT_INVITED')).toBeInTheDocument();
+    expect(await screen.findByText('Operational account invited')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Email address'), {
       target: { value: 'new-moderator@example.com' },
@@ -604,7 +649,7 @@ describe('App', () => {
       screen.queryByRole('heading', { name: 'Manage operational accounts' }),
     ).not.toBeInTheDocument();
     expect(getOperationalAccounts).not.toHaveBeenCalled();
-    expect(getAdministrativeAuditRecords).not.toHaveBeenCalled();
+    expect(listAdministrativeAuditHistory).not.toHaveBeenCalled();
   });
 
   test('can sign out or revoke every session from the authenticated home', async () => {

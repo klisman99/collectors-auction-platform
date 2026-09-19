@@ -15,6 +15,7 @@ vi.mock('../api/client', () => ({
   getAuction: vi.fn(),
   listAuctions: vi.fn(),
   listPublicBids: vi.fn(),
+  listPublicAuctionTimeline: vi.fn(),
   placeBid: vi.fn(),
 }));
 
@@ -22,7 +23,14 @@ vi.mock('./auctionRealtime', () => ({
   connectAuctionRoom: vi.fn(() => () => undefined),
 }));
 
-import { type Auction, getAuction, listAuctions, listPublicBids, placeBid } from '../api/client';
+import {
+  type Auction,
+  getAuction,
+  listAuctions,
+  listPublicAuctionTimeline,
+  listPublicBids,
+  placeBid,
+} from '../api/client';
 import { PublicAuctionBrowser } from './PublicAuctionBrowser';
 
 const liveAuction: Auction = {
@@ -76,6 +84,13 @@ describe('PublicAuctionBrowser bidding', () => {
     });
     vi.mocked(getAuction).mockResolvedValue(liveAuction);
     vi.mocked(listPublicBids).mockResolvedValue([]);
+    vi.mocked(listPublicAuctionTimeline).mockResolvedValue({
+      content: [],
+      page: 0,
+      size: 20,
+      totalElements: 0,
+      totalPages: 0,
+    });
     vi.mocked(placeBid).mockReset();
   });
 
