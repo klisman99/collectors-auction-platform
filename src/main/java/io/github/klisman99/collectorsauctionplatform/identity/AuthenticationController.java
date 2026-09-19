@@ -84,12 +84,14 @@ class AuthenticationController {
       HttpServletRequest servletRequest,
       HttpServletResponse servletResponse) {
     String normalizedEmail = IdentityNormalization.email(request.email());
-    attemptRateLimiter.recordLoginAttempt(clientIp(servletRequest), normalizedEmail);
+    String clientIp = clientIp(servletRequest);
+    attemptRateLimiter.recordLoginAttempt(clientIp, normalizedEmail);
     AccountSessionPrincipal sessionPrincipal =
         signInService.signIn(
             normalizedEmail,
             request.password(),
             principal -> replaceSession(principal, servletRequest, servletResponse));
+    attemptRateLimiter.clearLoginAttempts(clientIp, normalizedEmail);
     return SessionResponse.from(sessionPrincipal);
   }
 

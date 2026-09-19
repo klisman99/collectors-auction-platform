@@ -2,7 +2,9 @@ package io.github.klisman99.collectorsauctionplatform.platform;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.servers.Server;
 import java.time.Clock;
+import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
@@ -25,6 +27,7 @@ class PlatformConfiguration {
   @Bean
   OpenAPI platformOpenApi() {
     return new OpenAPI()
+        .servers(List.of(new Server().url("/").description("Same-origin API.")))
         .info(
             new Info()
                 .title("Collectors Auction Platform API")

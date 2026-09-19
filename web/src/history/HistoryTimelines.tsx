@@ -147,21 +147,21 @@ function EventList({
           <p className="text-sm font-semibold text-white">{actionLabel(event.action)}</p>
           <p className="mt-1 text-sm text-slate-400">{formatSaoPaulo(event.occurredAt)}</p>
           <p className="mt-1 text-sm text-slate-300">{targetLabel(event)}</p>
-          {event.amountCents !== undefined && (
+          {event.amountCents != null && (
             <p className="mt-1 text-sm text-emerald-200">{formatBrl(event.amountCents)}</p>
           )}
-          {event.bidderPseudonym !== undefined && (
+          {event.bidderPseudonym != null && (
             <p className="mt-1 text-sm text-slate-300">Bidder {event.bidderPseudonym}</p>
           )}
-          {event.reasonCategory !== undefined && (
+          {event.reasonCategory != null && (
             <p className="mt-1 text-sm text-slate-300">
               Reason category: {reasonLabel(event.reasonCategory)}
             </p>
           )}
-          {event.publicReason !== undefined && event.publicReason !== '' && (
+          {event.publicReason != null && event.publicReason !== '' && (
             <p className="mt-1 text-sm text-slate-300">{event.publicReason}</p>
           )}
-          {event.internalNote !== undefined && event.internalNote !== '' && (
+          {event.internalNote != null && event.internalNote !== '' && (
             <p className="mt-2 border-l-2 border-amber-500/70 pl-3 text-sm text-amber-100">
               Internal note: {event.internalNote}
             </p>
@@ -268,9 +268,9 @@ function actionLabel(action: string): string {
 }
 
 function targetLabel(event: AuditHistoryEvent): string {
-  if (event.saleId !== undefined) return 'Settlement event';
-  if (event.auctionId !== undefined) return 'Auction event';
-  if (event.itemId !== undefined) return 'Collectible event';
+  if (event.saleId != null) return 'Settlement event';
+  if (event.auctionId != null) return 'Auction event';
+  if (event.itemId != null) return 'Collectible event';
   return event.targetType === 'REGULAR_ACCOUNT' ? 'Account event' : 'Operational event';
 }
 

@@ -81,6 +81,7 @@ class PlatformHttpIntegrationTests {
             .perform(get("/v3/api-docs"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.openapi").isNotEmpty())
+            .andExpect(jsonPath("$.servers[0].url").value("/"))
             .andExpect(
                 jsonPath("$.paths['/api/v1/status'].get.operationId").value("getPlatformStatus"))
             .andReturn()

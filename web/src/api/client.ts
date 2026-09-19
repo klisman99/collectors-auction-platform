@@ -297,15 +297,15 @@ export type AuditHistoryEvent = {
   action: string;
   targetType: string;
   targetId: string;
-  auctionId?: string;
-  itemId?: string;
-  saleId?: string;
+  auctionId?: string | null;
+  itemId?: string | null;
+  saleId?: string | null;
   occurredAt: string;
-  reasonCategory?: string;
-  publicReason?: string;
-  amountCents?: number;
-  bidderPseudonym?: string;
-  internalNote?: string;
+  reasonCategory?: string | null;
+  publicReason?: string | null;
+  amountCents?: number | null;
+  bidderPseudonym?: string | null;
+  internalNote?: string | null;
 };
 export type AuditHistoryPage = {
   content: AuditHistoryEvent[];

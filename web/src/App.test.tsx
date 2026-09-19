@@ -221,6 +221,43 @@ describe('App', () => {
     expect(screen.getByText('Trading access is active.')).toBeInTheDocument();
   });
 
+  test('renders account history when optional audit fields are null', async () => {
+    vi.mocked(getAuthenticatedSession).mockResolvedValue({
+      publicHandle: 'collector_27',
+      status: 'ACTIVE',
+      verified: true,
+      canTrade: true,
+    });
+    vi.mocked(listMyHistory).mockResolvedValue({
+      content: [
+        {
+          id: 'audit-27',
+          action: 'REGULAR_ACCOUNT_VERIFIED',
+          targetType: 'REGULAR_ACCOUNT',
+          targetId: 'account-27',
+          auctionId: null,
+          itemId: null,
+          saleId: null,
+          occurredAt: '2026-09-19T17:51:16.997491Z',
+          reasonCategory: null,
+          publicReason: null,
+          amountCents: null,
+          bidderPseudonym: null,
+          internalNote: null,
+        },
+      ],
+      page: 0,
+      size: 20,
+      totalElements: 1,
+      totalPages: 1,
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText('Trading access is active.')).toBeInTheDocument();
+    expect(await screen.findByText('Email verified')).toBeInTheDocument();
+  });
+
   test('keeps a suspended account in read-only mode without marketplace workspaces', async () => {
     vi.mocked(getAuthenticatedSession).mockResolvedValue({
       publicHandle: 'restricted_37',

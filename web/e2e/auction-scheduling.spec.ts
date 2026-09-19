@@ -127,7 +127,7 @@ test('seller publishes, administrator suspends and cancels, and the public timel
     await expect(visitorPage.getByText(title)).toBeVisible();
     await visitorPage.getByRole('button', { name: `View ${title}` }).click();
     await expect(
-      visitorPage.getByText('The collectible approval was revoked after review.'),
+      visitorPage.getByText('The collectible approval was revoked after review.', { exact: true }),
     ).toBeVisible();
     await expect(visitorPage.getByText('Escalated by the operations team.')).not.toBeVisible();
   } finally {
