@@ -28,6 +28,7 @@ vi.mock('./api/client', () => ({
   placeBid: vi.fn(),
   listSuspendedAuctions: vi.fn(),
   listMyScheduledAuctions: vi.fn(),
+  listMySales: vi.fn(),
   getAuction: vi.fn(),
   cancelAuction: vi.fn(),
   createDraft: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock('./api/client', () => ({
   uploadDraftImage: vi.fn(),
   reorderDraftImages: vi.fn(),
   scheduleAuction: vi.fn(),
+  simulateSalePayment: vi.fn(),
   submitDraft: vi.fn(),
   updateAuctionTerms: vi.fn(),
   suspendAuction: vi.fn(),
@@ -44,6 +46,7 @@ vi.mock('./api/client', () => ({
   releaseSuspendedAuction: vi.fn(),
   resumeSuspendedAuction: vi.fn(),
   administrativelyCancelAuction: vi.fn(),
+  recordSaleShipment: vi.fn(),
 }));
 
 vi.mock('./auctions/auctionRealtime', () => ({
@@ -64,11 +67,13 @@ import {
   inviteOperationalAccount,
   listAuctions,
   listDrafts,
+  listMySales,
   listMyScheduledAuctions,
   listOperationalBidHistory,
   listPublicBids,
   listSuspendedAuctions,
   reactivateRegularAccount,
+  recordSaleShipment,
   registerAccount,
   requestPasswordRecovery,
   resetPassword,
@@ -76,6 +81,7 @@ import {
   scheduleAuction,
   signIn,
   signOut,
+  simulateSalePayment,
   suspendRegularAccount,
   verifyEmail,
 } from './api/client';
@@ -111,9 +117,12 @@ describe('App', () => {
     vi.mocked(listOperationalBidHistory).mockReset();
     vi.mocked(listSuspendedAuctions).mockResolvedValue([]);
     vi.mocked(listMyScheduledAuctions).mockResolvedValue([]);
+    vi.mocked(listMySales).mockResolvedValue([]);
     vi.mocked(listPublicBids).mockResolvedValue([]);
     vi.mocked(getAuction).mockReset();
     vi.mocked(scheduleAuction).mockReset();
+    vi.mocked(simulateSalePayment).mockReset();
+    vi.mocked(recordSaleShipment).mockReset();
     vi.mocked(suspendRegularAccount).mockReset();
     window.history.replaceState({}, '', '/');
   });

@@ -57,9 +57,29 @@ test('administrator can invite, activate, and deactivate a non-trading moderator
       .getByRole('region', { name: 'Audit summary' })
       .getByRole('listitem')
       .filter({ hasText: `Target: OPERATIONAL_ACCOUNT ${accountId}` });
-    await expect(
-      auditRecord.getByText('OPERATIONAL_ACCOUNT_DEACTIVATED', { exact: true }),
-    ).toBeVisible();
+    const auditAction = auditRecord.getByText('OPERATIONAL_ACCOUNT_DEACTIVATED', {
+      exact: true,
+    });
+    await expect
+      .poll(
+        async () => {
+          const auditResponse = administratorPage.waitForResponse(
+            (response) => response.url().endsWith('/api/v1/admin/audit-records') && response.ok(),
+          );
+          await administratorPage.reload();
+          const records = (await (await auditResponse).json()) as Array<{
+            action: string;
+            targetId: string;
+          }>;
+          return records.some(
+            (record) =>
+              record.action === 'OPERATIONAL_ACCOUNT_DEACTIVATED' && record.targetId === accountId,
+          );
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(true);
+    await expect(auditAction).toBeVisible();
   } finally {
     await administratorContext.close();
   }

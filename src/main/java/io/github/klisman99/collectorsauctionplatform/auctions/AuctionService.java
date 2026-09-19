@@ -310,6 +310,7 @@ class AuctionService {
           new AuctionSold(
               auction.id(),
               auction.itemId(),
+              auction.itemSnapshot().title(),
               auction.sellerId(),
               finalBid.bidderId(),
               finalBid.amountCents(),

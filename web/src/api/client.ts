@@ -265,6 +265,25 @@ export type BidResult = PublicBid & {
   code: string;
   requiredAmountCents?: number;
 };
+export type Sale = {
+  id: string;
+  auctionId: string;
+  item: { id: string; title: string };
+  buyer: { handle: string };
+  seller: { handle: string };
+  participantRole: 'BUYER' | 'SELLER';
+  amountCents: number;
+  state: 'PAYMENT_PENDING' | 'SHIPMENT_PENDING' | 'SHIPPED' | 'COMPLETED' | 'FAILED';
+  createdAt: string;
+  paymentDeadlineAt: string;
+  shipmentDeadlineAt?: string;
+  paidAt?: string;
+  shippedAt?: string;
+  failedAt?: string;
+  carrier?: string;
+  trackingReference?: string;
+};
+export type ShipmentInput = { carrier: string; trackingReference: string };
 
 client.setConfig({ baseUrl: '/', credentials: 'same-origin' });
 
@@ -467,6 +486,20 @@ export async function listMyScheduledAuctions(): Promise<Auction[]> {
   return response.json() as Promise<Auction[]>;
 }
 
+export async function listMySales(): Promise<Sale[]> {
+  const response = await fetch('/api/v1/sales/mine', { credentials: 'same-origin' });
+  if (!response.ok) throw await apiError(response, 'Your settlement sales could not be loaded.');
+  return response.json() as Promise<Sale[]>;
+}
+
+export async function simulateSalePayment(id: string): Promise<Sale> {
+  return saleRequest(`/api/v1/sales/${id}/payment`, 'POST');
+}
+
+export async function recordSaleShipment(id: string, input: ShipmentInput): Promise<Sale> {
+  return saleRequest(`/api/v1/sales/${id}/shipment`, 'POST', input);
+}
+
 export async function listSuspendedAuctions(): Promise<SuspendedAuction[]> {
   return operationsAuctionRequest('/api/v1/operations/auctions/suspended', 'GET');
 }
@@ -616,6 +649,18 @@ async function operationsAuctionRequest<T>(
   });
   if (!response.ok) throw await apiError(response, 'The auction operation could not be completed.');
   return response.json() as Promise<T>;
+}
+
+async function saleRequest(url: string, method: string, body?: unknown): Promise<Sale> {
+  const csrf = await csrfHeaders();
+  const response = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...csrf.headers },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) throw await apiError(response, 'The settlement action could not be completed.');
+  return response.json() as Promise<Sale>;
 }
 
 async function auctionRequest(url: string, method: string, body: unknown): Promise<Auction> {

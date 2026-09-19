@@ -1,6 +1,7 @@
 import type { AuthenticatedSession } from '../api/client';
 import { PublicAuctionBrowser } from '../auctions/PublicAuctionBrowser';
 import { DraftWorkspace } from '../collectibles/DraftWorkspace';
+import { SettlementWorkspace } from '../settlement/SettlementWorkspace';
 import { Failure, PageFrame } from '../shared/ui';
 
 export function AuthenticatedHome({
@@ -48,6 +49,7 @@ export function AuthenticatedHome({
       </section>
       {canTrade && <DraftWorkspace />}
       <PublicAuctionBrowser canBid={canTrade} />
+      <SettlementWorkspace />
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <button
           className="rounded-lg border border-slate-600 px-4 py-2.5 font-semibold text-slate-100 transition hover:border-cyan-300 hover:text-cyan-200"

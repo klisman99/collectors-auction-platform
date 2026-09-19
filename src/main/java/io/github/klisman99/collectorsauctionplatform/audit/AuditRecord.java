@@ -119,6 +119,24 @@ class AuditRecord {
         ActorType.SYSTEM, null, action, TargetType.AUCTION, auctionId, occurredAt, metadata);
   }
 
+  static AuditRecord accountSaleAction(
+      AuditAction action, UUID accountId, UUID saleId, Instant occurredAt, String metadata) {
+    return new AuditRecord(
+        ActorType.REGULAR_ACCOUNT,
+        accountId,
+        action,
+        TargetType.SALE,
+        saleId,
+        occurredAt,
+        metadata);
+  }
+
+  static AuditRecord systemSaleAction(
+      AuditAction action, UUID saleId, Instant occurredAt, String metadata) {
+    return new AuditRecord(
+        ActorType.SYSTEM, null, action, TargetType.SALE, saleId, occurredAt, metadata);
+  }
+
   static AuditRecord operationalAuctionAction(
       AuditAction action, UUID actorId, UUID auctionId, Instant occurredAt, String metadata) {
     return new AuditRecord(
@@ -248,7 +266,12 @@ class AuditRecord {
     AUCTION_RESUMED,
     AUCTION_ADMINISTRATIVELY_CANCELLED,
     BID_ACCEPTED,
-    BID_DISQUALIFIED
+    BID_DISQUALIFIED,
+    SALE_CREATED,
+    SALE_PAYMENT_RECORDED,
+    SALE_SHIPMENT_RECORDED,
+    SALE_PAYMENT_EXPIRED,
+    SALE_SHIPMENT_EXPIRED
   }
 
   enum TargetType {
@@ -256,6 +279,7 @@ class AuditRecord {
     OPERATIONAL_ACCOUNT,
     COLLECTIBLE_ITEM,
     AUCTION,
-    ACCEPTED_BID
+    ACCEPTED_BID,
+    SALE
   }
 }

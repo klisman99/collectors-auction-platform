@@ -119,6 +119,34 @@ export type TimelineResponse = {
     itemDisposition?: string;
 };
 
+export type ShipmentRequest = {
+    carrier: string;
+    trackingReference: string;
+};
+
+export type ParticipantResponse = {
+    handle?: string;
+};
+
+export type SaleResponse = {
+    id?: string;
+    auctionId?: string;
+    item?: ItemResponse;
+    buyer?: ParticipantResponse;
+    seller?: ParticipantResponse;
+    participantRole?: string;
+    amountCents?: number;
+    state?: string;
+    createdAt?: string;
+    paymentDeadlineAt?: string;
+    shipmentDeadlineAt?: string;
+    paidAt?: string;
+    shippedAt?: string;
+    failedAt?: string;
+    carrier?: string;
+    trackingReference?: string;
+};
+
 export type ReasonRequest = {
     reasonCategory: string;
     publicReason: string;
@@ -484,6 +512,42 @@ export type UpdateAuctionTermsResponses = {
 };
 
 export type UpdateAuctionTermsResponse = UpdateAuctionTermsResponses[keyof UpdateAuctionTermsResponses];
+
+export type RecordSaleShipmentData = {
+    body: ShipmentRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/sales/{id}/shipment';
+};
+
+export type RecordSaleShipmentResponses = {
+    /**
+     * OK
+     */
+    200: SaleResponse;
+};
+
+export type RecordSaleShipmentResponse = RecordSaleShipmentResponses[keyof RecordSaleShipmentResponses];
+
+export type SimulateSalePaymentData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/sales/{id}/payment';
+};
+
+export type SimulateSalePaymentResponses = {
+    /**
+     * OK
+     */
+    200: SaleResponse;
+};
+
+export type SimulateSalePaymentResponse = SimulateSalePaymentResponses[keyof SimulateSalePaymentResponses];
 
 export type SuspendAuctionData = {
     body: ReasonRequest;
@@ -1000,6 +1064,22 @@ export type GetPlatformStatusResponses = {
 };
 
 export type GetPlatformStatusResponse = GetPlatformStatusResponses[keyof GetPlatformStatusResponses];
+
+export type ListMySalesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/sales/mine';
+};
+
+export type ListMySalesResponses = {
+    /**
+     * OK
+     */
+    200: Array<SaleResponse>;
+};
+
+export type ListMySalesResponse = ListMySalesResponses[keyof ListMySalesResponses];
 
 export type ListOperationalBidHistoryData = {
     body?: never;

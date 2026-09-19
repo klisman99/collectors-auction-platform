@@ -7,6 +7,7 @@ import java.util.UUID;
 public record AuctionSold(
     UUID auctionId,
     UUID itemId,
+    String itemTitle,
     UUID sellerId,
     UUID buyerId,
     long amountCents,
