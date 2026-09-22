@@ -99,6 +99,7 @@ compares bid, sale, audit and media counts in a second disposable project. See t
 host kernel/architecture, Docker capacity, and Node runtime. `results.json` contains
 individual experiment results and the `100-bidder-cold-warmup` and
 `100-bidder-measurement` attachments, including failed thresholds.
+`build.log` preserves build/startup diagnostics without backend request logs.
 `readiness.json`, `prometheus.json`, and container status support
 operational diagnosis. Raw database contents, credentials, auth state, and proof HTTP
 traces are not published. Browser traces are for local diagnosis only.

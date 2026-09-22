@@ -45,6 +45,21 @@ checks that disqualifying all earlier bids allows the opening amount again witho
 resetting the durable sequence. These changes preserve locking and atomic persistence.
 The final measured result is in the [verification record](verification.md).
 
+The first complete CI measurement subsequently reached 508.85 ms p95 and failed
+the unchanged 500 ms gate. The per-bidder rate-history query still ran while holding
+the shared auction lock. A deterministic PostgreSQL test paused that query and showed
+another bidder unable to proceed. The query now runs under the account lock before
+acquiring the auction lock; validation precedence and atomic persistence remain intact.
+All attempts, including replays, acquire the account lock before reading idempotency
+history. A second concurrency test demonstrated why this matters: simultaneous retries
+previously returned a rejection instead of the original accepted result.
+
+An earlier CI startup failure had hidden its error in a local-only build log. Build
+output is now streamed and retained, with a shell regression check proving that the
+original failure status and project cleanup are preserved. That startup failure did
+not reproduce on the next runner; its underlying cause cannot be established from
+the incomplete original evidence.
+
 ## Recovery and learning
 
 The recovery mechanism is persisted state plus application-start reconciliation and

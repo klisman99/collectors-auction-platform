@@ -16,7 +16,7 @@ as passes. The source checkout is a working tree until these changes are committ
 | Process restart and durable delivery experiments | Passed: four operational tests, zero skips/retries/failures; one durable order, outcome and sale across injected failures |
 | Prometheus scrape and trace availability | Passed: target up; exact response trace retrieved from Tempo; structured logs and proof-secret checks passed |
 | Backup restore / postmortem exercise | Passed: restored application ready in 17 seconds; 7 bids, 3 sales, 70 audit records, 5 media records and all private file bytes preserved |
-| GitHub Actions | Workflow configured; remote execution not yet observed |
+| GitHub Actions | Current remote results are tracked in [PR #67](https://github.com/klisman99/collectors-auction-platform/pull/67); the local snapshot below does not certify CI |
 
 The final operational suite started at `2026-09-22T18:32:12.189Z` and completed in
 155.84 seconds. The restart scenario ran from `18:32:57.787Z` to `18:34:25.385Z`;
@@ -46,6 +46,8 @@ real process kills. The lost-acknowledgement case discards the client response; 
 not interrupt a network packet at the commit boundary. Backup timing covers a cold
 snapshot restore into a second local project, not continuous recovery.
 
-Local acceptance passed. M6's remote reproducibility gate remains unverified until
-GitHub Actions executes this change successfully from a clean checkout. No remote
-workflow execution or public deployment is claimed.
+Local acceptance passed. M6's remote reproducibility gate requires GitHub Actions
+to execute the current PR revision successfully from a clean checkout. A subsequent
+CI run measured 508.85 ms p95 and exposed additional contention; see the
+[diagnosis and regression coverage](postmortem.md). Current CI evidence is attached
+to PR #67. No public deployment is claimed.
