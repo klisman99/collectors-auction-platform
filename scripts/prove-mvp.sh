@@ -46,7 +46,9 @@ trap cleanup EXIT
   docker info --format 'CPUs={{.NCPU}} MemoryBytes={{.MemTotal}}'
   node --version
 } > artifacts/proof/environment.txt
-"${compose[@]}" up --detach --build > artifacts/proof/build.log 2>&1
+# Keep build/pull failures visible in CI; pipefail preserves Compose's status.
+# This contains startup output, not backend request logs or authentication traces.
+"${compose[@]}" up --detach --build 2>&1 | tee artifacts/proof/build.log
 for attempt in {1..120}; do
   if curl --fail --silent "$BASE_URL/actuator/health/readiness" > /dev/null; then break; fi
   sleep 2

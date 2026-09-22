@@ -49,6 +49,9 @@ jobs:
       - name: Validate documentation
         run: node scripts/check-docs.mjs
 
+      - name: Verify proof startup failure diagnostics
+        run: bash scripts/tests/prove-mvp-startup.sh
+
       - name: Check Java formatting conventions
         run: ./mvnw --batch-mode --no-transfer-progress spotless:check
 
@@ -133,6 +136,7 @@ jobs:
           name: mvp-proof-${{ github.sha }}
           path: |
             artifacts/proof/environment.txt
+            artifacts/proof/build.log
             artifacts/proof/results.json
             artifacts/proof/readiness.json
             artifacts/proof/prometheus.json
