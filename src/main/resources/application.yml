@@ -44,6 +44,10 @@ server:
         secure: ${SESSION_COOKIE_SECURE:false}
 
 management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   endpoints:
     web:
       exposure:

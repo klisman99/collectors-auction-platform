@@ -163,14 +163,9 @@ class BiddingService {
           receivedAt);
     }
 
-    var latestEligible =
-        acceptedBids.findAllEligibleByAuctionIdOrderBySequenceDesc(auctionId).stream().findFirst();
-    long requiredAmount =
-        latestEligible.isEmpty()
-            ? auction.currentAmountCents()
-            : Math.min(
-                100_000_001L,
-                Math.addExact(latestEligible.get().amountCents(), auction.minimumIncrementCents()));
+    // The locked auction maintains this projection atomically with bid acceptance
+    // and disqualification. Reading history again extends the contention window.
+    long requiredAmount = auction.nextMinimumAmountCents();
     if (amountCents < requiredAmount || amountCents > 100_000_000L) {
       return record(
           auctionId,

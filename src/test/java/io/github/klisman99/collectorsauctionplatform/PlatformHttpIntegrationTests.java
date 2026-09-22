@@ -61,6 +61,13 @@ class PlatformHttpIntegrationTests {
   }
 
   @Test
+  void allowsPrivateNetworkPrometheusScrapingButKeepsOtherActuatorEndpointsRestricted()
+      throws Exception {
+    mockMvc.perform(get("/actuator/prometheus")).andExpect(status().isOk());
+    mockMvc.perform(get("/actuator/metrics")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void exposesACsrfTokenForFutureSessionBackedCommands() throws Exception {
     var result =
         mockMvc

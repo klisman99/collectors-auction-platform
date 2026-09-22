@@ -1,4 +1,4 @@
-name: Verify platform baseline
+name: Verify reproducible MVP
 
 on:
   push:
@@ -52,8 +52,17 @@ jobs:
       - name: Check Java formatting conventions
         run: ./mvnw --batch-mode --no-transfer-progress spotless:check
 
-      - name: Verify backend
-        run: ./mvnw --batch-mode --no-transfer-progress verify
+      - name: Verify backend without skipped test layers
+        run: |
+          ./mvnw --batch-mode --no-transfer-progress verify
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          from xml.etree import ElementTree
+          reports = [ElementTree.parse(path).getroot() for path in Path('target/surefire-reports').glob('TEST-*.xml')]
+          assert reports, 'Backend test reports are missing'
+          assert sum(int(report.get('tests', 0)) for report in reports) > 0
+          assert all(int(report.get('skipped', 0)) == 0 for report in reports), 'A required backend test layer was skipped'
+          PYTHON
 
       - name: Install frontend dependencies
         run: pnpm --dir web install --frozen-lockfile
@@ -109,28 +118,25 @@ jobs:
       - name: Install Playwright browser
         run: pnpm --dir web exec playwright install --with-deps chromium
 
-      - name: Start application stack
-        shell: bash
-        run: |
-          INITIAL_ADMINISTRATOR_EMAIL=admin-e2e@example.com \
-          INITIAL_ADMINISTRATOR_PASSWORD='e2e administrator password' \
-          docker compose up --detach --build
-          for attempt in {1..60}; do
-            if curl --fail --silent http://127.0.0.1:8080/actuator/health/liveness >/dev/null; then
-              break
-            fi
-            sleep 2
-          done
-          curl --fail --silent http://127.0.0.1:8080/actuator/health/liveness >/dev/null
+      - name: Run isolated browser and operational acceptance proof
+        run: bash scripts/prove-mvp.sh
 
-      - name: Run browser integration tests
-        run: pnpm --dir web run e2e
-        env:
-          BASE_URL: http://127.0.0.1:8080
-          MAILPIT_URL: http://127.0.0.1:8025
-          INITIAL_ADMINISTRATOR_EMAIL: admin-e2e@example.com
-          INITIAL_ADMINISTRATOR_PASSWORD: e2e administrator password
+      - name: Assert clean tracked checkout
+        run: git diff --exit-code
 
-      - name: Tear down application stack
+      # Stable release verified 2026-09-19:
+      # https://github.com/actions/upload-artifact/releases/tag/v7.0.1
+      - name: Retain acceptance evidence
         if: always()
-        run: docker compose down --volumes
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: mvp-proof-${{ github.sha }}
+          path: |
+            artifacts/proof/environment.txt
+            artifacts/proof/results.json
+            artifacts/proof/readiness.json
+            artifacts/proof/prometheus.json
+            artifacts/proof/containers.txt
+            artifacts/proof/backup.json
+          if-no-files-found: warn
+          retention-days: 14

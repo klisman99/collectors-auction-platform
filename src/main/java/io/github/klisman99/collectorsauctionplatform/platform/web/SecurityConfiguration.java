@@ -42,6 +42,7 @@ class SecurityConfiguration {
                     .requestMatchers(
                         "/v3/api-docs/**",
                         "/actuator/health/**",
+                        "/actuator/prometheus",
                         "/api/v1/csrf",
                         "/api/v1/status",
                         "/api/v1/auth/register",

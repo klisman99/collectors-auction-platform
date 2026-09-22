@@ -52,14 +52,24 @@ test('administrator can invite, activate, and deactivate a non-trading moderator
     await accountSelect.selectOption({ label: `${email} · MODERATOR · ACTIVE` });
     const accountId = await accountSelect.inputValue();
     await deactivationForm.getByLabel('Public reason').fill('End of operational assignment');
+    const deactivated = administratorPage.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/operational-accounts/${accountId}/deactivate`) &&
+        response.request().method() === 'POST',
+    );
     await deactivationForm.getByRole('button', { name: 'Deactivate account' }).click();
-    await administratorPage.reload();
-    await expect(
-      administratorPage
-        .getByRole('listitem')
-        .filter({ hasText: 'Operational account deactivated' })
-        .filter({ hasText: `Target: OPERATIONAL_ACCOUNT ${accountId}` }),
-    ).toBeVisible();
+    expect((await deactivated).ok()).toBeTruthy();
+    // Audit projection is durable and asynchronous; reload only after the
+    // command completes, then wait for the read model to catch up.
+    await expect(async () => {
+      await administratorPage.reload();
+      await expect(
+        administratorPage
+          .getByRole('listitem')
+          .filter({ hasText: 'Operational account deactivated' })
+          .filter({ hasText: `Target: OPERATIONAL_ACCOUNT ${accountId}` }),
+      ).toBeVisible();
+    }).toPass({ timeout: 15_000 });
   } finally {
     await administratorContext.close();
   }

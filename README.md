@@ -50,7 +50,7 @@ The goal is not to accumulate technologies. Every architectural addition must so
 
 ## Current status
 
-The executable platform baseline is available on the `platform-baseline` branch. Product behavior remains tracked as vertical slices in GitHub Issues.
+The product journey is implemented through layered history. The final operational acceptance gate is documented in [MVP proof](docs/operations/mvp-proof.md), with [measured verification status](docs/operations/verification.md) and [recovery runbooks](docs/operations/runbook.md).
 
 ## Run the platform locally
 
@@ -97,3 +97,10 @@ With the backend running, verify that generated frontend types match the live ba
 ```bash
 corepack pnpm@11.19.0 --dir web run contract:check
 ```
+
+## Reproduce the MVP acceptance evidence
+
+After installing the verification prerequisites above, run `bash scripts/prove-mvp.sh`.
+It builds an isolated disposable stack, runs browser journeys and forced-restart experiments,
+and enforces the 100-bidder latency and correctness gates. See the
+[complete command sequence and evidence matrix](docs/operations/mvp-proof.md).

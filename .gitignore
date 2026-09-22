@@ -8,3 +8,7 @@ web/dist/
 web/.vite/
 *.log
 coverage/
+artifacts/
+web/test-results/
+web/playwright-report/
+backups/

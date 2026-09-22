@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.klisman99.collectorsauctionplatform.accountadministration.AccountAdministrationService;
 import io.github.klisman99.collectorsauctionplatform.identity.RegularAccountSuspensionReasonCategory;
+import jakarta.persistence.EntityManagerFactory;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -12,6 +13,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +58,8 @@ class BiddingConcurrencyIntegrationTests {
 
   @Autowired private TransactionTemplate transactions;
 
+  @Autowired private EntityManagerFactory entityManagerFactory;
+
   @BeforeEach
   void clearFixtures() {
     jdbcTemplate.update("DELETE FROM bid_attempts");
@@ -92,6 +96,62 @@ class BiddingConcurrencyIntegrationTests {
             jdbcTemplate.queryForObject(
                 "SELECT current_amount_cents FROM auctions WHERE id = ?", Long.class, auctionId))
         .isEqualTo(10_000L);
+  }
+
+  @Test
+  void rejectingACompetingBidDoesNotHydrateAuctionMediaOrTimeline() {
+    UUID sellerId = activeAccount("seller");
+    UUID bidderId = activeAccount("bidder");
+    UUID auctionId = liveAuction(sellerId, 10_000, 1_000);
+    bidding.place(bidderId, auctionId, UUID.randomUUID(), 10_000);
+
+    var statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+    boolean previouslyEnabled = statistics.isStatisticsEnabled();
+    statistics.setStatisticsEnabled(true);
+    var media =
+        statistics.getCollectionStatistics(
+            "io.github.klisman99.collectorsauctionplatform.auctions.Auction.snapshotMedia");
+    var timeline =
+        statistics.getCollectionStatistics(
+            "io.github.klisman99.collectorsauctionplatform.auctions.Auction.timeline");
+    long mediaLoads = media.getLoadCount();
+    long timelineLoads = timeline.getLoadCount();
+    try {
+      BidCommandResult rejected = bidding.place(bidderId, auctionId, UUID.randomUUID(), 10_000);
+      assertThat(rejected.code()).isEqualTo("BID_AMOUNT_TOO_LOW");
+      assertThat(media.getLoadCount()).isEqualTo(mediaLoads);
+      assertThat(timeline.getLoadCount()).isEqualTo(timelineLoads);
+    } finally {
+      statistics.setStatisticsEnabled(previouslyEnabled);
+    }
+  }
+
+  @Test
+  void acceptsTheOpeningAmountAfterTheLastEligibleBidIsDisqualified() {
+    UUID sellerId = activeAccount("seller");
+    UUID firstBidderId = activeAccount("first_bidder");
+    UUID nextBidderId = activeAccount("next_bidder");
+    UUID auctionId = liveAuction(sellerId, 10_000, 1_000);
+    assertThat(bidding.place(firstBidderId, auctionId, UUID.randomUUID(), 20_000).status())
+        .isEqualTo(BidCommandResult.Status.ACCEPTED);
+
+    accountAdministration.suspend(
+        UUID.randomUUID(),
+        firstBidderId,
+        RegularAccountSuspensionReasonCategory.FRAUD,
+        "Review the bidder's eligibility.",
+        "BR-BID-018: reset the minimum while preserving accepted bid order.");
+
+    BidCommandResult next = bidding.place(nextBidderId, auctionId, UUID.randomUUID(), 10_000);
+    assertThat(next.status()).isEqualTo(BidCommandResult.Status.ACCEPTED);
+    assertThat(next.sequence()).isEqualTo(2);
+    assertThat(next.requiredAmountCents()).isEqualTo(10_000);
+    assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM accepted_bids", Integer.class))
+        .isEqualTo(2);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM bid_disqualifications", Integer.class))
+        .isEqualTo(1);
   }
 
   @Test
