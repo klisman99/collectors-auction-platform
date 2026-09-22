@@ -43,7 +43,7 @@ public class AuctionBidding {
 
   @Transactional
   public BidAvailability inspectBidWindow(UUID auctionId) {
-    Optional<Auction> result = auctions.findByIdForUpdate(auctionId);
+    Optional<Auction> result = auctions.findBiddingStateByIdForUpdate(auctionId);
     if (result.isEmpty()) {
       return BidAvailability.notFound();
     }
@@ -59,6 +59,7 @@ public class AuctionBidding {
             auction.sellerId(),
             auction.currentAmountCents(),
             auction.minimumIncrementCents(),
+            auction.nextMinimumAmountCents(),
             auction.effectiveEndAt(),
             now));
   }
@@ -149,6 +150,7 @@ public class AuctionBidding {
       UUID sellerId,
       long currentAmountCents,
       long minimumIncrementCents,
+      long nextMinimumAmountCents,
       Instant effectiveEndAt,
       Instant acceptedAt) {}
 

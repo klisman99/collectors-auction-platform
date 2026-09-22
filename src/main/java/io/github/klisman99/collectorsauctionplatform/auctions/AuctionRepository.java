@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -20,6 +21,13 @@ interface AuctionRepository extends JpaRepository<Auction, UUID> {
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select auction from Auction auction where auction.id = :id")
   Optional<Auction> findByIdForUpdate(@Param("id") UUID id);
+
+  // Bidding needs scalar state only. Keep media and timeline out of the lock's
+  // critical path while retaining the full graph for public views and lifecycle commands.
+  @EntityGraph(attributePaths = "id", type = EntityGraph.EntityGraphType.FETCH)
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select auction from Auction auction where auction.id = :id")
+  Optional<Auction> findBiddingStateByIdForUpdate(@Param("id") UUID id);
 
   List<Auction> findAllByStateOrderByStartsAtAsc(Auction.State state);
 

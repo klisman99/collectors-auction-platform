@@ -46,6 +46,9 @@ class BiddingService {
   @Transactional
   BidCommandResult place(UUID bidderId, UUID auctionId, UUID idempotencyKey, long amountCents) {
     Instant receivedAt = Instant.now(clock);
+    // Serialize every attempt for this bidder, including concurrent replays,
+    // before reading its original result or rate-limit history.
+    AccountDirectory.TradingAccount bidder = accounts.lockTradingAccount(bidderId);
     var previous =
         attempts
             .findAllByAuctionIdAndBidderIdAndIdempotencyKeyOrderByReceivedAtAsc(
@@ -79,7 +82,12 @@ class BiddingService {
           receivedAt);
     }
 
-    AccountDirectory.TradingAccount bidder = accounts.lockTradingAccount(bidderId);
+    // The account lock protects this bidder's history independently of the
+    // auction. Query it before joining the auction's serialized critical path;
+    // preserve the existing validation precedence below.
+    long recentAttempts =
+        attempts.countByAuctionIdAndBidderIdAndReceivedAtGreaterThanEqual(
+            auctionId, bidderId, receivedAt.minusSeconds(1));
     AuctionBidding.BidAvailability availability = auctions.inspectBidWindow(auctionId);
     if (!availability.exists()) {
       return record(
@@ -144,9 +152,7 @@ class BiddingService {
           receivedAt);
     }
 
-    if (attempts.countByAuctionIdAndBidderIdAndReceivedAtGreaterThanEqual(
-            auctionId, bidderId, receivedAt.minusSeconds(1))
-        >= 10) {
+    if (recentAttempts >= 10) {
       return record(
           auctionId,
           bidderId,
@@ -163,14 +169,9 @@ class BiddingService {
           receivedAt);
     }
 
-    var latestEligible =
-        acceptedBids.findAllEligibleByAuctionIdOrderBySequenceDesc(auctionId).stream().findFirst();
-    long requiredAmount =
-        latestEligible.isEmpty()
-            ? auction.currentAmountCents()
-            : Math.min(
-                100_000_001L,
-                Math.addExact(latestEligible.get().amountCents(), auction.minimumIncrementCents()));
+    // The locked auction maintains this projection atomically with bid acceptance
+    // and disqualification. Reading history again extends the contention window.
+    long requiredAmount = auction.nextMinimumAmountCents();
     if (amountCents < requiredAmount || amountCents > 100_000_000L) {
       return record(
           auctionId,

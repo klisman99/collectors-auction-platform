@@ -4,6 +4,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -13,7 +15,9 @@ import java.util.UUID;
 @Table(name = "bid_attempts")
 class BidAttempt {
 
-  @Id private UUID id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;
 
   @Column(name = "auction_id", nullable = false, updatable = false)
   private UUID auctionId;
@@ -69,7 +73,6 @@ class BidAttempt {
       BidCommandResult.Status storedStatus,
       BidCommandResult result,
       Instant receivedAt) {
-    this.id = UUID.randomUUID();
     this.auctionId = auctionId;
     this.bidderId = bidderId;
     this.idempotencyKey = idempotencyKey;

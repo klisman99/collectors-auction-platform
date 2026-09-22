@@ -62,6 +62,8 @@ Dates are intentionally omitted until weekly capacity is known. Every milestone 
 
 The proof includes restart experiments, durable listener recovery, security checks, OpenAPI/client drift checks, 100-bidder concurrency, p95 bid responses below 500 ms, live events below one second, dashboards, traces, runbooks, and a postmortem exercise.
 
+The [reproducible proof suite](../operations/mvp-proof.md), [verification record](../operations/verification.md), and [operations runbook](../operations/runbook.md) define the M6 gate. Local acceptance passed on 2026-09-22: measured 100-bidder p95 was 420.26 ms and live delivery was 175 ms. The record retains cold-start variability and the workload limits. M6's remote reproducibility gate remains unverified until GitHub Actions runs this change successfully from a clean checkout.
+
 ## Later evolution candidates
 
 These are not commitments. Each requires an RFC and evidence.
