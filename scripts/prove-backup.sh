@@ -12,20 +12,20 @@ started_at=$(date -u +%FT%TZ)
 started_seconds=$SECONDS
 cleanup_backup() {
   status=$?
-  "${source_compose[@]}" start minio backend web > /dev/null 2>&1 || true
+  "${source_compose[@]}" start seaweedfs backend web > /dev/null 2>&1 || true
   "${restore_compose[@]}" down --volumes --remove-orphans > /dev/null 2>&1 || true
   rm -rf "$backup_dir"
   exit "$status"
 }
 trap cleanup_backup EXIT
-"${source_compose[@]}" stop web backend minio > /dev/null
+"${source_compose[@]}" stop web backend seaweedfs > /dev/null
 "${source_compose[@]}" exec -T postgres pg_dump -U collectors -d collectors_auction -Fc > "$backup_dir/database.dump"
-source_minio=$("${source_compose[@]}" ps --all --quiet minio)
-docker cp "$source_minio:/data/." - > "$backup_dir/minio.tar"
+source_seaweedfs=$("${source_compose[@]}" ps --all --quiet seaweedfs)
+docker cp "$source_seaweedfs:/data/." - > "$backup_dir/seaweedfs.tar"
 counts="SELECT 'bids',count(*) FROM accepted_bids UNION ALL SELECT 'sales',count(*) FROM sales UNION ALL SELECT 'audit',count(*) FROM audit_records UNION ALL SELECT 'media',count(*) FROM collectible_item_media ORDER BY 1;"
 "${source_compose[@]}" exec -T postgres psql -X -qAt -U collectors -d collectors_auction -c "$counts" > "$backup_dir/before.txt"
 # The restore uses a distinct namespace and ports and reuses the proven images.
-export WEB_PORT=28080 POSTGRES_PORT=25432 MINIO_API_PORT=29000 MINIO_CONSOLE_PORT=29001
+export WEB_PORT=28080 POSTGRES_PORT=25432 S3_API_PORT=28333
 export MAILPIT_SMTP_PORT=21025 MAILPIT_WEB_PORT=28025
 # Reuse images without rebuilding or relying on the default project's images.
 docker tag "$source_project-backend" "$restore_project-backend"
@@ -36,12 +36,12 @@ for attempt in {1..60}; do
   sleep 1
 done
 "${restore_compose[@]}" exec -T postgres pg_restore -U collectors -d collectors_auction --exit-on-error < "$backup_dir/database.dump"
-"${restore_compose[@]}" create minio > /dev/null
-restore_minio=$("${restore_compose[@]}" ps --all --quiet minio)
-docker cp - "$restore_minio:/data" < "$backup_dir/minio.tar"
-docker cp "$restore_minio:/data/." - > "$backup_dir/restored-minio.tar"
+"${restore_compose[@]}" create seaweedfs > /dev/null
+restore_seaweedfs=$("${restore_compose[@]}" ps --all --quiet seaweedfs)
+docker cp - "$restore_seaweedfs:/data" < "$backup_dir/seaweedfs.tar"
+docker cp "$restore_seaweedfs:/data/." - > "$backup_dir/restored-seaweedfs.tar"
 # Compare every restored file by path and SHA-256, independently of tar ordering.
-python3 - "$backup_dir/minio.tar" "$backup_dir/restored-minio.tar" <<'PY'
+python3 - "$backup_dir/seaweedfs.tar" "$backup_dir/restored-seaweedfs.tar" <<'PY'
 import hashlib, sys, tarfile
 
 def manifest(path):

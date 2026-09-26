@@ -14,7 +14,7 @@ This document turns ADR-0002 into an implementation baseline. Exact backend vers
 | HTTP and validation | Spring MVC and Jakarta Validation | Boot-managed | Spring Boot BOM |
 | Authentication and authorization | Spring Security server-side sessions | Boot-managed | Spring Boot BOM |
 | Persistence and migrations | Spring Data JPA, PostgreSQL JDBC, Flyway | Boot-managed | Spring Boot BOM |
-| Managed image storage | MinIO Java SDK | 9.0.1 | Explicit, outside Spring Boot BOM |
+| Managed image storage | AWS SDK for Java v2 S3 | 2.55.6 | AWS BOM, outside Spring Boot BOM |
 | WebP decoding | Sejda ImageIO WebP | 0.1.6 | Explicit, outside Spring Boot BOM |
 | Realtime | Spring WebSocket with STOMP simple broker | Boot-managed | Spring Boot BOM |
 | Operations | Actuator, Micrometer, OpenTelemetry | Boot-managed where available | Reviewed integration |
@@ -38,7 +38,7 @@ Exact frontend dependency versions are selected from mutually compatible stable 
 - One Maven backend application and executable Spring Boot JAR.
 - One Vite SPA exposed under the same browser origin through a reverse proxy.
 - One PostgreSQL database with documented table ownership per module.
-- One private MinIO bucket set for original normalized images and thumbnails.
+- One private S3-compatible bucket for normalized display images and thumbnails.
 - REST/JSON under `/api/v1`; stable errors use Problem Details with `code`, `ruleId`, `fieldErrors`, and `traceId`.
 - Session cookies are HttpOnly and SameSite; production-like profiles set Secure; mutating requests use CSRF tokens.
 - Public read-only STOMP subscriptions share the same origin; domain commands remain HTTP-only.
@@ -46,7 +46,7 @@ Exact frontend dependency versions are selected from mutually compatible stable 
 
 ## Local and operational stack
 
-The default Docker Compose environment contains PostgreSQL, MinIO, and Mailpit. An optional observability profile adds Prometheus, Grafana, and Tempo. The application emits structured JSON logs, Micrometer metrics, and OpenTelemetry traces.
+The default Docker Compose environment contains PostgreSQL, SeaweedFS 4.47, and Mailpit. An optional observability profile adds Prometheus, Grafana, and Tempo. The application emits structured JSON logs, Micrometer metrics, and OpenTelemetry traces. SeaweedFS stores private objects on a named volume and exposes S3 only on host loopback.
 
 GitHub Actions validates documentation, backend and frontend builds, tests, generated OpenAPI/client drift, container images, and the reproducible local packaging. A public deployment is not required for the MVP.
 
@@ -85,13 +85,12 @@ Additional first-slice dependencies were verified against official sources on 20
 - [springdoc compatibility and stable release](https://springdoc.org/)
 - [Hey API OpenAPI TypeScript generator](https://www.npmjs.com/package/@hey-api/openapi-ts)
 - [NGINX official container tags](https://hub.docker.com/_/nginx)
-- [MinIO server release and final official container tag](https://github.com/minio/minio/releases/tag/RELEASE.2025-09-07T16-13-09Z)
-- [MinIO client release and official container tag](https://github.com/minio/mc/releases/tag/RELEASE.2025-08-13T08-35-41Z)
 
-The catalog media dependencies were verified on 2026-09-07:
+The catalog media dependencies were verified on 2026-09-07 and the S3 replacement on 2026-09-25:
 
-- [MinIO Java SDK 9.0.1 release](https://github.com/minio/minio-java/releases/tag/9.0.1)
-- [MinIO Java SDK Maven usage](https://github.com/minio/minio-java)
+- [SeaweedFS 4.47 release](https://github.com/seaweedfs/seaweedfs/releases/tag/4.47)
+- [SeaweedFS Docker quick start](https://github.com/seaweedfs/seaweedfs#docker)
+- [AWS SDK for Java v2 2.55.6 release](https://github.com/aws/aws-sdk-java-v2/releases/tag/2.55.6)
 - [Sejda WebP ImageIO 0.1.6 artifact](https://central.sonatype.com/artifact/org.sejda.imageio/webp-imageio/0.1.6)
 
 The Java formatting toolchain was verified on 2026-09-07:

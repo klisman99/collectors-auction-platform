@@ -4,11 +4,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export E2E_COMPOSE_PROJECT="collectors-proof-${GITHUB_RUN_ID:-$(date +%s)}"
 export COMPOSE_PROJECT_NAME="$E2E_COMPOSE_PROJECT"
-export WEB_PORT=18080 POSTGRES_PORT=15432 MINIO_API_PORT=19000 MINIO_CONSOLE_PORT=19001
+export WEB_PORT=18080 POSTGRES_PORT=15432 S3_API_PORT=18333
 export MAILPIT_SMTP_PORT=11025 MAILPIT_WEB_PORT=18025
 export PROMETHEUS_PORT=19090 GRAFANA_PORT=13000 TEMPO_PORT=13200 OTLP_PORT=14318
 export POSTGRES_DB=collectors_auction POSTGRES_USER=collectors POSTGRES_PASSWORD=collectors
-export MINIO_ROOT_USER=minioadmin MINIO_ROOT_PASSWORD=minioadmin MINIO_BUCKET=collectors-images
+export S3_ACCESS_KEY=collectors S3_SECRET_KEY=collectors-local-secret S3_BUCKET=collectors-images
 export INITIAL_ADMINISTRATOR_EMAIL=admin-proof@example.com
 export INITIAL_ADMINISTRATOR_PASSWORD='operational proof administrator password'
 export BASE_URL=http://127.0.0.1:18080 MAILPIT_URL=http://127.0.0.1:18025

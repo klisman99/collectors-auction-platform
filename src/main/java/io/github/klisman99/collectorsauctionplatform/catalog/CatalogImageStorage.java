@@ -1,11 +1,10 @@
 package io.github.klisman99.collectorsauctionplatform.catalog;
 
-import io.minio.GetObjectArgs;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
-import io.minio.RemoveObjectArgs;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /** Catalog-owned port; object storage is always private and never exposed as a URL. */
 interface CatalogImageStorage {
@@ -17,24 +16,22 @@ interface CatalogImageStorage {
   void delete(String key);
 }
 
-final class MinioCatalogImageStorage implements CatalogImageStorage {
+final class S3CatalogImageStorage implements CatalogImageStorage {
 
-  private final MinioClient client;
+  private final S3Client client;
   private final String bucket;
 
-  MinioCatalogImageStorage(MinioClient client, String bucket) {
+  S3CatalogImageStorage(S3Client client, String bucket) {
     this.client = client;
     this.bucket = bucket;
   }
 
   @Override
   public void put(String key, byte[] bytes, String contentType) {
-    try (InputStream input = new ByteArrayInputStream(bytes)) {
+    try {
       client.putObject(
-          PutObjectArgs.builder().bucket(bucket).object(key).stream(
-                  input, Long.valueOf(bytes.length), -1L)
-              .contentType(contentType)
-              .build());
+          PutObjectRequest.builder().bucket(bucket).key(key).contentType(contentType).build(),
+          RequestBody.fromBytes(bytes));
     } catch (Exception exception) {
       throw CatalogStorageException.unavailable(
           "The managed image store could not save the rendition.", exception);
@@ -43,9 +40,10 @@ final class MinioCatalogImageStorage implements CatalogImageStorage {
 
   @Override
   public byte[] get(String key) {
-    try (InputStream input =
-        client.getObject(GetObjectArgs.builder().bucket(bucket).object(key).build())) {
-      return input.readAllBytes();
+    try {
+      return client
+          .getObjectAsBytes(GetObjectRequest.builder().bucket(bucket).key(key).build())
+          .asByteArray();
     } catch (Exception exception) {
       throw CatalogStorageException.unavailable(
           "The managed image store could not read the rendition.", exception);
@@ -55,7 +53,7 @@ final class MinioCatalogImageStorage implements CatalogImageStorage {
   @Override
   public void delete(String key) {
     try {
-      client.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(key).build());
+      client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
     } catch (Exception exception) {
       throw CatalogStorageException.unavailable(
           "The managed image store could not remove the rendition.", exception);

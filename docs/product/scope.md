@@ -62,7 +62,7 @@
 
 ### Local operation
 
-- Run locally through Docker Compose with PostgreSQL, MinIO, and Mailpit.
+- Run locally through Docker Compose with PostgreSQL, SeaweedFS, and Mailpit.
 - Offer an optional observability profile with Prometheus, Grafana, and Tempo.
 - Build and validate the system through GitHub Actions without requiring a public deployment.
 

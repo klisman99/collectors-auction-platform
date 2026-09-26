@@ -21,8 +21,8 @@
         <java.version>25</java.version>
         <springdoc.version>3.1.0</springdoc.version>
         <spring-modulith.version>2.1.1</spring-modulith.version>
-        <!-- Verified against the official MinIO Java SDK releases on 2026-09-07. -->
-        <minio.version>9.0.1</minio.version>
+        <!-- Verified against official AWS SDK releases on 2026-09-25. -->
+        <aws-sdk.version>2.55.6</aws-sdk.version>
         <webp-imageio.version>0.1.6</webp-imageio.version>
     </properties>
 
@@ -32,6 +32,13 @@
                 <groupId>org.springframework.modulith</groupId>
                 <artifactId>spring-modulith-bom</artifactId>
                 <version>${spring-modulith.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws-sdk.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -112,15 +119,8 @@
             <version>${springdoc.version}</version>
         </dependency>
         <dependency>
-            <groupId>io.minio</groupId>
-            <artifactId>minio</artifactId>
-            <version>${minio.version}</version>
-        </dependency>
-        <!-- MinIO 9.x publishes the multiplatform okhttp metadata artifact; Maven needs the JVM artifact explicitly. -->
-        <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>okhttp-jvm</artifactId>
-            <version>5.3.2</version>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
         </dependency>
         <dependency>
             <groupId>org.sejda.imageio</groupId>

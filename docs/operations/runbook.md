@@ -14,7 +14,7 @@ returns 404 through NGINX. The backend must remain unexposed to host traffic.
 
 | SLI | Acceptance or investigation trigger | First action |
 | --- | --- | --- |
-| Readiness and Prometheus `up` | Target remains healthy outside injected outage | Check backend, PostgreSQL and MinIO container status |
+| Readiness and Prometheus `up` | Target remains healthy outside injected outage | Check backend, PostgreSQL and SeaweedFS container status |
 | Bid p95 | Below 500 ms for 100-command proof | Compare 422 below-minimum rejections with 429 limits and 5xx errors; inspect JDBC saturation and database locks |
 | Committed live delivery | Below one second in browser proof | Compare persisted REST snapshot with STOMP projection; inspect listener errors and event backlog |
 | Pending durable events | Returns to zero after recovery | Restore failed dependency and restart backend to republish outstanding events |
@@ -54,7 +54,7 @@ new command. Reconnect live clients through their normal REST snapshot recovery.
 
 ## Backup and restore exercise
 
-PostgreSQL and private MinIO objects form one recoverable data set. Pause writers for
+PostgreSQL and private SeaweedFS objects form one recoverable data set. Pause writers for
 a consistent local backup; a database dump alone does not preserve draft media. Protect
 the backup directory because it includes credentials, tokens, identity and private media.
 Store deployment secrets separately. This cold-backup procedure makes no zero-downtime
@@ -63,13 +63,13 @@ claim. Recovery point is the stopped-writer snapshot; record actual downtime as 
 ```bash
 umask 077
 mkdir -p backups/exercise
-docker compose stop web backend minio-init minio
+docker compose stop web backend seaweedfs
 docker compose exec -T postgres pg_dump -U collectors -d collectors_auction -Fc > backups/exercise/database.dump
-minio_container=$(docker compose ps --all --quiet minio)
-docker cp "$minio_container:/data/." - > backups/exercise/minio.tar
-# Preserve the exact private object volume bytes while the MinIO server is stopped.
-sha256sum backups/exercise/database.dump backups/exercise/minio.tar > backups/exercise/SHA256SUMS
-docker compose start minio backend web
+seaweedfs_container=$(docker compose ps --all --quiet seaweedfs)
+docker cp "$seaweedfs_container:/data/." - > backups/exercise/seaweedfs.tar
+# Preserve the exact private object volume bytes while SeaweedFS is stopped.
+sha256sum backups/exercise/database.dump backups/exercise/seaweedfs.tar > backups/exercise/SHA256SUMS
+docker compose start seaweedfs backend web
 ```
 
 Restore into a **new disposable Compose project**, with different host ports and a
@@ -84,9 +84,9 @@ sha256sum --check backups/exercise/SHA256SUMS
 docker compose -p "$target" up -d postgres
 docker compose -p "$target" exec -T postgres pg_restore \
   -U collectors -d collectors_auction --exit-on-error < backups/exercise/database.dump
-docker compose -p "$target" create minio
-restored_minio=$(docker compose -p "$target" ps --all --quiet minio)
-docker cp - "$restored_minio:/data" < backups/exercise/minio.tar
+docker compose -p "$target" create seaweedfs
+restored_seaweedfs=$(docker compose -p "$target" ps --all --quiet seaweedfs)
+docker cp - "$restored_seaweedfs:/data" < backups/exercise/seaweedfs.tar
 docker compose -p "$target" up -d
 ```
 

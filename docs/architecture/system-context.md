@@ -12,7 +12,7 @@ flowchart LR
     Moderator[Moderator] --> Platform
     Administrator[Administrator] --> Platform
     Platform --> Email[Mailpit simulated email]
-    Platform --> Objects[MinIO object storage]
+    Platform --> Objects[Private S3-compatible object storage]
     Platform --> Payment[Simulated payment]
     Platform --> Shipping[Simulated shipping]
     Platform --> Observability[Optional local observability stack]
@@ -44,7 +44,7 @@ The MVP uses a modular monolith with explicit backend boundaries:
 
 The backend is one executable Spring Boot application and one PostgreSQL database. The React SPA is built separately and exposed under the same browser origin as `/api` and the STOMP endpoint through a reverse proxy.
 
-PostgreSQL is the source of truth. MinIO stores private managed media. Mailpit provides local simulated email. Real-time messages and internal listeners project already committed facts and never decide whether a bid, transition, or outcome is valid.
+PostgreSQL is the source of truth. SeaweedFS stores private managed media in the local stack through the S3 API. Mailpit provides local simulated email. Real-time messages and internal listeners project already committed facts and never decide whether a bid, transition, or outcome is valid.
 
 Kafka, Redis, microservices, Kubernetes, external payment, and public-cloud services are intentionally not initial assumptions.
 

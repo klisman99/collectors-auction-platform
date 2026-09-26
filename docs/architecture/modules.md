@@ -60,7 +60,7 @@ Owns the atomic administrative regular-account suspension and reactivation use c
 
 ### catalog
 
-Owns generic collectible drafts, category, condition, ownership declaration, managed image ordering and metadata, item lifecycle, auction lock, relisting eligibility, archival, and immutable item snapshot creation. MinIO is accessed through a catalog-owned storage port.
+Owns generic collectible drafts, category, condition, ownership declaration, managed image ordering and metadata, item lifecycle, auction lock, relisting eligibility, archival, and immutable item snapshot creation. Private S3-compatible storage is accessed through a catalog-owned storage port.
 
 ### moderation
 

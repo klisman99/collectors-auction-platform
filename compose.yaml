@@ -17,32 +17,23 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
 
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    command: server /data --console-address ":9001"
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.47
+    command: ["mini", "-dir=/data"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-collectors}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-collectors-local-secret}
+      S3_BUCKET: ${S3_BUCKET:-collectors-images}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8333/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${S3_API_PORT:-8333}:8333"
     volumes:
-      - minio-data:/data
-
-  minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
-    depends_on:
-      - minio
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MINIO_BUCKET: ${MINIO_BUCKET:-collectors-images}
-    entrypoint:
-      - /bin/sh
-      - -ec
-      - |
-        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do sleep 1; done
-        mc mb --ignore-existing "local/$$MINIO_BUCKET"
+      - seaweedfs-data:/data
 
   mailpit:
     image: axllent/mailpit:v1.30.0
@@ -56,16 +47,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
+      seaweedfs:
+        condition: service_healthy
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-collectors_auction}
       DATABASE_USERNAME: ${POSTGRES_USER:-collectors}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-collectors}
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MINIO_BUCKET: ${MINIO_BUCKET:-collectors-images}
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-collectors}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-collectors-local-secret}
+      S3_PATH_STYLE_ACCESS: ${S3_PATH_STYLE_ACCESS:-true}
+      S3_BUCKET: ${S3_BUCKET:-collectors-images}
       MAIL_HOST: mailpit
       MAIL_PORT: "1025"
       PUBLIC_WEB_BASE_URL: http://localhost:${WEB_PORT:-8080}
@@ -127,7 +120,7 @@ services:
 
 volumes:
   postgres-data:
-  minio-data:
+  seaweedfs-data:
   prometheus-data:
   grafana-data:
   tempo-data:
