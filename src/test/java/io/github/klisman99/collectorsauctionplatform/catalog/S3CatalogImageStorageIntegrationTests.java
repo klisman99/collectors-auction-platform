@@ -101,8 +101,7 @@ class S3CatalogImageStorageIntegrationTests {
           .isEqualTo("DOWN");
       assertThatThrownBy(
               () ->
-                  new S3CatalogImageStorage(client, "missing-bucket")
-                      .put("item/media/display.jpg", new byte[] {1}, "image/jpeg"))
+                  new S3CatalogImageStorage(client, "missing-bucket").get("item/media/display.jpg"))
           .isInstanceOf(CatalogStorageException.class);
     }
 
