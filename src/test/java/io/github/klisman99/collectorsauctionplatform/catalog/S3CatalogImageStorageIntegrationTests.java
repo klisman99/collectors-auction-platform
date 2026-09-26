@@ -3,12 +3,15 @@ package io.github.klisman99.collectorsauctionplatform.catalog;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.Volume;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.DockerClientFactory;
@@ -29,27 +32,26 @@ class S3CatalogImageStorageIntegrationTests {
 
   private static final String BUCKET = "collectors-images";
 
-  @Container
-  static final GenericContainer<?> seaweedfs =
-      new GenericContainer<>(DockerImageName.parse("chrislusf/seaweedfs:4.47"))
-          .withCommand("mini", "-dir=/data")
-          .withEnv("AWS_ACCESS_KEY_ID", "collectors")
-          .withEnv("AWS_SECRET_ACCESS_KEY", "collectors-local-secret")
-          .withEnv("S3_BUCKET", BUCKET)
-          .withExposedPorts(8333);
+  @Container static final GenericContainer<?> seaweedfs = container(null);
 
   @BeforeAll
   static void waitForBucket() throws InterruptedException {
+    waitForBucket(seaweedfs);
+  }
+
+  private static void waitForBucket(GenericContainer<?> container) throws InterruptedException {
     long deadline = System.nanoTime() + Duration.ofSeconds(60).toNanos();
     while (System.nanoTime() < deadline) {
-      try (S3Client client = client(endpoint())) {
+      try (S3Client client = client(endpoint(container))) {
         client.headBucket(HeadBucketRequest.builder().bucket(BUCKET).build());
         return;
       } catch (Exception exception) {
         Thread.sleep(500);
       }
     }
-    throw new AssertionError("SeaweedFS did not create the private media bucket.");
+    throw new AssertionError(
+        "SeaweedFS did not create the private media bucket. Container logs:\n"
+            + container.getLogs());
   }
 
   @Test
@@ -128,26 +130,51 @@ class S3CatalogImageStorageIntegrationTests {
   void keepsObjectsAfterServerRestart() throws InterruptedException {
     String key = "restart-proof/display.jpg";
     byte[] rendition = "persistent rendition".getBytes(StandardCharsets.UTF_8);
-    try (S3Client client = client(endpoint())) {
-      new S3CatalogImageStorage(client, BUCKET).put(key, rendition, "image/jpeg");
-    }
-
-    DockerClientFactory.instance().client().restartContainerCmd(seaweedfs.getContainerId()).exec();
-
-    long deadline = System.nanoTime() + Duration.ofSeconds(60).toNanos();
-    while (System.nanoTime() < deadline) {
-      try (S3Client client = client(endpoint())) {
-        assertThat(new S3CatalogImageStorage(client, BUCKET).get(key)).isEqualTo(rendition);
-        return;
-      } catch (CatalogStorageException exception) {
-        Thread.sleep(500);
+    String volumeName = "seaweedfs-test-" + UUID.randomUUID();
+    var docker = DockerClientFactory.instance().client();
+    docker.createVolumeCmd().withName(volumeName).exec();
+    try {
+      try (GenericContainer<?> first = container(volumeName)) {
+        first.start();
+        waitForBucket(first);
+        try (S3Client client = client(endpoint(first))) {
+          new S3CatalogImageStorage(client, BUCKET).put(key, rendition, "image/jpeg");
+        }
       }
+
+      try (GenericContainer<?> restarted = container(volumeName)) {
+        restarted.start();
+        waitForBucket(restarted);
+        try (S3Client client = client(endpoint(restarted))) {
+          assertThat(new S3CatalogImageStorage(client, BUCKET).get(key)).isEqualTo(rendition);
+        }
+      }
+    } finally {
+      docker.removeVolumeCmd(volumeName).exec();
     }
-    throw new AssertionError("The S3 rendition did not survive a SeaweedFS restart.");
   }
 
   private static URI endpoint() {
-    return URI.create("http://" + seaweedfs.getHost() + ":" + seaweedfs.getMappedPort(8333));
+    return endpoint(seaweedfs);
+  }
+
+  private static URI endpoint(GenericContainer<?> container) {
+    return URI.create("http://" + container.getHost() + ":" + container.getMappedPort(8333));
+  }
+
+  private static GenericContainer<?> container(String volumeName) {
+    GenericContainer<?> container =
+        new GenericContainer<>(DockerImageName.parse("chrislusf/seaweedfs:4.47"))
+            .withCommand("mini", "-dir=/data")
+            .withEnv("AWS_ACCESS_KEY_ID", "collectors")
+            .withEnv("AWS_SECRET_ACCESS_KEY", "collectors-local-secret")
+            .withEnv("S3_BUCKET", BUCKET)
+            .withExposedPorts(8333);
+    if (volumeName != null) {
+      container.withCreateContainerCmdModifier(
+          command -> command.getHostConfig().withBinds(new Bind(volumeName, new Volume("/data"))));
+    }
+    return container;
   }
 
   private static S3Client client(URI endpoint) {
