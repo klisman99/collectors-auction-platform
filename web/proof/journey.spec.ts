@@ -187,7 +187,7 @@ test('BR-BID-008..011: 100 contenders, durable order, live latency and full sett
     );
     expect(privateObjectKey).not.toBe('');
     expect(
-      (await visitor.get(`http://127.0.0.1:19000/collectors-images/${privateObjectKey}`)).status(),
+      (await visitor.get(`http://127.0.0.1:18333/collectors-images/${privateObjectKey}`)).status(),
     ).toBe(403);
 
     expect(

@@ -10,6 +10,8 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties("platform.image-storage")
 public record ImageStorageProperties(
     @NotNull URI endpoint,
+    @NotBlank String region,
     @NotBlank String accessKey,
     @NotBlank String secretKey,
+    boolean pathStyleAccess,
     @NotBlank String bucket) {}

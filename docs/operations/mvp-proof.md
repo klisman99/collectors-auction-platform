@@ -8,7 +8,7 @@ requires all correctness assertions and both latency thresholds to pass in the s
 
 For ordinary development, copy `.env.example` to `.env`, supply the bootstrap
 administrator credentials, and run `docker compose up --build`. The application is
-at <http://localhost:8080>, with private object storage in MinIO and email in Mailpit.
+at <http://localhost:8080>, with private object storage in SeaweedFS and email in Mailpit.
 Add `OTEL_TRACING_ENABLED=true docker compose --profile observability up --build`
 for Prometheus, Grafana and Tempo.
 
@@ -26,8 +26,8 @@ bash scripts/prove-mvp.sh
 ```
 
 The script builds both images and launches a fresh `collectors-proof-*` Compose
-project, using ports 18080 (web), 18025 (Mailpit), 15432 (PostgreSQL), 19000/19001
-(MinIO), 19090 (Prometheus), 13000 (Grafana), and 13200/14318 (Tempo/OTLP).
+project, using ports 18080 (web), 18025 (Mailpit), 15432 (PostgreSQL), 18333
+(SeaweedFS S3), 19090 (Prometheus), 13000 (Grafana), and 13200/14318 (Tempo/OTLP).
 These ports must be free. It supplies disposable credentials independently of `.env`,
 regenerates and compares the OpenAPI client, runs browser journeys and operational
 experiments, verifies Prometheus scraping, and removes only that project's volumes.
